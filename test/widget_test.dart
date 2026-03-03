@@ -11,7 +11,7 @@ import 'package:architectula_education_app/app.dart';
 
 void main() {
   testWidgets('shows splash title', (WidgetTester tester) async {
-    await tester.pumpWidget(const ArchitectulaApp());
+    await tester.pumpWidget(const ArchitectulaApp(firebaseReady: false));
 
     expect(find.text('Architectula Education'), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));

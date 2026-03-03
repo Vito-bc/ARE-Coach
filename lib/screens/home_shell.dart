@@ -6,9 +6,10 @@ import 'profile_screen.dart';
 import 'tests_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  const HomeShell({super.key, required this.firebaseReady});
 
   static const routeName = '/home';
+  final bool firebaseReady;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -17,17 +18,17 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  final _screens = const [
-    DashboardScreen(),
-    TestsScreen(),
-    CoachScreen(),
-    ProfileScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      DashboardScreen(firebaseReady: widget.firebaseReady),
+      TestsScreen(firebaseReady: widget.firebaseReady),
+      const CoachScreen(),
+      const ProfileScreen(),
+    ];
+
     return Scaffold(
-      body: _screens[_index],
+      body: screens[_index],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (value) => setState(() => _index = value),

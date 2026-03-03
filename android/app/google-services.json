@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "92053975450",
+    "project_id": "architect-study-app",
+    "storage_bucket": "architect-study-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:92053975450:android:efd0b4e837858490a40a23",
+        "android_client_info": {
+          "package_name": "com.archedu.architectula_education_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBltSGjV3ekqJj64r_-YCKCWALWOtHaKsY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:92053975450:android:020efdd65e3b8632a40a23",
+        "android_client_info": {
+          "package_name": "com.example.are_edu_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBltSGjV3ekqJj64r_-YCKCWALWOtHaKsY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

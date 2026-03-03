@@ -8,6 +8,9 @@ NYC-first ARE preparation app with AI coach, voice interaction, test workflows, 
 - Coach chat with API-ready service (`--dart-define=COACH_API_URL=...`)
 - Voice support (STT + TTS) for coach interaction
 - Firebase and Hive initialization entry point
+- Phase 2 foundation: anonymous auth bootstrap + Firestore question repository
+- Firestore config files: `firestore.rules`, `firestore.indexes.json`
+- NYC seed dataset: `assets/seeds/questions_ny.json`
 
 ## Run
 ```bash
@@ -18,7 +21,7 @@ flutter run --dart-define=COACH_API_URL=https://<region>-<project>.cloudfunction
 If `COACH_API_URL` is not set, the app responds with a safe local fallback answer.
 
 ## Next technical steps
-1. Configure Firebase (`flutterfire configure`) and add `firebase_options.dart`.
+1. Follow [docs/FIREBASE_PHASE2.md](docs/FIREBASE_PHASE2.md) to configure and deploy Firebase.
 2. Move AI calls behind Cloud Functions with auth + rate limiting by subscription tier.
 3. Add Stripe/Apple in-app purchases and enforce daily token quotas in backend.
 4. Persist test attempts and weak-topic analytics in Firestore.

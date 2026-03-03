@@ -1,0 +1,28 @@
+{
+  "name": "architectula_education_app",
+  "version": "1.0.0",
+  "description": "NYC-first ARE preparation app with AI coach, voice interaction, test workflows, and readiness tracking.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vito-bc/ARE-Coach.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Vito-bc/ARE-Coach/issues"
+  },
+  "homepage": "https://github.com/Vito-bc/ARE-Coach#readme",
+  "dependencies": {
+    "firebase-admin": "^13.7.0"
+  }
+}

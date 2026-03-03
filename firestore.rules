@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.role == 'admin';
+    }
+
+    match /questions/{questionId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read, write: if isOwner(uid) || isAdmin();
+    }
+
+    match /attempts/{uid}/sessions/{sessionId} {
+      allow read, write: if isOwner(uid) || isAdmin();
+    }
+
+    match /analytics/{uid}/weakTopics/{topicId} {
+      allow read, write: if isOwner(uid) || isAdmin();
+    }
+
+    match /coach_chats/{uid}/threads/{threadId} {
+      allow read, write: if isOwner(uid) || isAdmin();
+
+      match /messages/{messageId} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    match /usage/{uid}/daily/{dateKey} {
+      allow read, write: if isOwner(uid) || isAdmin();
+    }
+
+    match /subscriptions/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}

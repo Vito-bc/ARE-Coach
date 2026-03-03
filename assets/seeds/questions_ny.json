@@ -1,0 +1,67 @@
+[
+  {
+    "id": "ny_q1",
+    "state": "NY",
+    "section": "Programming & Analysis",
+    "difficulty": "medium",
+    "question": "Egress stair width for 300 occupants in an assembly hall?",
+    "options": ["44 in", "60 in", "72 in", "96 in"],
+    "correctOption": "60 in",
+    "explanation": "Formula: 300 x 0.2 in/person = 60 in for stairs.",
+    "codeReference": "IBC 2021 1005.3.1",
+    "examWeight": 15
+  },
+  {
+    "id": "ny_q2",
+    "state": "NY",
+    "section": "Project Management",
+    "difficulty": "easy",
+    "question": "What determines project completion in CPM?",
+    "options": [
+      "Budget line items",
+      "Critical path with zero float",
+      "Longest individual task",
+      "Client review dates"
+    ],
+    "correctOption": "Critical path with zero float",
+    "explanation": "Tasks with zero total float define the completion date.",
+    "codeReference": "AIA Project Management Practice",
+    "examWeight": 8
+  },
+  {
+    "id": "ny_q3",
+    "state": "NY",
+    "section": "PPD",
+    "difficulty": "medium",
+    "question": "Maximum ADA ramp slope for an accessible route?",
+    "options": ["1:8", "1:10", "1:12", "1:16"],
+    "correctOption": "1:12",
+    "explanation": "ADA allows maximum running slope of 1:12 (8.33%).",
+    "codeReference": "2010 ADA 405.2",
+    "examWeight": 12
+  },
+  {
+    "id": "ny_q4",
+    "state": "NY",
+    "section": "PjM",
+    "difficulty": "medium",
+    "question": "Best contract for uncertain scope with shared risk?",
+    "options": ["Lump sum", "Cost plus", "Unit price", "Guaranteed max price"],
+    "correctOption": "Guaranteed max price",
+    "explanation": "GMP caps owner cost while sharing contingency risk.",
+    "codeReference": "AIA A133",
+    "examWeight": 10
+  },
+  {
+    "id": "ny_q5",
+    "state": "NY",
+    "section": "CE",
+    "difficulty": "easy",
+    "question": "Who issues a change order in standard AIA workflow?",
+    "options": ["Contractor only", "Architect only", "Owner and contractor with architect input", "City inspector"],
+    "correctOption": "Owner and contractor with architect input",
+    "explanation": "CO is owner-contractor agreement; architect prepares and reviews.",
+    "codeReference": "AIA A201",
+    "examWeight": 7
+  }
+]

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({super.key, required this.firebaseReady});
+
+  final bool firebaseReady;
 
   @override
   Widget build(BuildContext context) {
@@ -12,6 +14,17 @@ class DashboardScreen extends StatelessWidget {
           const Text(
             'NYC ARE Dashboard',
             style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Chip(
+              label: Text(firebaseReady ? 'Backend connected' : 'Demo mode'),
+              avatar: Icon(
+                firebaseReady ? Icons.cloud_done_outlined : Icons.play_circle_outline,
+                size: 18,
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           Card(
@@ -65,6 +78,38 @@ class DashboardScreen extends StatelessWidget {
                   _weakRow('Project Management', 31),
                   _weakRow('Programming & Analysis', 38),
                   _weakRow('Structural Systems', 43),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '90-second Demo',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Shows adaptive question, code citation, and weak-topic recommendation.',
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Demo flow: Dashboard -> Test insight -> Coach explanation',
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Text('Play Product Demo'),
+                  ),
                 ],
               ),
             ),

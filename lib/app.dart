@@ -6,7 +6,9 @@ import 'screens/onboarding_screen.dart';
 import 'screens/splash_screen.dart';
 
 class ArchitectulaApp extends StatelessWidget {
-  const ArchitectulaApp({super.key});
+  const ArchitectulaApp({super.key, required this.firebaseReady});
+
+  final bool firebaseReady;
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +19,7 @@ class ArchitectulaApp extends StatelessWidget {
       routes: {
         SplashScreen.routeName: (_) => const SplashScreen(),
         OnboardingScreen.routeName: (_) => const OnboardingScreen(),
-        HomeShell.routeName: (_) => const HomeShell(),
+        HomeShell.routeName: (_) => HomeShell(firebaseReady: firebaseReady),
       },
       initialRoute: SplashScreen.routeName,
     );

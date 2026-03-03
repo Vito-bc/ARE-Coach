@@ -29,6 +29,23 @@ class _CoachScreenState extends State<CoachScreen> {
   bool _voiceReady = false;
   bool _listening = false;
 
+  static const _demoPrompt = 'I do not understand egress capacity for 300 people in a hall.';
+  static const _demoReply = '''
+Formula:
+Required stair egress width = occupant load x 0.2 in/person
+300 x 0.2 = 60 inches
+
+Code reference:
+IBC 2021 Section 1005.3.1 (verify NYC amendments).
+
+Exam value:
+Usually tested as a 10-15 point competency item.
+
+Common mistakes:
+1) Using 0.15 instead of 0.2 for stair calculations.
+2) Ignoring minimum clear width requirements.
+''';
+
   @override
   void initState() {
     super.initState();
@@ -94,6 +111,23 @@ class _CoachScreenState extends State<CoachScreen> {
     await _voiceService.speak(coachMessages.last.text);
   }
 
+  void _runDemoScenario() {
+    if (_loading) return;
+    setState(() {
+      _messages.add(ChatMessage(
+        role: ChatRole.user,
+        text: _demoPrompt,
+        time: DateTime.now(),
+      ));
+      _messages.add(ChatMessage(
+        role: ChatRole.coach,
+        text: _demoReply,
+        time: DateTime.now(),
+      ));
+    });
+    _scrollToBottom();
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
@@ -124,12 +158,26 @@ class _CoachScreenState extends State<CoachScreen> {
               'AI Coach',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
-            subtitle: const Text('Premium: voice + exam interview simulation'),
+            subtitle: const Text('Premium: voice + interview simulation'),
             trailing: IconButton(
               onPressed: _speakLastCoachMessage,
               icon: const Icon(Icons.volume_up_outlined),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                const Chip(label: Text('Demo mode')),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: _runDemoScenario,
+                  child: const Text('Run demo'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
