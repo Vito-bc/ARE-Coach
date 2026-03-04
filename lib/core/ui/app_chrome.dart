@@ -124,6 +124,20 @@ class AppGlassCard extends StatelessWidget {
         border: Border.all(
           color: isDark ? Colors.white.withValues(alpha: 0.14) : const Color(0xFFE5E7EB),
         ),
+        boxShadow: [
+          if (!isDark)
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          if (isDark)
+            BoxShadow(
+              color: const Color(0xFF67E8F9).withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+        ],
       ),
       child: child,
     );

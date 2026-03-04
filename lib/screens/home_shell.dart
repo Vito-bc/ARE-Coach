@@ -41,13 +41,30 @@ class _HomeShellState extends State<HomeShell> {
       body: screens[_index],
       bottomNavigationBar: NavigationBar(
         backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88),
+        indicatorColor: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.22),
         selectedIndex: _index,
         onDestinationSelected: (value) => setState(() => _index = value),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.quiz_outlined), label: 'Tests'),
-          NavigationDestination(icon: Icon(Icons.mic_none_rounded), label: 'Coach'),
-          NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard_rounded),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.quiz_outlined),
+            selectedIcon: Icon(Icons.quiz_rounded),
+            label: 'Tests',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.mic_none_rounded),
+            selectedIcon: Icon(Icons.mic_rounded),
+            label: 'Coach',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Profile',
+          ),
         ],
       ),
     );
