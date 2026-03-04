@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
 class CoachService {
@@ -26,14 +27,39 @@ This is often a 10-15 point competency question. Typical mistakes: using 0.15 fo
     }
 
     try {
+      String? token;
+      try {
+        token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      } catch (_) {
+        token = null;
+      }
+
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+      };
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
       final response = await _client.post(
         Uri.parse(endpoint),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: jsonEncode({'prompt': prompt}),
       );
 
+      if (response.statusCode == 429) {
+        final payload = _asMap(response.body);
+        final limit = payload['limit'];
+        final used = payload['used'];
+        return 'Daily AI limit reached ($used/$limit). Upgrade to premium or try tomorrow.';
+      }
+
+      if (response.statusCode == 401) {
+        return 'Authentication required. Please re-open the app and try again.';
+      }
+
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        final payload = jsonDecode(response.body) as Map<String, dynamic>;
+        final payload = _asMap(response.body);
         final answer = payload['answer']?.toString();
         if (answer != null && answer.trim().isNotEmpty) {
           return answer;
@@ -43,6 +69,14 @@ This is often a 10-15 point competency question. Typical mistakes: using 0.15 fo
     } catch (_) {
       return _fallback;
     }
+  }
+
+  Map<String, dynamic> _asMap(String raw) {
+    final decoded = jsonDecode(raw);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    return <String, dynamic>{};
   }
 
   void dispose() => _client.close();

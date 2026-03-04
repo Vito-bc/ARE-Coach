@@ -22,6 +22,6 @@ If `COACH_API_URL` is not set, the app responds with a safe local fallback answe
 
 ## Next technical steps
 1. Follow [docs/FIREBASE_PHASE2.md](docs/FIREBASE_PHASE2.md) to configure and deploy Firebase.
-2. Move AI calls behind Cloud Functions with auth + rate limiting by subscription tier.
+2. Set up Phase 4 AI backend with quotas: [docs/PHASE4_BACKEND.md](docs/PHASE4_BACKEND.md).
 3. Add Stripe/Apple in-app purchases and enforce daily token quotas in backend.
 4. Persist test attempts and weak-topic analytics in Firestore.

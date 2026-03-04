@@ -1,1 +1,32 @@
-{"firestore":{"rules":"firestore.rules","indexes":"firestore.indexes.json"},"flutter":{"platforms":{"android":{"default":{"projectId":"architect-study-app","appId":"1:92053975450:android:efd0b4e837858490a40a23","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"architect-study-app","configurations":{"android":"1:92053975450:android:efd0b4e837858490a40a23","ios":"1:92053975450:ios:c3456b3778224d32a40a23","macos":"1:92053975450:ios:c3456b3778224d32a40a23","web":"1:92053975450:web:920d7f33e0df02b8a40a23","windows":"1:92053975450:web:fb471487b8222b9ea40a23"}}}}}}
+{
+  "functions": {
+    "source": "functions"
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "architect-study-app",
+          "appId": "1:92053975450:android:efd0b4e837858490a40a23",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "architect-study-app",
+          "configurations": {
+            "android": "1:92053975450:android:efd0b4e837858490a40a23",
+            "ios": "1:92053975450:ios:c3456b3778224d32a40a23",
+            "macos": "1:92053975450:ios:c3456b3778224d32a40a23",
+            "web": "1:92053975450:web:920d7f33e0df02b8a40a23",
+            "windows": "1:92053975450:web:fb471487b8222b9ea40a23"
+          }
+        }
+      }
+    }
+  }
+}
