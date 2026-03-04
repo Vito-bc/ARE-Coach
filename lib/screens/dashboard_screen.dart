@@ -50,173 +50,299 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
-      child: FutureBuilder<DashboardMetrics>(
-        future: _metricsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final metrics = snapshot.data ??
-              const DashboardMetrics(
-                readinessPercent: 42,
-                attemptsCount: 0,
-                weakSections: [],
-                sectionTrends: [],
-              );
-
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              const Text(
-                'NYC ARE Dashboard',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Chip(
-                  label: Text(widget.firebaseReady ? 'Backend connected' : 'Demo mode'),
-                  avatar: Icon(
-                    widget.firebaseReady
-                        ? Icons.cloud_done_outlined
-                        : Icons.play_circle_outline,
-                    size: 18,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        height: 90,
-                        width: 90,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            CircularProgressIndicator(
-                              value: (metrics.readinessPercent / 100).clamp(0, 1),
-                              strokeWidth: 10,
-                              backgroundColor: Colors.grey.shade200,
-                            ),
-                            Center(
-                              child: Text(
-                                '${metrics.readinessPercent}%',
-                                style: const TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          'You are ${metrics.readinessPercent}% ready.\nRecent attempts: ${metrics.attemptsCount}.',
-                          style: const TextStyle(fontSize: 15),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Weak Sections',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 10),
-                      if (metrics.weakSections.isEmpty)
-                        const Text('No attempts yet. Complete one test to unlock analytics.')
-                      else
-                        ...metrics.weakSections
-                            .map((m) => _weakRow(m.section, m.accuracy)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Section Trends',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 10),
-                      if (metrics.sectionTrends.isEmpty)
-                        const Text('Need at least one completed test to calculate trends.')
-                      else
-                        ...metrics.sectionTrends.map(_trendRow),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '90-second Demo',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Shows adaptive question, code citation, and weak-topic recommendation.',
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Demo flow: Dashboard -> Test insight -> Coach explanation',
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Text('Play Product Demo'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => AttemptHistoryScreen(firebaseReady: widget.firebaseReady),
-                    ),
+      child: Stack(
+        children: [
+          Positioned.fill(child: _buildBackdrop(isDark)),
+          FutureBuilder<DashboardMetrics>(
+            future: _metricsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final metrics = snapshot.data ??
+                  const DashboardMetrics(
+                    readinessPercent: 42,
+                    attemptsCount: 0,
+                    weakSections: [],
+                    sectionTrends: [],
                   );
-                },
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('View Attempt History'),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.mic),
-                label: const Text('Talk to Coach'),
-              ),
-            ],
-          );
-        },
+
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Text(
+                    'NYC ARE Dashboard',
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Chip(
+                      label: Text(widget.firebaseReady ? 'Backend connected' : 'Demo mode'),
+                      avatar: Icon(
+                        widget.firebaseReady
+                            ? Icons.cloud_done_outlined
+                            : Icons.play_circle_outline,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _glassCard(
+                    context,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            height: 90,
+                            width: 90,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                CircularProgressIndicator(
+                                  value: (metrics.readinessPercent / 100).clamp(0, 1),
+                                  strokeWidth: 10,
+                                  backgroundColor: Colors.grey.shade200.withValues(alpha: 0.4),
+                                ),
+                                Center(
+                                  child: Text(
+                                    '${metrics.readinessPercent}%',
+                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              'You are ${metrics.readinessPercent}% ready.\nRecent attempts: ${metrics.attemptsCount}.',
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _glassCard(
+                    context,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Weak Sections',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 10),
+                          if (metrics.weakSections.isEmpty)
+                            const Text('No attempts yet. Complete one test to unlock analytics.')
+                          else
+                            ...metrics.weakSections.map((m) => _weakRow(m.section, m.accuracy)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _glassCard(
+                    context,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Section Trends',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 10),
+                          if (metrics.sectionTrends.isEmpty)
+                            const Text('Need at least one completed test to calculate trends.')
+                          else
+                            ...metrics.sectionTrends.map(_trendRow),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _glassCard(
+                    context,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '90-second Demo',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Shows adaptive question, code citation, and weak-topic recommendation.',
+                          ),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Demo flow: Dashboard -> Test insight -> Coach explanation',
+                                  ),
+                                ),
+                              );
+                            },
+                            child: const Text('Play Product Demo'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AttemptHistoryScreen(firebaseReady: widget.firebaseReady),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('View Attempt History'),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.mic),
+                    label: const Text('Talk to Coach'),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildBackdrop(bool isDark) {
+    if (!isDark) {
+      return Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFE9F7F6),
+              Color(0xFFF6F5FF),
+              Color(0xFFFFF5EF),
+            ],
+          ),
+        ),
+        child: Align(
+          alignment: Alignment.topRight,
+          child: Container(
+            width: 240,
+            height: 240,
+            margin: const EdgeInsets.only(right: 20, top: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(200),
+              gradient: RadialGradient(
+                colors: [
+                  const Color(0xFFB7E9E5).withValues(alpha: 0.45),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF020611),
+                Color(0xFF06122A),
+                Color(0xFF0C1A37),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: -80,
+          top: -40,
+          child: Container(
+            width: 280,
+            height: 280,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  const Color(0xFF1D4ED8).withValues(alpha: 0.32),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          right: -50,
+          top: 80,
+          child: Container(
+            width: 240,
+            height: 240,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  const Color(0xFF06B6D4).withValues(alpha: 0.26),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+        ...List.generate(18, (i) {
+          final x = (i * 41) % 360;
+          final y = (i * 73) % 680;
+          return Positioned(
+            left: x.toDouble(),
+            top: y.toDouble(),
+            child: Container(
+              width: i % 3 == 0 ? 2.4 : 1.5,
+              height: i % 3 == 0 ? 2.4 : 1.5,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: i % 3 == 0 ? 0.8 : 0.55),
+                shape: BoxShape.circle,
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _glassCard(BuildContext context, {required Widget child}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: isDark ? Colors.white.withValues(alpha: 0.07) : Colors.white.withValues(alpha: 0.88),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.14) : const Color(0xFFD7E2E2),
+        ),
+      ),
+      child: child,
     );
   }
 

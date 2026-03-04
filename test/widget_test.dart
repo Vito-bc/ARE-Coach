@@ -6,12 +6,18 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 
 import 'package:architectula_education_app/app.dart';
 
 void main() {
   testWidgets('shows splash title', (WidgetTester tester) async {
-    await tester.pumpWidget(const ArchitectulaApp(firebaseReady: false));
+    await tester.pumpWidget(
+      const ArchitectulaApp(
+        firebaseReady: false,
+        initialThemeMode: ThemeMode.light,
+      ),
+    );
 
     expect(find.text('Architectula Education'), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));

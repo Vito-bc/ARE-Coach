@@ -34,6 +34,7 @@ class ArchitectulaBootstrap extends StatefulWidget {
 
 class _ArchitectulaBootstrapState extends State<ArchitectulaBootstrap> {
   bool _initializing = true;
+  ThemeMode _themeMode = ThemeMode.light;
 
   @override
   void initState() {
@@ -42,6 +43,10 @@ class _ArchitectulaBootstrapState extends State<ArchitectulaBootstrap> {
   }
 
   Future<void> _init() async {
+    final box = await Hive.openBox('settings');
+    final isDark = box.get('darkMode', defaultValue: false) as bool;
+    _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+
     if (widget.firebaseReady) {
       try {
         final authService = AuthService();
@@ -63,6 +68,9 @@ class _ArchitectulaBootstrapState extends State<ArchitectulaBootstrap> {
         ),
       );
     }
-    return ArchitectulaApp(firebaseReady: widget.firebaseReady);
+    return ArchitectulaApp(
+      firebaseReady: widget.firebaseReady,
+      initialThemeMode: _themeMode,
+    );
   }
 }

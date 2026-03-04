@@ -1,14 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import 'core/theme/app_theme.dart';
 import 'screens/home_shell.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/splash_screen.dart';
 
-class ArchitectulaApp extends StatelessWidget {
-  const ArchitectulaApp({super.key, required this.firebaseReady});
+class ArchitectulaApp extends StatefulWidget {
+  const ArchitectulaApp({
+    super.key,
+    required this.firebaseReady,
+    required this.initialThemeMode,
+  });
 
   final bool firebaseReady;
+  final ThemeMode initialThemeMode;
+
+  @override
+  State<ArchitectulaApp> createState() => _ArchitectulaAppState();
+}
+
+class _ArchitectulaAppState extends State<ArchitectulaApp> {
+  late ThemeMode _themeMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _themeMode = widget.initialThemeMode;
+  }
+
+  Future<void> _setDarkMode(bool enabled) async {
+    setState(() => _themeMode = enabled ? ThemeMode.dark : ThemeMode.light);
+    final box = Hive.box('settings');
+    await box.put('darkMode', enabled);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,10 +41,16 @@ class ArchitectulaApp extends StatelessWidget {
       title: 'Architectula Education',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: _themeMode,
       routes: {
         SplashScreen.routeName: (_) => const SplashScreen(),
         OnboardingScreen.routeName: (_) => const OnboardingScreen(),
-        HomeShell.routeName: (_) => HomeShell(firebaseReady: firebaseReady),
+        HomeShell.routeName: (_) => HomeShell(
+              firebaseReady: widget.firebaseReady,
+              isDarkMode: _themeMode == ThemeMode.dark,
+              onThemeChanged: _setDarkMode,
+            ),
       },
       initialRoute: SplashScreen.routeName,
     );
