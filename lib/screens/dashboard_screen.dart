@@ -231,35 +231,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildBackdrop(bool isDark) {
     if (!isDark) {
-      return Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE9F7F6),
-              Color(0xFFF6F5FF),
-              Color(0xFFFFF5EF),
-            ],
+      return Stack(
+        children: [
+          Container(color: const Color(0xFFF7F8FA)),
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _DayBlueprintPainter(),
+            ),
           ),
-        ),
-        child: Align(
-          alignment: Alignment.topRight,
-          child: Container(
-            width: 240,
-            height: 240,
-            margin: const EdgeInsets.only(right: 20, top: 8),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(200),
-              gradient: RadialGradient(
-                colors: [
-                  const Color(0xFFB7E9E5).withValues(alpha: 0.45),
-                  Colors.transparent,
-                ],
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: Container(
+              height: 120,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    const Color(0xFFEFF3F8).withValues(alpha: 0.9),
+                    Colors.transparent,
+                  ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       );
     }
 
@@ -337,9 +335,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: isDark ? Colors.white.withValues(alpha: 0.07) : Colors.white.withValues(alpha: 0.88),
+        color: isDark ? Colors.white.withValues(alpha: 0.07) : Colors.white.withValues(alpha: 0.96),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.14) : const Color(0xFFD7E2E2),
+          color: isDark ? Colors.white.withValues(alpha: 0.14) : const Color(0xFFE5E7EB),
         ),
       ),
       child: child,
@@ -397,4 +395,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+}
+
+class _DayBlueprintPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.22)
+      ..strokeWidth = 1;
+
+    const spacing = 36.0;
+    for (double x = -size.height; x < size.width; x += spacing) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x + size.height * 0.35, size.height),
+        linePaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
