@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'attempt_history_screen.dart';
 import '../services/progress_repository.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -32,6 +33,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           WeakSectionMetric(section: 'Programming & Analysis', accuracy: 38),
           WeakSectionMetric(section: 'Structural Systems', accuracy: 43),
         ],
+        sectionTrends: [],
       );
     }
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -40,6 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         readinessPercent: 42,
         attemptsCount: 0,
         weakSections: [],
+        sectionTrends: [],
       );
     }
     return _progressRepository.fetchDashboardMetrics(uid: uid);
@@ -59,6 +62,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 readinessPercent: 42,
                 attemptsCount: 0,
                 weakSections: [],
+                sectionTrends: [],
               );
 
           return ListView(
@@ -147,6 +151,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
+                        'Section Trends',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 10),
+                      if (metrics.sectionTrends.isEmpty)
+                        const Text('Need at least one completed test to calculate trends.')
+                      else
+                        ...metrics.sectionTrends.map(_trendRow),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
                         '90-second Demo',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                       ),
@@ -173,9 +197,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 14),
               FilledButton.icon(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => AttemptHistoryScreen(firebaseReady: widget.firebaseReady),
+                    ),
+                  );
+                },
                 icon: const Icon(Icons.play_arrow_rounded),
-                label: const Text('Start Today Plan'),
+                label: const Text('View Attempt History'),
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
@@ -197,6 +227,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Expanded(child: Text(label)),
           Text('$score%'),
+        ],
+      ),
+    );
+  }
+
+  Widget _trendRow(SectionTrendMetric metric) {
+    final isUp = metric.delta >= 0;
+    final deltaLabel = isUp ? '+${metric.delta}' : '${metric.delta}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(metric.section)),
+              Text('${metric.currentAccuracy}%'),
+              const SizedBox(width: 8),
+              Icon(
+                isUp ? Icons.arrow_upward : Icons.arrow_downward,
+                size: 16,
+                color: isUp ? Colors.green.shade700 : Colors.red.shade700,
+              ),
+              const SizedBox(width: 2),
+              Text(
+                deltaLabel,
+                style: TextStyle(
+                  color: isUp ? Colors.green.shade700 : Colors.red.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          LinearProgressIndicator(
+            value: (metric.currentAccuracy / 100).clamp(0, 1),
+            minHeight: 6,
+            borderRadius: BorderRadius.circular(8),
+            backgroundColor: Colors.grey.shade200,
+          ),
         ],
       ),
     );
