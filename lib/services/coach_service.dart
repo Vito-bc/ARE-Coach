@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
@@ -28,10 +29,16 @@ This is often a 10-15 point competency question. Typical mistakes: using 0.15 fo
 
     try {
       String? token;
+      String? appCheckToken;
       try {
         token = await FirebaseAuth.instance.currentUser?.getIdToken();
       } catch (_) {
         token = null;
+      }
+      try {
+        appCheckToken = await FirebaseAppCheck.instance.getToken();
+      } catch (_) {
+        appCheckToken = null;
       }
 
       final headers = <String, String>{
@@ -39,6 +46,9 @@ This is often a 10-15 point competency question. Typical mistakes: using 0.15 fo
       };
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
+      }
+      if (appCheckToken != null && appCheckToken.isNotEmpty) {
+        headers['X-Firebase-AppCheck'] = appCheckToken;
       }
 
       final response = await _client.post(
