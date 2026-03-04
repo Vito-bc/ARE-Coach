@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../core/ui/app_chrome.dart';
 import '../services/progress_repository.dart';
 
 class AttemptHistoryScreen extends StatefulWidget {
@@ -35,56 +36,61 @@ class _AttemptHistoryScreenState extends State<AttemptHistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Attempt History')),
-      body: FutureBuilder<List<AttemptHistoryItem>>(
-        future: _historyFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppBackdrop()),
+          FutureBuilder<List<AttemptHistoryItem>>(
+            future: _historyFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final items = snapshot.data ?? const <AttemptHistoryItem>[];
-          if (items.isEmpty) {
-            return const Center(
-              child: Text('No attempt history yet. Complete a test to see trends.'),
-            );
-          }
+              final items = snapshot.data ?? const <AttemptHistoryItem>[];
+              if (items.isEmpty) {
+                return const Center(
+                  child: Text('No attempt history yet. Complete a test to see trends.'),
+                );
+              }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+              return ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return AppGlassCard(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Score: ${item.score}%',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                'Score: ${item.score}%',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 18,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(_formatDate(item.endedAt)),
+                            ],
                           ),
-                          const Spacer(),
-                          Text(_formatDate(item.endedAt)),
+                          const SizedBox(height: 8),
+                          Text('Mode: ${item.mode}'),
+                          Text('Correct: ${item.correctCount}/${item.questionCount}'),
+                          Text('Time: ${_formatDuration(item.timeSpentSec)}'),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text('Mode: ${item.mode}'),
-                      Text('Correct: ${item.correctCount}/${item.questionCount}'),
-                      Text('Time: ${_formatDuration(item.timeSpentSec)}'),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
+          ),
+        ],
       ),
     );
   }
