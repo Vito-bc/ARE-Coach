@@ -25,3 +25,9 @@ If `COACH_API_URL` is not set, the app responds with a safe local fallback answe
 2. Set up Phase 4 AI backend with quotas: [docs/PHASE4_BACKEND.md](docs/PHASE4_BACKEND.md).
 3. Add Stripe/Apple in-app purchases and enforce daily token quotas in backend.
 4. Persist test attempts and weak-topic analytics in Firestore.
+
+## Collaboration and Design Docs
+- Branching workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
+- System architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Security audit checklist: [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)
+- Monetization early prep: [docs/MONETIZATION_PREP.md](docs/MONETIZATION_PREP.md)

@@ -13,13 +13,44 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.role == 'admin';
     }
 
+    function ownerCanCreateUser(uid) {
+      return isOwner(uid)
+        && request.resource.data.role == 'free'
+        && request.resource.data.keys().hasOnly([
+          'email',
+          'name',
+          'role',
+          'targetExamDate',
+          'createdAt',
+          'lastActiveAt',
+          'dailyLimits'
+        ]);
+    }
+
+    function ownerCanUpdateUser(uid) {
+      return isOwner(uid)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.keys().hasOnly([
+          'email',
+          'name',
+          'role',
+          'targetExamDate',
+          'createdAt',
+          'lastActiveAt',
+          'dailyLimits'
+        ]);
+    }
+
     match /questions/{questionId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
 
     match /users/{uid} {
-      allow read, write: if isOwner(uid) || isAdmin();
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if ownerCanCreateUser(uid) || isAdmin();
+      allow update: if ownerCanUpdateUser(uid) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /attempts/{uid}/sessions/{sessionId} {
@@ -39,7 +70,8 @@ service cloud.firestore {
     }
 
     match /usage/{uid}/daily/{dateKey} {
-      allow read, write: if isOwner(uid) || isAdmin();
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isAdmin();
     }
 
     match /subscriptions/{uid} {

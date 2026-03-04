@@ -130,10 +130,14 @@ class ProgressRepository {
       'questionResults': results,
     });
 
-    await todayRef.set({
-      'questionsUsed': FieldValue.increment(questions.length),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    try {
+      await todayRef.set({
+        'questionsUsed': FieldValue.increment(questions.length),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Usage counters can be server-authoritative in hardened environments.
+    }
   }
 
   Future<DashboardMetrics> fetchDashboardMetrics({
