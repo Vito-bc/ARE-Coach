@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -15,6 +16,17 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    try {
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: AndroidProvider.playIntegrity,
+        appleProvider: AppleProvider.deviceCheck,
+        webProvider: ReCaptchaV3Provider(
+          const String.fromEnvironment('RECAPTCHA_SITE_KEY'),
+        ),
+      );
+    } catch (_) {
+      // App Check can be enabled per environment; keep app runnable in dev.
+    }
     firebaseReady = true;
   } catch (_) {
     // Firebase may be configured later; app still runs with local seed data.
