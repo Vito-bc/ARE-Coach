@@ -37,35 +37,53 @@ class _HomeShellState extends State<HomeShell> {
       ),
     ];
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor:
+          isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7),
       body: screens[_index],
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88),
-        indicatorColor: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.22),
-        selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard_rounded),
-            label: 'Home',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: isDark
+                  ? const Color(0xFF38383A)
+                  : const Color(0xFFC6C6C8),
+              width: 0.5,
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.quiz_outlined),
-            selectedIcon: Icon(Icons.quiz_rounded),
-            label: 'Tests',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.mic_none_rounded),
-            selectedIcon: Icon(Icons.mic_rounded),
-            label: 'Coach',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+        ),
+        child: NavigationBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          selectedIndex: _index,
+          onDestinationSelected: (value) => setState(() => _index = value),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.book_outlined),
+              selectedIcon: Icon(Icons.book_rounded),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.layers_outlined),
+              selectedIcon: Icon(Icons.layers_rounded),
+              label: 'Tests',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.chat_bubble_outline_rounded),
+              selectedIcon: Icon(Icons.chat_bubble_rounded),
+              label: 'Coach',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
