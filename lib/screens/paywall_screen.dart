@@ -307,6 +307,20 @@ class _PaywallScreenState extends State<PaywallScreen> {
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Text(
+              'Subscription renews automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your Apple ID settings.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 10,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.3)
+                    : const Color(0xFF9CA3AF),
+                height: 1.4,
+              ),
+            ),
+          ),
         ],
       ),
     );

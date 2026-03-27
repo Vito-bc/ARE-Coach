@@ -212,11 +212,28 @@ Common mistakes:
                           ),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Text(
-                          msg.text,
-                          style: TextStyle(
-                            color: isUser ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              msg.text,
+                              style: TextStyle(
+                                color: isUser ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            if (!isUser) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'AI-generated. Verify with official NCARB materials.',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.35)
+                                      : const Color(0xFF9CA3AF),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     );

@@ -41,6 +41,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Architectula uses your microphone for voice coaching so you can ask questions and receive spoken answers hands-free.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Architectula uses speech recognition to convert your voice questions into text for the AI coach.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
