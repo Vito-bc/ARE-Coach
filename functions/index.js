@@ -7,9 +7,15 @@ admin.initializeApp();
 const db = admin.firestore();
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+const APPLE_SHARED_SECRET = defineSecret("APPLE_SHARED_SECRET");
+
 const FREE_DAILY_LIMIT = 10;
 const PREMIUM_DAILY_LIMIT = 200;
 const PER_MINUTE_LIMIT = 3;
+
+const APPLE_PRODUCT_IDS = ["are_coach_monthly", "are_coach_yearly"];
+const APPLE_PRODUCTION_URL = "https://buy.itunes.apple.com/verifyReceipt";
+const APPLE_SANDBOX_URL = "https://sandbox.itunes.apple.com/verifyReceipt";
 
 exports.askCoach = onRequest(
   {
@@ -67,6 +73,123 @@ exports.askCoach = onRequest(
     }
   }
 );
+
+exports.validateReceipt = onRequest(
+  {
+    region: "us-central1",
+    cors: true,
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    secrets: [APPLE_SHARED_SECRET],
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      return sendError(res, 405, "Method not allowed");
+    }
+
+    try {
+      const uid = await verifyBearerToken(req);
+
+      const { receiptData, platform } = req.body || {};
+      if (!receiptData || typeof receiptData !== "string") {
+        return sendError(res, 400, "receiptData is required");
+      }
+      if (platform !== "ios") {
+        return sendError(res, 400, "Only ios platform is supported");
+      }
+
+      const appleResult = await callAppleVerify(APPLE_PRODUCTION_URL, {
+        "receipt-data": receiptData,
+        password: APPLE_SHARED_SECRET.value(),
+        "exclude-old-transactions": true,
+      });
+
+      const appleData = appleResult.status === 21007
+        ? await callAppleVerify(APPLE_SANDBOX_URL, {
+            "receipt-data": receiptData,
+            password: APPLE_SHARED_SECRET.value(),
+            "exclude-old-transactions": true,
+          })
+        : appleResult;
+
+      if (appleData.status !== 0) {
+        await markUserFree(uid);
+        logger.warn("validateReceipt: invalid receipt", { uid, appleStatus: appleData.status });
+        return res.status(200).json({ valid: false });
+      }
+
+      const now = Date.now();
+      const transactions = (appleData.latest_receipt_info || [])
+        .filter(
+          (t) =>
+            APPLE_PRODUCT_IDS.includes(t.product_id) &&
+            Number(t.expires_date_ms) > now
+        )
+        .sort((a, b) => Number(b.expires_date_ms) - Number(a.expires_date_ms));
+
+      if (transactions.length === 0) {
+        await markUserFree(uid);
+        logger.info("validateReceipt: subscription expired", { uid });
+        return res.status(200).json({ valid: false });
+      }
+
+      const latest = transactions[0];
+      const expiresAt = Number(latest.expires_date_ms);
+
+      await db.collection("users").doc(uid).set(
+        {
+          role: "premium",
+          subscriptionStatus: "active",
+          subscriptionId: latest.product_id,
+          premiumUntil: admin.firestore.Timestamp.fromMillis(expiresAt),
+          lastActiveAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      logger.info("validateReceipt: subscription activated", {
+        uid,
+        productId: latest.product_id,
+        expiresAt,
+      });
+
+      return res.status(200).json({ valid: true, expiresAt });
+    } catch (err) {
+      logger.error("validateReceipt failed", err);
+      if (err instanceof HttpsError) {
+        return sendError(res, mapHttpsErrorStatus(err.code), err.message);
+      }
+      return sendError(res, err.statusCode || 500, err.message || "Internal error");
+    }
+  }
+);
+
+async function callAppleVerify(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const err = new Error(`Apple API error: ${response.status}`);
+    err.statusCode = 502;
+    throw err;
+  }
+  return response.json();
+}
+
+async function markUserFree(uid) {
+  try {
+    await db.collection("users").doc(uid).set(
+      {
+        role: "free",
+        subscriptionStatus: "expired",
+        lastActiveAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (_) {}
+}
 
 async function verifyBearerToken(req) {
   const authHeader = req.headers.authorization || "";
