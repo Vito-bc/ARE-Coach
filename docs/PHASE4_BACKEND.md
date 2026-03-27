@@ -1,59 +1,56 @@
-# Phase 4 Backend (AI Coach + Quotas)
+﻿# Phase 4 Hardening Setup
 
-## What is implemented
-- `functions/askCoach` HTTPS endpoint with Firebase Auth verification.
-- Daily quota enforcement by user role:
-  - `free`: 10 AI messages/day
-  - `premium`: 200 AI messages/day
-- Usage counter storage in:
-  - `usage/{uid}/daily/{yyyy_mm_dd}.aiMessagesUsed`
-- Chat persistence in:
-  - `coach_chats/{uid}/threads/default/messages/*`
-- Flutter `CoachService` now sends Firebase ID token and handles `401` / `429`.
+This document matches the current implementation in `feature/phase4-hardening`.
 
-## 1) Install functions dependencies
-From project root:
+## Implemented in code
+1. Atomic quota enforcement (Firestore transaction) in `functions/askCoach`.
+2. Per-minute throttle (`3/min`) + daily limit (`10 free / 200 premium`).
+3. App Check verification in function (`x-firebase-appcheck` token required).
+4. Structured logs with uid, model, usage, latency.
+5. Secret Manager integration (`GEMINI_API_KEY`) instead of plain env var.
+6. Flutter app initializes App Check and sends token in coach requests.
 
+## 1) Install Functions dependencies
 ```powershell
 cd functions
 npm install
 cd ..
 ```
 
-## 2) Configure Gemini API key for Cloud Functions
-Option A (recommended in production): set as environment variable in Cloud Run/Functions config.
+## 2) Set secret in Firebase/Google Secret Manager
+```powershell
+firebase functions:secrets:set GEMINI_API_KEY
+```
 
-For quick setup, deploy with env var:
-
+## 3) Deploy function
 ```powershell
 firebase deploy --only functions
 ```
 
-Then in Google Cloud Console, set env var for function `askCoach`:
-- `GEMINI_API_KEY=<your_key>`
+## 4) Enable App Check enforcement
+1. Firebase Console -> App Check.
+2. Register providers:
+   - Android: Play Integrity
+   - iOS: DeviceCheck
+   - Web: reCAPTCHA v3
+3. Enable enforcement for Cloud Functions (start in staging/dev first).
 
-If not set, function returns deterministic fallback coaching answer.
-
-## 3) Deploy
+## 5) Run app with required defines
 ```powershell
-firebase deploy --only functions
+flutter run -d chrome --dart-define=COACH_API_URL=https://us-central1-architect-study-app.cloudfunctions.net/askCoach --dart-define=RECAPTCHA_SITE_KEY=<your_web_recaptcha_site_key>
 ```
 
-## 4) Use endpoint in Flutter
-Run app with function URL:
+## 6) Firestore data paths used
+- `users/{uid}`:
+  - `role: free|premium`
+  - `subscriptionStatus`
+  - `premiumUntil`
+- `usage/{uid}/daily/{yyyy_mm_dd}`
+- `usage/{uid}/minute/{yyyyMMdd_HHmm}`
+- `coach_chats/{uid}/threads/default/messages/*`
 
-```powershell
-flutter run -d chrome --dart-define=COACH_API_URL=https://us-central1-architect-study-app.cloudfunctions.net/askCoach
-```
-
-## 5) Subscription role
-In Firestore:
-- `users/{uid}.role = "premium"` for premium users.
-- Any other value or missing role => free tier.
-
-## 6) Verify
-1. Ask coach question in app.
-2. Check:
-   - `usage/{uid}/daily/*` increments.
-   - `coach_chats/{uid}/threads/default/messages` contains user+coach messages.
-3. Exceed free quota and confirm app gets limit message.
+## 7) Optional hardening actions (console)
+1. Configure Firestore TTL for `usage/{uid}/minute/*` via `expiresAt`.
+2. Create budgets/alerts in Google Cloud Billing:
+   - thresholds: `$10`, `$25`, `$50`
+3. Add alerting dashboard for Cloud Logging on `coach_request`.
