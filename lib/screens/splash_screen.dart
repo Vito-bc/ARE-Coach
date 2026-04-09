@@ -38,7 +38,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      'Architectula Education',
+                      'ArchiEd Education',
                       style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 10),

@@ -171,7 +171,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
           child: const Icon(Icons.architecture, color: Colors.white, size: 32),
         ),
         const SizedBox(height: 16),
-        Text('Architectula Premium', style: tt.titleLarge, textAlign: TextAlign.center),
+        Text('ArchiEd Premium', style: tt.titleLarge, textAlign: TextAlign.center),
         const SizedBox(height: 6),
         Text(
           'Everything you need to pass the ARE.',
@@ -304,6 +304,20 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     ? Colors.white.withValues(alpha: 0.45)
                     : const Color(0xFF6B7280),
                 fontSize: 13,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Text(
+              'Subscription renews automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your Apple ID settings.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 10,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.3)
+                    : const Color(0xFF9CA3AF),
+                height: 1.4,
               ),
             ),
           ),

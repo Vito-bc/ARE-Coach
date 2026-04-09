@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../core/ui/app_chrome.dart';
+import '../core/theme/app_theme.dart';
 import '../models/chat_message.dart';
 import '../services/coach_service.dart';
 import '../services/voice_service.dart';
@@ -20,8 +20,9 @@ class _CoachScreenState extends State<CoachScreen> {
   final List<ChatMessage> _messages = [
     ChatMessage(
       role: ChatRole.coach,
-      text:
-          'Ask any ARE question. I will answer with formula, code reference, and exam traps.',
+      text: CoachService.isLive
+          ? 'Ask any ARE question — I\'ll answer with formulas, code references, and exam traps.'
+          : 'Demo mode: responses use a local fallback. Set COACH_API_URL at build time to enable live AI.',
       time: DateTime.now(),
     ),
   ];
@@ -30,22 +31,21 @@ class _CoachScreenState extends State<CoachScreen> {
   bool _voiceReady = false;
   bool _listening = false;
 
-  static const _demoPrompt = 'I do not understand egress capacity for 300 people in a hall.';
-  static const _demoReply = '''
-Formula:
-Required stair egress width = occupant load x 0.2 in/person
-300 x 0.2 = 60 inches
+  static const _demoPrompt =
+      'I do not understand egress capacity for 300 people in a hall.';
+  static const _demoReply = '''Formula:
+Required stair egress width = occupant load × 0.2 in/person
+300 × 0.2 = 60 inches
 
 Code reference:
 IBC 2021 Section 1005.3.1 (verify NYC amendments).
 
 Exam value:
-Usually tested as a 10-15 point competency item.
+Usually tested as a 10–15 point competency item.
 
 Common mistakes:
 1) Using 0.15 instead of 0.2 for stair calculations.
-2) Ignoring minimum clear width requirements.
-''';
+2) Ignoring minimum clear width requirements.''';
 
   @override
   void initState() {
@@ -96,7 +96,6 @@ Common mistakes:
       setState(() => _listening = false);
       return;
     }
-
     setState(() => _listening = true);
     await _voiceService.listen(
       onResult: (words) {
@@ -151,114 +150,229 @@ Common mistakes:
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return SafeArea(
-      child: Stack(
-        children: [
-          const Positioned.fill(child: AppBackdrop()),
-          Column(
-            children: [
-              ListTile(
-                title: const Text(
-                  'AI Coach',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-                ),
-                subtitle: const Text('Premium: voice + interview simulation'),
-                trailing: IconButton(
-                  onPressed: _speakLastCoachMessage,
-                  icon: const Icon(Icons.volume_up_outlined),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    const Chip(label: Text('Demo mode')),
-                    const SizedBox(width: 8),
-                    OutlinedButton(
-                      onPressed: _runDemoScenario,
-                      child: const Text('Run demo'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 4),
-              Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _messages.length,
-                  itemBuilder: (_, index) {
-                    final msg = _messages[index];
-                    final isUser = msg.role == ChatRole.user;
-                    return Align(
-                      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 320),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isUser
-                              ? Theme.of(context).colorScheme.primary
-                              : (isDark
-                                  ? Colors.white.withValues(alpha: 0.12)
-                                  : Colors.white.withValues(alpha: 0.96)),
-                          border: Border.all(
-                            color: isUser
-                                ? Colors.transparent
-                                : (isDark
-                                    ? Colors.white.withValues(alpha: 0.16)
-                                    : const Color(0xFFE5E7EB)),
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Text(
-                          msg.text,
-                          style: TextStyle(
-                            color: isUser ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              if (_loading) const LinearProgressIndicator(minHeight: 2),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                child: AppGlassCard(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-                    child: Row(
+    return Scaffold(
+      backgroundColor: AppTheme.navy,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Header ─────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        IconButton(
-                          onPressed: _toggleListening,
-                          icon: Icon(_listening ? Icons.mic_off : Icons.mic),
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            minLines: 1,
-                            maxLines: 3,
-                            decoration: const InputDecoration(
-                              hintText: 'Explain fire separation...',
-                              border: InputBorder.none,
-                            ),
+                        const Text(
+                          'AI Coach',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.textPrimary,
+                            letterSpacing: -1,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: _sendMessage,
-                          icon: const Icon(Icons.send_rounded),
+                        Text(
+                          CoachService.isLive
+                              ? 'Live — voice + interview simulation'
+                              : 'Demo mode — set COACH_API_URL to enable AI',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                       ],
                     ),
                   ),
+                  // speak last coach message
+                  IconButton(
+                    onPressed: _speakLastCoachMessage,
+                    icon: const Icon(Icons.volume_up_outlined),
+                    color: AppTheme.textSecondary,
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppTheme.surface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Demo banner (only shown when not live) ─────────────────
+            if (!CoachService.isLive)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppTheme.warning.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        size: 16,
+                        color: AppTheme.warning,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Using local fallback answers',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.warning,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _runDemoScenario,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          foregroundColor: AppTheme.warning,
+                        ),
+                        child: const Text(
+                          'Run demo',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
-        ],
+
+            // ── Messages ───────────────────────────────────────────────
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                itemCount: _messages.length,
+                itemBuilder: (_, index) {
+                  final msg = _messages[index];
+                  final isUser = msg.role == ChatRole.user;
+                  return Align(
+                    alignment:
+                        isUser ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.80,
+                      ),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isUser
+                            ? AppTheme.yellow.withValues(alpha: 0.15)
+                            : AppTheme.surface,
+                        border: Border.all(
+                          color: isUser
+                              ? AppTheme.yellow.withValues(alpha: 0.4)
+                              : AppTheme.separator,
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isUser ? 16 : 4),
+                          bottomRight: Radius.circular(isUser ? 4 : 16),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            msg.text,
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 1.5,
+                              color: isUser
+                                  ? AppTheme.yellow
+                                  : AppTheme.textPrimary,
+                            ),
+                          ),
+                          if (!isUser) ...[
+                            const SizedBox(height: 6),
+                            const Text(
+                              'AI-generated — verify with official NCARB materials.',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            if (_loading)
+              const LinearProgressIndicator(
+                minHeight: 2,
+                color: AppTheme.yellow,
+                backgroundColor: AppTheme.surface,
+              ),
+
+            // ── Input bar ──────────────────────────────────────────────
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.separator),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  IconButton(
+                    onPressed: _voiceReady ? _toggleListening : null,
+                    icon: Icon(
+                      _listening ? Icons.mic_rounded : Icons.mic_none_rounded,
+                    ),
+                    color: _listening ? AppTheme.yellow : AppTheme.textSecondary,
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      minLines: 1,
+                      maxLines: 4,
+                      style: const TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 15,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Ask about egress, fire ratings, ADA…',
+                        hintStyle: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 14,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onSubmitted: (_) => _sendMessage(),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _loading ? null : _sendMessage,
+                    icon: const Icon(Icons.send_rounded),
+                    color: _loading ? AppTheme.textSecondary : AppTheme.yellow,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
