@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -20,13 +21,16 @@ Future<void> main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     try {
-      await FirebaseAppCheck.instance.activate(
-        androidProvider: AndroidProvider.playIntegrity,
-        appleProvider: AppleProvider.deviceCheck,
-        webProvider: ReCaptchaV3Provider(
-          const String.fromEnvironment('RECAPTCHA_SITE_KEY'),
-        ),
-      );
+      const recaptchaKey = String.fromEnvironment('RECAPTCHA_SITE_KEY');
+      if (!kIsWeb || recaptchaKey.isNotEmpty) {
+        await FirebaseAppCheck.instance.activate(
+          androidProvider: AndroidProvider.playIntegrity,
+          appleProvider: AppleProvider.deviceCheck,
+          webProvider: recaptchaKey.isNotEmpty
+              ? ReCaptchaV3Provider(recaptchaKey)
+              : ReCaptchaV3Provider(''),
+        );
+      }
     } catch (_) {
       // App Check can be enabled per environment; keep app runnable in dev.
     }
@@ -35,20 +39,21 @@ Future<void> main() async {
     // Firebase may be configured later; app still runs with local seed data.
   }
 
-  runApp(ArchitectulaBootstrap(firebaseReady: firebaseReady));
+  runApp(ArchiEdBootstrap(firebaseReady: firebaseReady));
 }
 
-class ArchitectulaBootstrap extends StatefulWidget {
-  const ArchitectulaBootstrap({super.key, required this.firebaseReady});
+class ArchiEdBootstrap extends StatefulWidget {
+  const ArchiEdBootstrap({super.key, required this.firebaseReady});
 
   final bool firebaseReady;
 
   @override
-  State<ArchitectulaBootstrap> createState() => _ArchitectulaBootstrapState();
+  State<ArchiEdBootstrap> createState() => _ArchiEdBootstrapState();
 }
 
-class _ArchitectulaBootstrapState extends State<ArchitectulaBootstrap> {
+class _ArchiEdBootstrapState extends State<ArchiEdBootstrap> {
   bool _initializing = true;
+  bool _guestMode = false;
   ThemeMode _themeMode = ThemeMode.light;
 
   @override
@@ -85,7 +90,7 @@ class _ArchitectulaBootstrapState extends State<ArchitectulaBootstrap> {
     }
 
     if (!widget.firebaseReady) {
-      return ArchitectulaApp(
+      return ArchiEdApp(
         firebaseReady: false,
         initialThemeMode: _themeMode,
       );
@@ -100,17 +105,20 @@ class _ArchitectulaBootstrapState extends State<ArchitectulaBootstrap> {
           );
         }
         final user = snapshot.data;
-        if (user == null) {
+        if (user == null && !_guestMode) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: AppTheme.light(),
+            theme: AppTheme.dark(),
             darkTheme: AppTheme.dark(),
-            themeMode: _themeMode,
-            home: LoginScreen(firebaseReady: widget.firebaseReady),
+            themeMode: ThemeMode.dark,
+            home: LoginScreen(
+              firebaseReady: widget.firebaseReady,
+              onGuestContinue: () => setState(() => _guestMode = true),
+            ),
           );
         }
-        return ArchitectulaApp(
-          firebaseReady: widget.firebaseReady,
+        return ArchiEdApp(
+          firebaseReady: widget.firebaseReady && user != null,
           initialThemeMode: _themeMode,
         );
       },

@@ -171,7 +171,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
           child: const Icon(Icons.architecture, color: Colors.white, size: 32),
         ),
         const SizedBox(height: 16),
-        Text('Architectula Premium', style: tt.titleLarge, textAlign: TextAlign.center),
+        Text('ArchiEd Premium', style: tt.titleLarge, textAlign: TextAlign.center),
         const SizedBox(height: 6),
         Text(
           'Everything you need to pass the ARE.',

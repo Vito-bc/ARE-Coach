@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 
 import '../data/seed_questions.dart';
 import '../models/quiz_question.dart';
@@ -17,15 +21,45 @@ class QuestionRepository {
   FirebaseFirestore get _firestore => _providedFirestore ?? FirebaseFirestore.instance;
 
   Future<List<QuizQuestion>> loadNyQuestions({int limit = 20}) async {
+    // 1. Try Firestore first (3s timeout — fall back fast if empty/unavailable)
     try {
-      final rows = await (_loader != null ? _loader(limit) : _fetchFromFirestore(limit));
-      if (rows.isEmpty) {
-        return seedQuestions;
+      final rows = await (_loader != null ? _loader(limit) : _fetchFromFirestore(limit))
+          .timeout(const Duration(seconds: 3));
+      if (rows.isNotEmpty) {
+        return rows.map((row) => QuizQuestion.fromMap(row.key, row.value)).toList();
       }
+    } catch (_) {}
 
-      return rows
-          .map((row) => QuizQuestion.fromMap(row.key, row.value))
+    // 2. Fall back to bundled JSON asset
+    try {
+      final jsonStr = await rootBundle.loadString('assets/seeds/questions_ny.json');
+      final List<dynamic> raw = json.decode(jsonStr);
+      final questions = raw
+          .map((e) => QuizQuestion.fromMap(e['id'] as String, e as Map<String, dynamic>))
           .toList();
+      if (limit > 0 && questions.length > limit) {
+        questions.shuffle();
+        return questions.take(limit).toList();
+      }
+      return questions;
+    } catch (_) {}
+
+    // 3. Last resort — 3 hardcoded questions
+    return seedQuestions;
+  }
+
+  /// Load directly from bundled JSON asset — no Firestore needed.
+  Future<List<QuizQuestion>> loadFromAsset({int limit = 20}) async {
+    try {
+      final jsonStr = await rootBundle.loadString('assets/seeds/questions_ny.json');
+      final List<dynamic> raw = json.decode(jsonStr);
+      final questions = raw
+          .map((e) => QuizQuestion.fromMap(e['id'] as String, e as Map<String, dynamic>))
+          .toList()
+        ..shuffle();
+      return limit > 0 && questions.length > limit
+          ? questions.take(limit).toList()
+          : questions;
     } catch (_) {
       return seedQuestions;
     }

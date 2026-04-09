@@ -56,8 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final accent = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7),
+      backgroundColor: const Color(0xFF0D1117),
       body: SafeArea(
         child: FutureBuilder<DashboardMetrics>(
           future: _metricsFuture,

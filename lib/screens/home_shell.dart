@@ -37,22 +37,14 @@ class _HomeShellState extends State<HomeShell> {
       ),
     ];
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7),
+      backgroundColor: const Color(0xFF0D1117),
       body: screens[_index],
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+        decoration: const BoxDecoration(
+          color: Color(0xFF161B22),
           border: Border(
-            top: BorderSide(
-              color: isDark
-                  ? const Color(0xFF38383A)
-                  : const Color(0xFFC6C6C8),
-              width: 0.5,
-            ),
+            top: BorderSide(color: Color(0xFF21262D), width: 0.5),
           ),
         ),
         child: NavigationBar(

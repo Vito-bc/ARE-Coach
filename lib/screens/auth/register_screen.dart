@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/ui/app_chrome.dart';
 import '../../services/auth_service.dart';
-import '../home_shell.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, required this.firebaseReady, AuthService? authService})
@@ -47,8 +46,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
-      if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed(HomeShell.routeName);
+      // StreamBuilder in main.dart handles navigation automatically
     } on FirebaseAuthException catch (e) {
       setState(() => _errorMessage = _friendlyAuthError(e.code));
     } catch (_) {

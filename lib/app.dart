@@ -6,8 +6,8 @@ import 'screens/home_shell.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/splash_screen.dart';
 
-class ArchitectulaApp extends StatefulWidget {
-  const ArchitectulaApp({
+class ArchiEdApp extends StatefulWidget {
+  const ArchiEdApp({
     super.key,
     required this.firebaseReady,
     required this.initialThemeMode,
@@ -17,10 +17,10 @@ class ArchitectulaApp extends StatefulWidget {
   final ThemeMode initialThemeMode;
 
   @override
-  State<ArchitectulaApp> createState() => _ArchitectulaAppState();
+  State<ArchiEdApp> createState() => _ArchiEdAppState();
 }
 
-class _ArchitectulaAppState extends State<ArchitectulaApp> {
+class _ArchiEdAppState extends State<ArchiEdApp> {
   late ThemeMode _themeMode;
 
   @override
@@ -38,11 +38,11 @@ class _ArchitectulaAppState extends State<ArchitectulaApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Architectula Education',
+      title: 'ArchiEd',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
+      theme: AppTheme.dark(),
       darkTheme: AppTheme.dark(),
-      themeMode: _themeMode,
+      themeMode: ThemeMode.dark,
       routes: {
         SplashScreen.routeName: (_) => const SplashScreen(),
         OnboardingScreen.routeName: (_) => const OnboardingScreen(),
