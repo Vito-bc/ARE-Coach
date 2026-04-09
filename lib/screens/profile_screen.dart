@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import '../core/theme/app_theme.dart';
 import '../services/iap_service.dart';
 import '../services/notification_service.dart';
@@ -307,10 +309,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: null,
                       ),
                       _Divider(),
-                      _ReminderRow(
-                        enabled: _reminderEnabled,
-                        onChanged: _toggleReminder,
-                      ),
+                      if (!kIsWeb)
+                        _ReminderRow(
+                          enabled: _reminderEnabled,
+                          onChanged: _toggleReminder,
+                        ),
+                      if (kIsWeb)
+                        const _SettingsRow(
+                          icon: Icons.notifications_off_outlined,
+                          label: 'Daily reminder',
+                          value: 'Mobile only',
+                          onTap: null,
+                        ),
                       _Divider(),
                       _SettingsRow(
                         icon: Icons.download_outlined,
