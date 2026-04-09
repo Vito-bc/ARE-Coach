@@ -54,7 +54,6 @@ class ArchiEdBootstrap extends StatefulWidget {
 class _ArchiEdBootstrapState extends State<ArchiEdBootstrap> {
   bool _initializing = true;
   bool _guestMode = false;
-  ThemeMode _themeMode = ThemeMode.light;
 
   @override
   void initState() {
@@ -63,10 +62,6 @@ class _ArchiEdBootstrapState extends State<ArchiEdBootstrap> {
   }
 
   Future<void> _init() async {
-    final box = await Hive.openBox('settings');
-    final isDark = box.get('darkMode', defaultValue: false) as bool;
-    _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
-
     if (widget.firebaseReady) {
       try {
         final authService = AuthService();
@@ -90,10 +85,7 @@ class _ArchiEdBootstrapState extends State<ArchiEdBootstrap> {
     }
 
     if (!widget.firebaseReady) {
-      return ArchiEdApp(
-        firebaseReady: false,
-        initialThemeMode: _themeMode,
-      );
+      return const ArchiEdApp(firebaseReady: false);
     }
 
     return StreamBuilder<User?>(
@@ -117,10 +109,7 @@ class _ArchiEdBootstrapState extends State<ArchiEdBootstrap> {
             ),
           );
         }
-        return ArchiEdApp(
-          firebaseReady: widget.firebaseReady && user != null,
-          initialThemeMode: _themeMode,
-        );
+        return ArchiEdApp(firebaseReady: widget.firebaseReady && user != null);
       },
     );
   }

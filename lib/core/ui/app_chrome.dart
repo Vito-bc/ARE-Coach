@@ -1,19 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Clean white/light background — replaces the old blueprint pattern.
-class AppBackdrop extends StatelessWidget {
-  const AppBackdrop({super.key});
+import '../theme/app_theme.dart';
 
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      color: isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7),
-    );
-  }
-}
-
-/// Apple-style card: white background, subtle shadow, no glass effect.
+/// Dark surface card — ArchiEd urban night palette.
 class AppGlassCard extends StatelessWidget {
   const AppGlassCard({super.key, required this.child, this.padding});
 
@@ -22,28 +11,19 @@ class AppGlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: padding,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
-        boxShadow: isDark
-            ? []
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 12,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.separator, width: 0.5),
       ),
       child: child,
     );
   }
 }
 
-/// Grouped section — a labeled block of cards like iOS Settings.
+/// Grouped section — labeled block of cards.
 class AppSection extends StatelessWidget {
   const AppSection({
     super.key,
@@ -59,7 +39,6 @@ class AppSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,9 +54,7 @@ class AppSection extends StatelessWidget {
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.3,
-                    color: isDark
-                        ? const Color(0xFFAEAEB2)
-                        : const Color(0xFF6E6E73),
+                    color: AppTheme.textSecondary,
                   ),
                 ),
               ),
@@ -91,7 +68,7 @@ class AppSection extends StatelessWidget {
   }
 }
 
-/// Stat pill — small rounded chip showing a number and label.
+/// Stat pill — small chip showing a number and label.
 class AppStatPill extends StatelessWidget {
   const AppStatPill({
     super.key,
@@ -106,15 +83,12 @@ class AppStatPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = color ?? Theme.of(context).colorScheme.primary;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: isDark
-            ? const Color(0xFF2C2C2E)
-            : accent.withValues(alpha: 0.08),
+        color: AppTheme.surfaceElevated,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -132,16 +106,25 @@ class AppStatPill extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w500,
-              color: isDark
-                  ? const Color(0xFFAEAEB2)
-                  : const Color(0xFF6E6E73),
+              color: AppTheme.textSecondary,
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+/// Legacy backdrop — kept for screens still referencing it.
+/// Renders as the dark navy background.
+class AppBackdrop extends StatelessWidget {
+  const AppBackdrop({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(color: AppTheme.navy);
   }
 }

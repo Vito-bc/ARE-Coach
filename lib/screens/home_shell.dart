@@ -6,17 +6,10 @@ import 'profile_screen.dart';
 import 'tests_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({
-    super.key,
-    required this.firebaseReady,
-    required this.isDarkMode,
-    required this.onThemeChanged,
-  });
+  const HomeShell({super.key, required this.firebaseReady});
 
   static const routeName = '/home';
   final bool firebaseReady;
-  final bool isDarkMode;
-  final ValueChanged<bool> onThemeChanged;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -31,10 +24,7 @@ class _HomeShellState extends State<HomeShell> {
       DashboardScreen(firebaseReady: widget.firebaseReady),
       TestsScreen(firebaseReady: widget.firebaseReady),
       const CoachScreen(),
-      ProfileScreen(
-        isDarkMode: widget.isDarkMode,
-        onThemeChanged: widget.onThemeChanged,
-      ),
+      ProfileScreen(firebaseReady: widget.firebaseReady),
     ];
 
     return Scaffold(
