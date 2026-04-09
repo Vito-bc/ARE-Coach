@@ -7,6 +7,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app.dart';
 import 'core/theme/app_theme.dart';
+import 'services/notification_service.dart';
 import 'firebase_options.dart';
 import 'screens/auth/login_screen.dart';
 import 'services/auth_service.dart';
@@ -14,6 +15,7 @@ import 'services/auth_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+  await NotificationService.init();
 
   var firebaseReady = false;
   try {

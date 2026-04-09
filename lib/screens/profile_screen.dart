@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
 import '../services/iap_service.dart';
+import '../services/notification_service.dart';
 import '../services/progress_repository.dart';
 import 'paywall_screen.dart';
 
@@ -20,12 +21,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _iapService = IAPService();
 
   late final Future<_ProfileData> _dataFuture;
+  bool _reminderEnabled = false;
 
   @override
   void initState() {
     super.initState();
     _iapService.initialize();
     _dataFuture = _loadData();
+    _loadReminderPref();
+  }
+
+  Future<void> _loadReminderPref() async {
+    final enabled = await NotificationService.isEnabled();
+    if (mounted) setState(() => _reminderEnabled = enabled);
+  }
+
+  Future<void> _toggleReminder(bool value) async {
+    if (value) {
+      final granted = await NotificationService.requestPermission();
+      if (!granted) return;
+      await NotificationService.scheduleDailyReminder(hour: 9, minute: 0);
+    } else {
+      await NotificationService.cancel();
+    }
+    if (mounted) setState(() => _reminderEnabled = value);
   }
 
   Future<_ProfileData> _loadData() async {
@@ -288,11 +307,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onTap: null,
                       ),
                       _Divider(),
-                      _SettingsRow(
-                        icon: Icons.notifications_outlined,
-                        label: 'Daily reminder',
-                        value: 'On',
-                        onTap: null,
+                      _ReminderRow(
+                        enabled: _reminderEnabled,
+                        onChanged: _toggleReminder,
                       ),
                       _Divider(),
                       _SettingsRow(
@@ -504,6 +521,40 @@ class _SettingsRow extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ReminderRow extends StatelessWidget {
+  const _ReminderRow({required this.enabled, required this.onChanged});
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.notifications_outlined,
+              size: 18, color: AppTheme.textSecondary),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Daily reminder',
+              style: TextStyle(fontSize: 15, color: AppTheme.textPrimary),
+            ),
+          ),
+          Switch(
+            value: enabled,
+            onChanged: onChanged,
+            activeThumbColor: AppTheme.yellow,
+            activeTrackColor: AppTheme.yellow.withValues(alpha: 0.3),
+            inactiveThumbColor: AppTheme.textSecondary,
+            inactiveTrackColor: AppTheme.surfaceElevated,
+          ),
+        ],
       ),
     );
   }

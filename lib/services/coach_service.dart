@@ -9,6 +9,10 @@ class CoachService {
 
   final http.Client _client;
 
+  /// True when the app was compiled with a real COACH_API_URL.
+  static bool get isLive =>
+      const String.fromEnvironment('COACH_API_URL').isNotEmpty;
+
   static const _fallback = '''
 Formula:
 Required width = Occupant load x egress factor.
