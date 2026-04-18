@@ -31,10 +31,7 @@ class VoiceService {
 
     await _speechToText.listen(
       onResult: (result) => onResult(result.recognizedWords),
-      // ignore: deprecated_member_use
-      listenMode: ListenMode.dictation,
-      // ignore: deprecated_member_use
-      partialResults: true,
+      listenOptions: SpeechListenOptions(partialResults: true),
       localeId: 'en_US',
     );
   }

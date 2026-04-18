@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import 'coach_screen.dart';
 import 'dashboard_screen.dart';
 import 'profile_screen.dart';
-import 'tests_screen.dart';
+import 'package:architectula_education_app/screens/tests_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.firebaseReady});
@@ -17,6 +18,23 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIndex();
+  }
+
+  Future<void> _loadIndex() async {
+    final box = await Hive.openBox('settings');
+    if (mounted) setState(() => _index = box.get('tabIndex', defaultValue: 0) as int);
+  }
+
+  Future<void> _setIndex(int value) async {
+    setState(() => _index = value);
+    final box = await Hive.openBox('settings');
+    await box.put('tabIndex', value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +60,7 @@ class _HomeShellState extends State<HomeShell> {
           elevation: 0,
           shadowColor: Colors.transparent,
           selectedIndex: _index,
-          onDestinationSelected: (value) => setState(() => _index = value),
+          onDestinationSelected: _setIndex,
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.book_outlined),

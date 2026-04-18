@@ -1,3 +1,4 @@
+// ignore_for_file: subtype_of_sealed_class
 import 'package:architectula_education_app/services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -12,6 +13,7 @@ class MockCollectionReference extends Mock
     implements CollectionReference<Map<String, dynamic>> {}
 class MockDocumentReference extends Mock
     implements DocumentReference<Map<String, dynamic>> {}
+class FakeAuthCredential extends Fake implements AuthCredential {}
 
 void _stubFirestore(
   MockFirebaseFirestore mockFirestore,
@@ -34,6 +36,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(SetOptions(merge: true));
     registerFallbackValue(<String, dynamic>{});
+    registerFallbackValue(FakeAuthCredential());
   });
 
   setUp(() {
@@ -96,8 +99,7 @@ void main() {
     test('calls signInAnonymously when no user is signed in', () async {
       final mockCredential = MockUserCredential();
       when(() => mockAuth.currentUser).thenReturn(null);
-      when(() => mockAuth.signInAnonymously())
-          .thenAnswer((_) async => mockCredential);
+      when(() => mockAuth.signInAnonymously()).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
       final result = await sut.ensureSignedIn();
@@ -110,8 +112,7 @@ void main() {
   group('signInAnonymously', () {
     test('returns user and writes user record', () async {
       final mockCredential = MockUserCredential();
-      when(() => mockAuth.signInAnonymously())
-          .thenAnswer((_) async => mockCredential);
+      when(() => mockAuth.signInAnonymously()).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
       final result = await sut.signInAnonymously();
@@ -122,8 +123,7 @@ void main() {
 
     test('returns null when credential has no user', () async {
       final mockCredential = MockUserCredential();
-      when(() => mockAuth.signInAnonymously())
-          .thenAnswer((_) async => mockCredential);
+      when(() => mockAuth.signInAnonymously()).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(null);
 
       final result = await sut.signInAnonymously();
@@ -184,8 +184,7 @@ void main() {
       when(() => anonUser.displayName).thenReturn(null);
       when(() => anonUser.isAnonymous).thenReturn(true);
       when(() => mockAuth.currentUser).thenReturn(anonUser);
-      when(() => anonUser.linkWithCredential(any()))
-          .thenAnswer((_) async => mockCredential);
+      when(() => anonUser.linkWithCredential(any())).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
       final result = await sut.registerWithEmail('anon@example.com', 'password123');
@@ -208,8 +207,7 @@ void main() {
 
     test('links successfully and returns user', () async {
       final mockCredential = MockUserCredential();
-      when(() => anonUser.linkWithCredential(any()))
-          .thenAnswer((_) async => mockCredential);
+      when(() => anonUser.linkWithCredential(any())).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
       final result = await sut.linkAnonymousToEmail('user@example.com', 'password123');

@@ -1,4 +1,4 @@
-enum ChatRole { user, coach }
+enum ChatRole { user, coach, error }
 
 class ChatMessage {
   const ChatMessage({
