@@ -3,27 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/providers.dart';
 import '../core/theme/app_theme.dart';
 import '../services/iap_service.dart';
 import '../services/notification_service.dart';
-import '../services/progress_repository.dart';
 import 'paywall_screen.dart';
 
 // ── Providers ────────────────────────────────────────────────────────────────
-
-final _profileDataProvider = FutureProvider.autoDispose
-    .family<_ProfileData, bool>((ref, firebaseReady) async {
-  if (!firebaseReady) return const _ProfileData(readiness: 42, attempts: 3);
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid == null) return const _ProfileData(readiness: 0, attempts: 0);
-  final metrics = await ProgressRepository()
-      .fetchDashboardMetrics(uid: uid)
-      .timeout(const Duration(seconds: 4));
-  return _ProfileData(
-    readiness: metrics.readinessPercent,
-    attempts: metrics.attemptsCount,
-  );
-});
 
 final _reminderEnabledProvider = StateProvider<bool>((ref) => false);
 
@@ -84,7 +70,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profileAsync = ref.watch(_profileDataProvider(widget.firebaseReady));
+    final uid = widget.firebaseReady ? FirebaseAuth.instance.currentUser?.uid : null;
+    final metricsAsync = ref.watch(
+      dashboardMetricsProvider((uid: uid, firebaseReady: widget.firebaseReady)),
+    );
     final reminderEnabled = ref.watch(_reminderEnabledProvider);
 
     final user = widget.firebaseReady ? FirebaseAuth.instance.currentUser : null;
@@ -92,8 +81,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final initials = _initials(email);
     final tt = Theme.of(context).textTheme;
 
-    final data = profileAsync.valueOrNull ?? const _ProfileData(readiness: 0, attempts: 0);
-    final loading = profileAsync.isLoading;
+    final metrics = metricsAsync.valueOrNull;
+    final data = _ProfileData(
+      readiness: metrics?.readinessPercent ?? 0,
+      attempts: metrics?.attemptsCount ?? 0,
+    );
+    final loading = metricsAsync.isLoading;
 
     return Scaffold(
       backgroundColor: AppTheme.navy,
