@@ -23,6 +23,7 @@ exports.askCoach = onRequest(
     cors: true,
     timeoutSeconds: 60,
     memory: "256MiB",
+    maxInstances: 10,
     secrets: [GEMINI_API_KEY],
   },
   async (req, res) => {
@@ -80,6 +81,7 @@ exports.validateReceipt = onRequest(
     cors: true,
     timeoutSeconds: 30,
     memory: "256MiB",
+    maxInstances: 10,
     secrets: [APPLE_SHARED_SECRET],
   },
   async (req, res) => {

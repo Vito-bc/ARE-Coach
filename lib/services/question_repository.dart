@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../data/seed_questions.dart';
@@ -28,7 +30,9 @@ class QuestionRepository {
       if (rows.isNotEmpty) {
         return rows.map((row) => QuizQuestion.fromMap(row.key, row.value)).toList();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('loadNyQuestions: Firestore unavailable, falling back to asset ($e)');
+    }
 
     // 2. Fall back to bundled JSON asset
     try {
@@ -42,7 +46,10 @@ class QuestionRepository {
         return questions.take(limit).toList();
       }
       return questions;
-    } catch (_) {}
+    } catch (e, stack) {
+      debugPrint('loadNyQuestions: bundled asset failed, falling back to seed ($e)');
+      try { FirebaseCrashlytics.instance.recordError(e, stack); } catch (_) {}
+    }
 
     // 3. Last resort — 3 hardcoded questions
     return seedQuestions;
@@ -60,7 +67,9 @@ class QuestionRepository {
       return limit > 0 && questions.length > limit
           ? questions.take(limit).toList()
           : questions;
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('loadFromAsset failed, falling back to seed ($e)');
+      try { FirebaseCrashlytics.instance.recordError(e, stack); } catch (_) {}
       return seedQuestions;
     }
   }

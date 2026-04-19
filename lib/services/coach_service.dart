@@ -4,6 +4,8 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
+import '../core/result.dart';
+
 class CoachService {
   CoachService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -25,10 +27,10 @@ Exam note:
 This is often a 10-15 point competency question. Typical mistakes: using 0.15 for stairs or forgetting minimum clear widths.
 ''';
 
-  Future<String> askCoach(String prompt) async {
+  Future<Result<String>> askCoach(String prompt) async {
     final endpoint = const String.fromEnvironment('COACH_API_URL');
     if (endpoint.isEmpty) {
-      return _fallback;
+      return const Ok(_fallback);
     }
 
     try {
@@ -65,23 +67,23 @@ This is often a 10-15 point competency question. Typical mistakes: using 0.15 fo
         final payload = _asMap(response.body);
         final limit = payload['limit'];
         final used = payload['used'];
-        return 'Daily AI limit reached ($used/$limit). Upgrade to premium or try tomorrow.';
+        return Err('Daily AI limit reached ($used/$limit). Upgrade to premium or try tomorrow.');
       }
 
       if (response.statusCode == 401) {
-        return 'Authentication required. Please re-open the app and try again.';
+        return const Err('Authentication required. Please re-open the app and try again.');
       }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final payload = _asMap(response.body);
         final answer = payload['answer']?.toString();
         if (answer != null && answer.trim().isNotEmpty) {
-          return answer;
+          return Ok(answer);
         }
       }
-      return _fallback;
+      return const Ok(_fallback);
     } catch (_) {
-      return _fallback;
+      return const Err('Could not reach the server. Check your connection and try again.');
     }
   }
 

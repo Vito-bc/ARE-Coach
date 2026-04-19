@@ -1,8 +1,12 @@
+import 'dart:ui';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app.dart';
@@ -37,11 +41,19 @@ Future<void> main() async {
       // App Check can be enabled per environment; keep app runnable in dev.
     }
     firebaseReady = true;
+
+    if (!kIsWeb) {
+      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+    }
   } catch (_) {
     // Firebase may be configured later; app still runs with local seed data.
   }
 
-  runApp(ArchiEdBootstrap(firebaseReady: firebaseReady));
+  runApp(ProviderScope(child: ArchiEdBootstrap(firebaseReady: firebaseReady)));
 }
 
 class ArchiEdBootstrap extends StatefulWidget {

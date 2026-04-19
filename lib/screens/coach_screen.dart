@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/result.dart';
 import '../core/theme/app_theme.dart';
 import '../models/chat_message.dart';
 import '../services/coach_service.dart';
@@ -74,15 +75,16 @@ Common mistakes:
     });
     _scrollToBottom();
 
-    final response = await _coachService.askCoach(prompt);
+    final result = await _coachService.askCoach(prompt);
     if (!mounted) return;
 
+    final (text, role) = switch (result) {
+      Ok(:final value) => (value, ChatRole.coach),
+      Err(:final message) => (message, ChatRole.error),
+    };
+
     setState(() {
-      _messages.add(ChatMessage(
-        role: ChatRole.coach,
-        text: response,
-        time: DateTime.now(),
-      ));
+      _messages.add(ChatMessage(role: role, text: text, time: DateTime.now()));
       _loading = false;
     });
     _scrollToBottom();
@@ -260,6 +262,7 @@ Common mistakes:
                 itemBuilder: (_, index) {
                   final msg = _messages[index];
                   final isUser = msg.role == ChatRole.user;
+                  final isError = msg.role == ChatRole.error;
                   return Align(
                     alignment:
                         isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -272,11 +275,15 @@ Common mistakes:
                       decoration: BoxDecoration(
                         color: isUser
                             ? AppTheme.yellow.withValues(alpha: 0.15)
-                            : AppTheme.surface,
+                            : isError
+                                ? AppTheme.error.withValues(alpha: 0.10)
+                                : AppTheme.surface,
                         border: Border.all(
                           color: isUser
                               ? AppTheme.yellow.withValues(alpha: 0.4)
-                              : AppTheme.separator,
+                              : isError
+                                  ? AppTheme.error.withValues(alpha: 0.4)
+                                  : AppTheme.separator,
                           width: 1,
                         ),
                         borderRadius: BorderRadius.only(
@@ -296,10 +303,12 @@ Common mistakes:
                               height: 1.5,
                               color: isUser
                                   ? AppTheme.yellow
-                                  : AppTheme.textPrimary,
+                                  : isError
+                                      ? AppTheme.error
+                                      : AppTheme.textPrimary,
                             ),
                           ),
-                          if (!isUser) ...[
+                          if (msg.role == ChatRole.coach) ...[
                             const SizedBox(height: 6),
                             const Text(
                               'AI-generated — verify with official NCARB materials.',

@@ -28,7 +28,7 @@ void main() {
     testWidgets('shows title, email, password fields and buttons', (tester) async {
       await tester.pumpWidget(_buildSubject(mockAuthService));
 
-      expect(find.text('Architectula'), findsOneWidget);
+      expect(find.text('ArchiEd'), findsOneWidget);
       expect(find.byType(TextFormField), findsAtLeast(2));
       expect(find.text('Sign In'), findsOneWidget);
       expect(find.text('Create Account'), findsOneWidget);

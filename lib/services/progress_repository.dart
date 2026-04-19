@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/quiz_question.dart';
 
@@ -44,6 +46,18 @@ class AttemptHistoryItem {
   final DateTime endedAt;
 }
 
+class AttemptHistoryPage {
+  const AttemptHistoryPage({
+    required this.items,
+    required this.hasMore,
+    this.cursor,
+  });
+
+  final List<AttemptHistoryItem> items;
+  final bool hasMore;
+  final QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
+}
+
 class DashboardMetrics {
   const DashboardMetrics({
     required this.readinessPercent,
@@ -74,11 +88,7 @@ class ProgressRepository {
   }) async {
     final sessionsRef = _firestore.collection('attempts').doc(uid).collection('sessions');
     final weakRef = _firestore.collection('analytics').doc(uid).collection('weakTopics');
-    final todayRef = _firestore
-        .collection('usage')
-        .doc(uid)
-        .collection('daily')
-        .doc(_todayKey());
+    final todayRef = _firestore.collection('usage').doc(uid).collection('daily').doc(_todayKey());
 
     var correctCount = 0;
     final results = <Map<String, dynamic>>[];
@@ -116,8 +126,7 @@ class ProgressRepository {
       });
     }
 
-    final scorePercent =
-        questions.isEmpty ? 0 : ((correctCount / questions.length) * 100).round();
+    final scorePercent = questions.isEmpty ? 0 : ((correctCount / questions.length) * 100).round();
 
     await sessionsRef.add({
       'mode': mode,
@@ -135,8 +144,9 @@ class ProgressRepository {
         'questionsUsed': FieldValue.increment(questions.length),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-    } catch (_) {
-      // Usage counters can be server-authoritative in hardened environments.
+    } catch (e, stack) {
+      debugPrint('saveAttempt: usage counter update failed: $e');
+      FirebaseCrashlytics.instance.recordError(e, stack);
     }
   }
 
@@ -152,14 +162,10 @@ class ProgressRepository {
           .limit(10)
           .get();
 
-      var readiness = 42;
-      if (sessionsQuery.docs.isNotEmpty) {
-        final scores = sessionsQuery.docs
-            .map((doc) => (doc.data()['score'] as num?)?.toInt() ?? 0)
-            .toList();
-        final avg = scores.reduce((a, b) => a + b) / scores.length;
-        readiness = avg.round().clamp(0, 100);
-      }
+      final scores = sessionsQuery.docs
+          .map((doc) => (doc.data()['score'] as num?)?.toInt() ?? 0)
+          .toList();
+      final readiness = computeReadiness(scores);
 
       final weakTopicsQuery = await _firestore
           .collection('analytics')
@@ -177,7 +183,7 @@ class ProgressRepository {
         );
       }).toList();
 
-      final trends = _computeSectionTrends(
+      final trends = computeSectionTrends(
         sessionsQuery.docs.map((d) => d.data()).toList(),
       );
 
@@ -187,7 +193,9 @@ class ProgressRepository {
         sectionTrends: trends,
         attemptsCount: sessionsQuery.docs.length,
       );
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('fetchDashboardMetrics failed: $e');
+      FirebaseCrashlytics.instance.recordError(e, stack);
       return const DashboardMetrics(
         readinessPercent: 42,
         attemptsCount: 0,
@@ -198,11 +206,7 @@ class ProgressRepository {
         ],
         sectionTrends: [
           SectionTrendMetric(section: 'Project Management', currentAccuracy: 52, delta: 8),
-          SectionTrendMetric(
-            section: 'Programming & Analysis',
-            currentAccuracy: 47,
-            delta: -5,
-          ),
+          SectionTrendMetric(section: 'Programming & Analysis', currentAccuracy: 47, delta: -5),
           SectionTrendMetric(section: 'Structural Systems', currentAccuracy: 61, delta: 4),
         ],
       );
@@ -213,37 +217,38 @@ class ProgressRepository {
     required String uid,
     int limit = 20,
   }) async {
+    final page = await fetchAttemptHistoryPage(uid: uid, limit: limit);
+    return page.items;
+  }
+
+  Future<AttemptHistoryPage> fetchAttemptHistoryPage({
+    required String uid,
+    int limit = 20,
+    QueryDocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) async {
     try {
-      final query = await _firestore
+      Query<Map<String, dynamic>> query = _firestore
           .collection('attempts')
           .doc(uid)
           .collection('sessions')
           .orderBy('endedAt', descending: true)
-          .limit(limit)
-          .get();
+          .limit(limit);
 
-      return query.docs.map((doc) {
-        final data = doc.data();
-        final ts = data['endedAt'];
-        DateTime endedAt = DateTime.now();
-        if (ts is Timestamp) {
-          endedAt = ts.toDate();
-        } else if (ts is String) {
-          endedAt = DateTime.tryParse(ts) ?? DateTime.now();
-        }
+      if (startAfter != null) {
+        query = query.startAfterDocument(startAfter);
+      }
 
-        return AttemptHistoryItem(
-          id: doc.id,
-          mode: data['mode']?.toString() ?? 'section',
-          score: (data['score'] as num?)?.toInt() ?? 0,
-          questionCount: (data['questionCount'] as num?)?.toInt() ?? 0,
-          correctCount: (data['correctCount'] as num?)?.toInt() ?? 0,
-          timeSpentSec: (data['timeSpentSec'] as num?)?.toInt() ?? 0,
-          endedAt: endedAt,
-        );
-      }).toList();
-    } catch (_) {
-      return List.generate(
+      final snapshot = await query.get();
+      final items = snapshot.docs.map(_mapAttemptHistoryItem).toList();
+      return AttemptHistoryPage(
+        items: items,
+        hasMore: snapshot.docs.length == limit,
+        cursor: snapshot.docs.isEmpty ? null : snapshot.docs.last,
+      );
+    } catch (e, stack) {
+      debugPrint('fetchAttemptHistoryPage failed: $e');
+      FirebaseCrashlytics.instance.recordError(e, stack);
+      final fallback = List.generate(
         5,
         (i) => AttemptHistoryItem(
           id: 'demo_$i',
@@ -255,10 +260,40 @@ class ProgressRepository {
           endedAt: DateTime.now().subtract(Duration(days: i)),
         ),
       );
+      return const AttemptHistoryPage(items: [], hasMore: false).copyWith(items: fallback);
     }
   }
 
-  List<SectionTrendMetric> _computeSectionTrends(List<Map<String, dynamic>> sessions) {
+  AttemptHistoryItem _mapAttemptHistoryItem(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+    final ts = data['endedAt'];
+    DateTime endedAt = DateTime.now();
+    if (ts is Timestamp) {
+      endedAt = ts.toDate();
+    } else if (ts is String) {
+      endedAt = DateTime.tryParse(ts) ?? DateTime.now();
+    }
+
+    return AttemptHistoryItem(
+      id: doc.id,
+      mode: data['mode']?.toString() ?? 'section',
+      score: (data['score'] as num?)?.toInt() ?? 0,
+      questionCount: (data['questionCount'] as num?)?.toInt() ?? 0,
+      correctCount: (data['correctCount'] as num?)?.toInt() ?? 0,
+      timeSpentSec: (data['timeSpentSec'] as num?)?.toInt() ?? 0,
+      endedAt: endedAt,
+    );
+  }
+
+  @visibleForTesting
+  static int computeReadiness(List<int> scores) {
+    if (scores.isEmpty) return 42;
+    final avg = scores.reduce((a, b) => a + b) / scores.length;
+    return avg.round().clamp(0, 100);
+  }
+
+  @visibleForTesting
+  static List<SectionTrendMetric> computeSectionTrends(List<Map<String, dynamic>> sessions) {
     if (sessions.isEmpty) {
       return const [];
     }
@@ -291,7 +326,7 @@ class ProgressRepository {
     return trends.take(4).toList();
   }
 
-  Map<String, _SectionStats> _accumulateSectionStats(List<Map<String, dynamic>> sessions) {
+  static Map<String, _SectionStats> _accumulateSectionStats(List<Map<String, dynamic>> sessions) {
     final map = <String, _SectionStats>{};
     for (final session in sessions) {
       final results = session['questionResults'];
@@ -324,4 +359,18 @@ class ProgressRepository {
 class _SectionStats {
   int total = 0;
   int correct = 0;
+}
+
+extension on AttemptHistoryPage {
+  AttemptHistoryPage copyWith({
+    List<AttemptHistoryItem>? items,
+    bool? hasMore,
+    QueryDocumentSnapshot<Map<String, dynamic>>? cursor,
+  }) {
+    return AttemptHistoryPage(
+      items: items ?? this.items,
+      hasMore: hasMore ?? this.hasMore,
+      cursor: cursor ?? this.cursor,
+    );
+  }
 }
