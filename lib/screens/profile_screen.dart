@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/providers.dart';
 import '../core/theme/app_theme.dart';
@@ -336,14 +337,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     icon: Icons.shield_outlined,
                     label: 'Privacy Policy',
                     value: '',
-                    onTap: () {},
+                    onTap: () => launchUrl(
+                      Uri.parse('https://vito-bc.github.io/ARE-Coach/privacy-policy.html'),
+                      mode: LaunchMode.externalApplication,
+                    ),
                   ),
                   _Divider(),
                   _SettingsRow(
                     icon: Icons.description_outlined,
                     label: 'Terms of Service',
                     value: '',
-                    onTap: () {},
+                    onTap: () => launchUrl(
+                      Uri.parse('https://vito-bc.github.io/ARE-Coach/terms-and-conditions.html'),
+                      mode: LaunchMode.externalApplication,
+                    ),
                   ),
                 ],
               ),
