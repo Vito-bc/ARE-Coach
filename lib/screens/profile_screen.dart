@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/providers.dart';
+import 'ncarb_calculator_screen.dart';
 import '../core/theme/app_theme.dart';
 import '../services/iap_service.dart';
 import '../services/notification_service.dart';
@@ -282,6 +283,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       color: AppTheme.yellow,
                     ),
                   ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Tools ──────────────────────────────────────────────
+            _Card(
+              child: _SettingsRow(
+                icon: Icons.calculate_outlined,
+                label: 'NCARB Score Calculator',
+                value: '',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NcarbCalculatorScreen()),
                 ),
               ),
             ),
