@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
 import '../models/quiz_question.dart';
+import '../widgets/flag_question_sheet.dart';
 import 'package:architectula_education_app/screens/tests_screen.dart';
 
 class TestSessionScreen extends StatelessWidget {
@@ -13,6 +14,7 @@ class TestSessionScreen extends StatelessWidget {
     required this.elapsedSec,
     required this.mode,
     required this.saving,
+    required this.firebaseReady,
     required this.onAnswerSelected,
     required this.onPrevious,
     required this.onNext,
@@ -26,6 +28,7 @@ class TestSessionScreen extends StatelessWidget {
   final int elapsedSec;
   final TestMode mode;
   final bool saving;
+  final bool firebaseReady;
   final void Function(String questionId, String option) onAnswerSelected;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
@@ -106,6 +109,20 @@ class TestSessionScreen extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () => showFlagQuestionSheet(
+                  context,
+                  question: questions[index],
+                  firebaseReady: firebaseReady,
+                ),
+                icon: const Icon(Icons.flag_outlined, size: 18),
+                color: AppTheme.textSecondary,
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF1F2937),
+                  padding: const EdgeInsets.all(8),
                 ),
               ),
             ],

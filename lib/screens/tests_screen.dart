@@ -186,6 +186,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
                         score: _lastScore,
                         elapsedSec: _elapsedSec,
                         mode: _mode,
+                        firebaseReady: widget.firebaseReady,
                         onNewConfig: _goBackToConfig,
                         onRetry: _startTest,
                       )
@@ -196,6 +197,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
                         elapsedSec: _elapsedSec,
                         mode: _mode,
                         saving: _saving,
+                        firebaseReady: widget.firebaseReady,
                         onAnswerSelected: (questionId, option) =>
                             setState(() => _answers[questionId] = option),
                         onPrevious: _index == 0 ? null : () => setState(() => _index--),
