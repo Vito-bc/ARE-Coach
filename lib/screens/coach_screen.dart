@@ -7,7 +7,9 @@ import '../services/coach_service.dart';
 import '../services/voice_service.dart';
 
 class CoachScreen extends StatefulWidget {
-  const CoachScreen({super.key});
+  const CoachScreen({super.key, this.initialMessage});
+
+  final String? initialMessage;
 
   @override
   State<CoachScreen> createState() => _CoachScreenState();
@@ -52,6 +54,12 @@ Common mistakes:
   void initState() {
     super.initState();
     _bootstrapVoice();
+    if (widget.initialMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _controller.text = widget.initialMessage!;
+        _sendMessage();
+      });
+    }
   }
 
   Future<void> _bootstrapVoice() async {

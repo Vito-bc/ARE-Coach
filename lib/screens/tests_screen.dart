@@ -27,6 +27,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
   String _selectedSection = 'All Divisions';
   int _questionCount = 20;
   bool _configuring = true;
+  bool _studyMode = false;
 
   List<QuizQuestion> _questions = [];
   bool _loading = false;
@@ -172,9 +173,11 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
                 mode: _mode,
                 selectedSection: _selectedSection,
                 questionCount: _questionCount,
+                studyMode: _studyMode,
                 onModeChanged: (mode) => setState(() => _mode = mode),
                 onSectionChanged: (section) => setState(() => _selectedSection = section),
                 onQuestionCountChanged: (count) => setState(() => _questionCount = count),
+                onStudyModeChanged: (value) => setState(() => _studyMode = value),
                 onStart: _startTest,
               )
             : _loading
@@ -198,6 +201,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
                         mode: _mode,
                         saving: _saving,
                         firebaseReady: widget.firebaseReady,
+                        studyMode: _studyMode,
                         onAnswerSelected: (questionId, option) =>
                             setState(() => _answers[questionId] = option),
                         onPrevious: _index == 0 ? null : () => setState(() => _index--),
@@ -217,18 +221,22 @@ class _TestsConfigView extends StatelessWidget {
     required this.mode,
     required this.selectedSection,
     required this.questionCount,
+    required this.studyMode,
     required this.onModeChanged,
     required this.onSectionChanged,
     required this.onQuestionCountChanged,
+    required this.onStudyModeChanged,
     required this.onStart,
   });
 
   final TestMode mode;
   final String selectedSection;
   final int questionCount;
+  final bool studyMode;
   final ValueChanged<TestMode> onModeChanged;
   final ValueChanged<String> onSectionChanged;
   final ValueChanged<int> onQuestionCountChanged;
+  final ValueChanged<bool> onStudyModeChanged;
   final VoidCallback onStart;
 
   @override
@@ -363,6 +371,56 @@ class _TestsConfigView extends StatelessWidget {
             '� ${(questionCount * 1.5).round()} minutes',
             style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),
+        const SizedBox(height: 24),
+        const _SectionHeader('Session Type'),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F2937),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF374151), width: 0.5),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                studyMode ? Icons.school_outlined : Icons.fact_check_outlined,
+                size: 18,
+                color: studyMode ? AppTheme.yellow : AppTheme.textSecondary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      studyMode ? 'Study Mode' : 'Test Mode',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: studyMode ? AppTheme.yellow : AppTheme.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      studyMode
+                          ? 'See explanation after each answer'
+                          : 'Score revealed at the end',
+                      style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: studyMode,
+                onChanged: onStudyModeChanged,
+                activeThumbColor: AppTheme.yellow,
+                activeTrackColor: AppTheme.yellow.withValues(alpha: 0.3),
+                inactiveThumbColor: AppTheme.textSecondary,
+                inactiveTrackColor: AppTheme.surfaceElevated,
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 32),
         Container(
           padding: const EdgeInsets.all(16),
@@ -385,6 +443,12 @@ class _TestsConfigView extends StatelessWidget {
                     : mode == TestMode.section
                         ? 'By Division'
                         : 'Timed Exam',
+              ),
+              const Divider(color: Color(0xFF374151), height: 16),
+              _SummaryRow(
+                icon: Icons.school_outlined,
+                label: 'Session Type',
+                value: studyMode ? 'Study' : 'Test',
               ),
             ],
           ),
