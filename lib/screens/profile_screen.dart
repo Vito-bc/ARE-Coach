@@ -187,7 +187,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                         const SizedBox(width: 12),
                         _StatBox(
-                          value: '213',
+                          value: ref.watch(allQuestionsProvider).valueOrNull?.length.toString() ?? '—',
                           label: 'Questions',
                           color: AppTheme.yellow,
                         ),
@@ -309,7 +309,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     icon: Icons.language_outlined,
                     label: 'Language',
                     value: 'English',
-                    onTap: null,
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('More languages coming soon.'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    ),
                   ),
                   _Divider(),
                   if (!kIsWeb)
