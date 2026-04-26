@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/providers.dart';
+import 'ncarb_calculator_screen.dart';
 import '../core/theme/app_theme.dart';
 import '../services/iap_service.dart';
 import '../services/notification_service.dart';
@@ -186,7 +187,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                         const SizedBox(width: 12),
                         _StatBox(
-                          value: '213',
+                          value: ref.watch(allQuestionsProvider).valueOrNull?.length.toString() ?? '—',
                           label: 'Questions',
                           color: AppTheme.yellow,
                         ),
@@ -287,6 +288,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             const SizedBox(height: 16),
 
+            // ── Tools ──────────────────────────────────────────────
+            _Card(
+              child: _SettingsRow(
+                icon: Icons.calculate_outlined,
+                label: 'NCARB Score Calculator',
+                value: '',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NcarbCalculatorScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // ── Settings / Info ────────────────────────────────────
             _Card(
               child: Column(
@@ -295,7 +309,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     icon: Icons.language_outlined,
                     label: 'Language',
                     value: 'English',
-                    onTap: null,
+                    onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('More languages coming soon.'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    ),
                   ),
                   _Divider(),
                   if (!kIsWeb)

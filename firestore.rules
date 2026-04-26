@@ -78,5 +78,13 @@ service cloud.firestore {
       allow read: if isOwner(uid) || isAdmin();
       allow write: if isAdmin();
     }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasAll(['uid', 'questionId', 'reason', 'status', 'createdAt'])
+        && request.resource.data.status == 'pending';
+      allow read, update, delete: if isAdmin();
+    }
   }
 }

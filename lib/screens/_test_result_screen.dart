@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
 import '../models/quiz_question.dart';
+import '../widgets/flag_question_sheet.dart';
 import 'package:architectula_education_app/screens/tests_screen.dart';
 
 class TestResultScreen extends StatelessWidget {
@@ -12,6 +13,7 @@ class TestResultScreen extends StatelessWidget {
     required this.score,
     required this.elapsedSec,
     required this.mode,
+    required this.firebaseReady,
     required this.onNewConfig,
     required this.onRetry,
   });
@@ -21,6 +23,7 @@ class TestResultScreen extends StatelessWidget {
   final int score;
   final int elapsedSec;
   final TestMode mode;
+  final bool firebaseReady;
   final VoidCallback onNewConfig;
   final VoidCallback onRetry;
 
@@ -175,6 +178,31 @@ class TestResultScreen extends StatelessWidget {
                       color: AppTheme.yellow,
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () => showFlagQuestionSheet(
+                        context,
+                        question: question,
+                        firebaseReady: firebaseReady,
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.flag_outlined, size: 13, color: AppTheme.textSecondary),
+                          SizedBox(width: 4),
+                          Text(
+                            'Flag question',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
