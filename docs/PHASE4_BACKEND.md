@@ -54,3 +54,8 @@ flutter run -d chrome --dart-define=COACH_API_URL=https://us-central1-architect-
 2. Create budgets/alerts in Google Cloud Billing:
    - thresholds: `$10`, `$25`, `$50`
 3. Add alerting dashboard for Cloud Logging on `coach_request`.
+
+## Firestore TTL for Minute Usage
+- In Firebase Console or Google Cloud Console, enable Firestore TTL for the expiresAt field on usage/{uid}/minute/* documents.
+- The Cloud Function already writes expiresAt; TTL still must be enabled in the console because it is not controlled by app code.
+- Recommended: verify TTL before production so minute-level usage documents do not accumulate indefinitely.

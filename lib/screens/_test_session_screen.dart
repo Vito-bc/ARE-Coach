@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
@@ -12,7 +13,7 @@ class TestSessionScreen extends StatelessWidget {
     required this.questions,
     required this.answers,
     required this.index,
-    required this.elapsedSec,
+    required this.elapsedListenable,
     required this.mode,
     required this.saving,
     required this.firebaseReady,
@@ -27,7 +28,7 @@ class TestSessionScreen extends StatelessWidget {
   final List<QuizQuestion> questions;
   final Map<String, String> answers;
   final int index;
-  final int elapsedSec;
+  final ValueListenable<int> elapsedListenable;
   final TestMode mode;
   final bool saving;
   final bool firebaseReady;
@@ -50,7 +51,10 @@ class TestSessionScreen extends StatelessWidget {
               style: TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 16),
-            FilledButton(onPressed: onExit, child: const Text('Back to Config')),
+            FilledButton(
+              onPressed: onExit,
+              child: const Text('Back to Config'),
+            ),
           ],
         ),
       );
@@ -63,73 +67,16 @@ class TestSessionScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: onExit,
-                icon: const Icon(Icons.close_rounded, color: AppTheme.textSecondary),
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF1F2937),
-                  padding: const EdgeInsets.all(8),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: const Color(0xFF374151),
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.yellow),
-                      minHeight: 4,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${index + 1} of ${questions.length}',
-                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: mode == TestMode.timed && elapsedSec < 60
-                      ? const Color(0xFF3D0000)
-                      : const Color(0xFF1F2937),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _formatTime(),
-                  style: TextStyle(
-                    color: mode == TestMode.timed && elapsedSec < 60
-                        ? Colors.red
-                        : AppTheme.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () => showFlagQuestionSheet(
-                  context,
-                  question: questions[index],
-                  firebaseReady: firebaseReady,
-                ),
-                icon: const Icon(Icons.flag_outlined, size: 18),
-                color: AppTheme.textSecondary,
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF1F2937),
-                  padding: const EdgeInsets.all(8),
-                ),
-              ),
-            ],
+        _SessionHeader(
+          progress: progress,
+          countLabel: '${index + 1} of ${questions.length}',
+          elapsedListenable: elapsedListenable,
+          mode: mode,
+          onExit: onExit,
+          onFlag: () => showFlagQuestionSheet(
+            context,
+            question: questions[index],
+            firebaseReady: firebaseReady,
           ),
         ),
         Expanded(
@@ -139,7 +86,10 @@ class TestSessionScreen extends StatelessWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppTheme.yellow.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
@@ -186,7 +136,7 @@ class TestSessionScreen extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (_) => CoachScreen(
                         initialMessage:
-                            'Explain this ARE question: "${question.question}" — '
+                            'Explain this ARE question: "${question.question}" - '
                             'The correct answer is "${question.correctOption}". '
                             '${question.explanation}',
                       ),
@@ -198,21 +148,198 @@ class TestSessionScreen extends StatelessWidget {
             ],
           ),
         ),
-        Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          decoration: const BoxDecoration(
-            color: Color(0xFF161B22),
-            border: Border(top: BorderSide(color: Color(0xFF21262D), width: 0.5)),
-          ),
-          child: Row(
-            children: [
-              OutlinedButton(onPressed: onPrevious, child: const Text('Previous')),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(onPressed: onNext, child: const Text('Next')),
+        _SessionFooter(
+          saving: saving,
+          onPrevious: onPrevious,
+          onNext: onNext,
+          onSubmit: onSubmit,
+        ),
+      ],
+    );
+  }
+}
+
+class _SessionHeader extends StatelessWidget {
+  const _SessionHeader({
+    required this.progress,
+    required this.countLabel,
+    required this.elapsedListenable,
+    required this.mode,
+    required this.onExit,
+    required this.onFlag,
+  });
+
+  final double progress;
+  final String countLabel;
+  final ValueListenable<int> elapsedListenable;
+  final TestMode mode;
+  final VoidCallback onExit;
+  final VoidCallback onFlag;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        children: [
+          SizedBox.square(
+            dimension: 52,
+            child: IconButton(
+              onPressed: onExit,
+              icon: const Icon(
+                Icons.close_rounded,
+                color: AppTheme.textSecondary,
               ),
-              const SizedBox(width: 8),
-              FilledButton(
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFF1F2937),
+                padding: const EdgeInsets.all(8),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ProgressStrip(value: progress),
+                const SizedBox(height: 4),
+                Text(
+                  countLabel,
+                  style: const TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          ValueListenableBuilder<int>(
+            valueListenable: elapsedListenable,
+            builder: (_, sec, __) {
+              final isLow = mode == TestMode.timed && sec < 60;
+              final mm = (sec ~/ 60).toString().padLeft(2, '0');
+              final ss = (sec % 60).toString().padLeft(2, '0');
+              return Container(
+                constraints: const BoxConstraints(minWidth: 64, minHeight: 36),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: isLow
+                      ? const Color(0xFF3D0000)
+                      : const Color(0xFF1F2937),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$mm:$ss',
+                  style: TextStyle(
+                    color: isLow ? Colors.red : AppTheme.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          SizedBox.square(
+            dimension: 52,
+            child: IconButton(
+              onPressed: onFlag,
+              icon: const Icon(Icons.flag_outlined, size: 18),
+              color: AppTheme.textSecondary,
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFF1F2937),
+                padding: const EdgeInsets.all(8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressStrip extends StatelessWidget {
+  const _ProgressStrip({required this.value});
+
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = value.clamp(0.0, 1.0);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(2),
+      child: SizedBox(
+        height: 4,
+        child: DecoratedBox(
+          decoration: const BoxDecoration(color: Color(0xFF374151)),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: clamped,
+              heightFactor: 1,
+              child: const DecoratedBox(
+                decoration: BoxDecoration(color: AppTheme.yellow),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionFooter extends StatelessWidget {
+  const _SessionFooter({
+    required this.saving,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onSubmit,
+  });
+
+  final bool saving;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+  final VoidCallback? onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: const BoxDecoration(
+        color: Color(0xFF161B22),
+        border: Border(top: BorderSide(color: Color(0xFF21262D), width: 0.5)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 88, minHeight: 44),
+              child: OutlinedButton(
+                onPressed: onPrevious,
+                child: const Text('Previous'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 44,
+                child: FilledButton(
+                  onPressed: onNext,
+                  child: const Text('Next'),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 88, minHeight: 44),
+              child: FilledButton(
                 onPressed: onSubmit,
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF1F2937),
@@ -221,17 +348,11 @@ class TestSessionScreen extends StatelessWidget {
                 ),
                 child: Text(saving ? '...' : 'Submit'),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
-  }
-
-  String _formatTime() {
-    final minutes = (elapsedSec ~/ 60).toString().padLeft(2, '0');
-    final seconds = (elapsedSec % 60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
   }
 }
 
@@ -258,7 +379,9 @@ class _OptionTile extends StatelessWidget {
     final isCorrect = option == question.correctOption;
 
     Color borderColor = isSelected ? AppTheme.yellow : const Color(0xFF374151);
-    Color bgColor = isSelected ? const Color(0xFF2D2400) : const Color(0xFF1F2937);
+    Color bgColor = isSelected
+        ? const Color(0xFF2D2400)
+        : const Color(0xFF1F2937);
     Color dotColor = isSelected ? AppTheme.yellow : Colors.transparent;
     Color dotBorder = isSelected ? AppTheme.yellow : const Color(0xFF6B7280);
 
@@ -279,52 +402,73 @@ class _OptionTile extends StatelessWidget {
       }
     }
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: bgColor,
+    final borderWidth = (isSelected || (studyMode && locked && isCorrect))
+        ? 1.5
+        : 0.5;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderColor, width: isSelected || (studyMode && locked && isCorrect) ? 1.5 : 0.5),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: dotColor,
-                border: Border.all(color: dotBorder, width: 1.5),
-              ),
-              child: studyMode && locked && isCorrect
-                  ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
-                  : studyMode && locked && isSelected && !isCorrect
-                      ? const Icon(Icons.close_rounded, size: 14, color: Colors.white)
-                      : isSelected && !studyMode
-                          ? const Icon(Icons.check_rounded, size: 14, color: Color(0xFF0D1117))
-                          : null,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor, width: borderWidth),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                option,
-                style: TextStyle(
-                  color: isSelected || (studyMode && locked && isCorrect)
-                      ? Colors.white
-                      : const Color(0xFF8B9CB6),
-                  fontSize: 14,
-                  height: 1.4,
+            child: Row(
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: dotColor,
+                    border: Border.all(color: dotBorder, width: 1.5),
+                  ),
+                  child: Center(child: _buildDotChild(isSelected, isCorrect)),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    option,
+                    style: TextStyle(
+                      color: isSelected || (studyMode && locked && isCorrect)
+                          ? Colors.white
+                          : const Color(0xFF8B9CB6),
+                      fontSize: 14,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Widget _buildDotChild(bool isSelected, bool isCorrect) {
+    if (studyMode && locked && isCorrect) {
+      return const Icon(Icons.check_rounded, size: 14, color: Colors.white);
+    }
+    if (studyMode && locked && isSelected && !isCorrect) {
+      return const Icon(Icons.close_rounded, size: 14, color: Colors.white);
+    }
+    if (isSelected && !studyMode) {
+      return const Icon(
+        Icons.check_rounded,
+        size: 14,
+        color: Color(0xFF0D1117),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }
 
@@ -405,12 +549,18 @@ class _StudyFeedbackPanel extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppTheme.yellow.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.yellow.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppTheme.yellow.withValues(alpha: 0.3),
+                ),
               ),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.chat_bubble_outline_rounded, size: 14, color: AppTheme.yellow),
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 14,
+                    color: AppTheme.yellow,
+                  ),
                   SizedBox(width: 6),
                   Text(
                     'Ask Coach about this',
