@@ -38,5 +38,5 @@ final dashboardMetricsProvider =
 /// All questions loaded once and cached for the app session.
 /// TestsScreen filters/shuffles client-side so re-starting a test is instant.
 final allQuestionsProvider = FutureProvider<List<QuizQuestion>>((ref) {
-  return QuestionRepository().loadNyQuestions(limit: 0);
+  return QuestionRepository().loadFromAsset(limit: 0);
 });
