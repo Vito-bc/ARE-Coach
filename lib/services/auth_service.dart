@@ -7,11 +7,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class AuthService {
-  AuthService({
-    FirebaseAuth? auth,
-    FirebaseFirestore? firestore,
-  })  : _providedAuth = auth,
-        _providedFirestore = firestore;
+  AuthService({FirebaseAuth? auth, FirebaseFirestore? firestore})
+    : _providedAuth = auth,
+      _providedFirestore = firestore;
 
   final FirebaseAuth? _providedAuth;
   final FirebaseFirestore? _providedFirestore;
@@ -79,8 +77,9 @@ class AuthService {
       rawNonce: appleCredential.authorizationCode,
     );
     try {
-      final result =
-          await _auth.currentUser!.linkWithCredential(oauthCredential);
+      final result = await _auth.currentUser!.linkWithCredential(
+        oauthCredential,
+      );
       if (result.user != null) await _ensureUserRecord(result.user!);
       return result.user;
     } on FirebaseAuthException catch (e) {
@@ -99,8 +98,9 @@ class AuthService {
       password: password,
     );
     try {
-      final result =
-          await _auth.currentUser!.linkWithCredential(emailCredential);
+      final result = await _auth.currentUser!.linkWithCredential(
+        emailCredential,
+      );
       if (result.user != null) await _ensureUserRecord(result.user!);
       return result.user;
     } on FirebaseAuthException catch (e) {
@@ -123,16 +123,19 @@ class AuthService {
 
   Future<void> _ensureUserRecord(User user) async {
     try {
-      await _firestore.collection('users').doc(user.uid).set({
+      final doc = _firestore.collection('users').doc(user.uid);
+      final snapshot = await doc.get();
+      final data = <String, dynamic>{
         'email': user.email,
         'name': user.displayName,
-        'role': 'free',
-        'subscriptionId': null,
-        'subscriptionStatus': null,
-        'premiumUntil': null,
         'lastActiveAt': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      };
+      if (!snapshot.exists) {
+        data['role'] = 'free';
+        data['createdAt'] = FieldValue.serverTimestamp();
+      }
+
+      await doc.set(data, SetOptions(merge: true));
     } catch (_) {
       // Keep auth flow resilient in local/dev modes.
     }
@@ -155,7 +158,9 @@ class AuthService {
         '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
     final random = Random.secure();
     return List.generate(
-        length, (_) => charset[random.nextInt(charset.length)]).join();
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
   }
 
   String _sha256ofString(String input) {
