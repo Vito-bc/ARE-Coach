@@ -171,54 +171,92 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.navy,
-      body: SafeArea(
-        child: _configuring
-            ? _TestsConfigView(
-                mode: _mode,
-                selectedSection: _selectedSection,
-                questionCount: _questionCount,
-                studyMode: _studyMode,
-                onModeChanged: (mode) => setState(() => _mode = mode),
-                onSectionChanged: (section) =>
-                    setState(() => _selectedSection = section),
-                onQuestionCountChanged: (count) =>
-                    setState(() => _questionCount = count),
-                onStudyModeChanged: (value) =>
-                    setState(() => _studyMode = value),
-                onStart: _startTest,
-              )
-            : _loading
-            ? const _TestsLoadingView()
-            : _showResult
-            ? TestResultScreen(
-                questions: _questions,
-                answers: _answers,
-                score: _lastScore,
-                elapsedSec: _elapsedNotifier.value,
-                mode: _mode,
-                firebaseReady: widget.firebaseReady,
-                onNewConfig: _goBackToConfig,
-                onRetry: _startTest,
-              )
-            : TestSessionScreen(
-                questions: _questions,
-                answers: _answers,
-                index: _index,
-                elapsedListenable: _elapsedNotifier,
-                mode: _mode,
-                saving: _saving,
-                firebaseReady: widget.firebaseReady,
-                studyMode: _studyMode,
-                onAnswerSelected: (questionId, option) =>
-                    setState(() => _answers[questionId] = option),
-                onPrevious: _index == 0 ? null : () => setState(() => _index--),
-                onNext: _index < _questions.length - 1
-                    ? () => setState(() => _index++)
-                    : null,
-                onSubmit: _answers.isEmpty || _saving ? null : _submitTest,
-                onExit: _goBackToConfig,
-              ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const _TestsBackground(),
+          SafeArea(
+            child: _configuring
+                ? _TestsConfigView(
+                    mode: _mode,
+                    selectedSection: _selectedSection,
+                    questionCount: _questionCount,
+                    studyMode: _studyMode,
+                    onModeChanged: (mode) => setState(() => _mode = mode),
+                    onSectionChanged: (section) =>
+                        setState(() => _selectedSection = section),
+                    onQuestionCountChanged: (count) =>
+                        setState(() => _questionCount = count),
+                    onStudyModeChanged: (value) =>
+                        setState(() => _studyMode = value),
+                    onStart: _startTest,
+                  )
+                : _loading
+                ? const _TestsLoadingView()
+                : _showResult
+                ? TestResultScreen(
+                    questions: _questions,
+                    answers: _answers,
+                    score: _lastScore,
+                    elapsedSec: _elapsedNotifier.value,
+                    mode: _mode,
+                    firebaseReady: widget.firebaseReady,
+                    onNewConfig: _goBackToConfig,
+                    onRetry: _startTest,
+                  )
+                : TestSessionScreen(
+                    questions: _questions,
+                    answers: _answers,
+                    index: _index,
+                    elapsedListenable: _elapsedNotifier,
+                    mode: _mode,
+                    saving: _saving,
+                    firebaseReady: widget.firebaseReady,
+                    studyMode: _studyMode,
+                    onAnswerSelected: (questionId, option) =>
+                        setState(() => _answers[questionId] = option),
+                    onPrevious: _index == 0
+                        ? null
+                        : () => setState(() => _index--),
+                    onNext: _index < _questions.length - 1
+                        ? () => setState(() => _index++)
+                        : null,
+                    onSubmit: _answers.isEmpty || _saving ? null : _submitTest,
+                    onExit: _goBackToConfig,
+                  ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _TestsBackground extends StatelessWidget {
+  const _TestsBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          'assets/images/testPageBack.png',
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        ),
+        const DecoratedBox(decoration: BoxDecoration(color: Color(0xB30D1117))),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0x330D1117), Color(0x990D1117), Color(0xEE0D1117)],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
