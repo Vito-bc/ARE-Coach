@@ -95,11 +95,19 @@ class ProgressRepository {
 
     var correctCount = 0;
     final results = <Map<String, dynamic>>[];
+    final sectionStats = <String, _AttemptSectionStats>{};
 
     for (final q in questions) {
       final selected = answersByQuestionId[q.id];
       final isCorrect = selected == q.correctOption;
       if (isCorrect) correctCount++;
+      final sectionKey = _normalizeSection(q.section);
+      final sectionStat = sectionStats.putIfAbsent(
+        sectionKey,
+        () => _AttemptSectionStats(q.section),
+      );
+      sectionStat.total += 1;
+      if (isCorrect) sectionStat.correct += 1;
 
       results.add({
         'questionId': q.id,
@@ -108,18 +116,37 @@ class ProgressRepository {
         'correctOption': q.correctOption,
         'isCorrect': isCorrect,
       });
+    }
 
-      final weakTopicDoc = weakRef.doc(_normalizeSection(q.section));
-      await _firestore.runTransaction((txn) async {
-        final snapshot = await txn.get(weakTopicDoc);
-        final previousTotal = (snapshot.data()?['total'] as num?)?.toInt() ?? 0;
+    final scorePercent = questions.isEmpty
+        ? 0
+        : ((correctCount / questions.length) * 100).round();
+    final sessionDoc = sessionsRef.doc();
+    final weakTopicRefs = {
+      for (final entry in sectionStats.entries)
+        entry.key: weakRef.doc(entry.key),
+    };
+
+    await _firestore.runTransaction((txn) async {
+      final snapshots = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final entry in weakTopicRefs.entries) {
+        snapshots[entry.key] = await txn.get(entry.value);
+      }
+
+      for (final entry in sectionStats.entries) {
+        final sectionKey = entry.key;
+        final attemptStats = entry.value;
+        final snapshot = snapshots[sectionKey];
+        final previousTotal =
+            (snapshot?.data()?['total'] as num?)?.toInt() ?? 0;
         final previousCorrect =
-            (snapshot.data()?['correct'] as num?)?.toInt() ?? 0;
-        final total = previousTotal + 1;
-        final correct = previousCorrect + (isCorrect ? 1 : 0);
+            (snapshot?.data()?['correct'] as num?)?.toInt() ?? 0;
+        final total = previousTotal + attemptStats.total;
+        final correct = previousCorrect + attemptStats.correct;
         final accuracy = total == 0 ? 0 : ((correct / total) * 100).round();
-        txn.set(weakTopicDoc, {
-          'section': q.section,
+
+        txn.set(weakTopicRefs[sectionKey]!, {
+          'section': attemptStats.section,
           'total': total,
           'correct': correct,
           'wrongCount': total - correct,
@@ -127,22 +154,18 @@ class ProgressRepository {
           'lastSeenAt': FieldValue.serverTimestamp(),
           'trend': 'steady',
         }, SetOptions(merge: true));
+      }
+
+      txn.set(sessionDoc, {
+        'mode': mode,
+        'startedAt': FieldValue.serverTimestamp(),
+        'endedAt': FieldValue.serverTimestamp(),
+        'score': scorePercent,
+        'timeSpentSec': timeSpentSec,
+        'questionCount': questions.length,
+        'correctCount': correctCount,
+        'questionResults': results,
       });
-    }
-
-    final scorePercent = questions.isEmpty
-        ? 0
-        : ((correctCount / questions.length) * 100).round();
-
-    await sessionsRef.add({
-      'mode': mode,
-      'startedAt': FieldValue.serverTimestamp(),
-      'endedAt': FieldValue.serverTimestamp(),
-      'score': scorePercent,
-      'timeSpentSec': timeSpentSec,
-      'questionCount': questions.length,
-      'correctCount': correctCount,
-      'questionResults': results,
     });
   }
 
@@ -369,6 +392,12 @@ class ProgressRepository {
 class _SectionStats {
   int total = 0;
   int correct = 0;
+}
+
+class _AttemptSectionStats extends _SectionStats {
+  _AttemptSectionStats(this.section);
+
+  final String section;
 }
 
 extension on AttemptHistoryPage {
