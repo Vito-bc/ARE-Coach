@@ -5,10 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/quiz_question.dart';
 
 class WeakSectionMetric {
-  const WeakSectionMetric({
-    required this.section,
-    required this.accuracy,
-  });
+  const WeakSectionMetric({required this.section, required this.accuracy});
 
   final String section;
   final int accuracy;
@@ -74,10 +71,11 @@ class DashboardMetrics {
 
 class ProgressRepository {
   ProgressRepository({FirebaseFirestore? firestore})
-      : _providedFirestore = firestore;
+    : _providedFirestore = firestore;
 
   final FirebaseFirestore? _providedFirestore;
-  FirebaseFirestore get _firestore => _providedFirestore ?? FirebaseFirestore.instance;
+  FirebaseFirestore get _firestore =>
+      _providedFirestore ?? FirebaseFirestore.instance;
 
   Future<void> saveAttempt({
     required String uid,
@@ -86,9 +84,14 @@ class ProgressRepository {
     required int timeSpentSec,
     required String mode,
   }) async {
-    final sessionsRef = _firestore.collection('attempts').doc(uid).collection('sessions');
-    final weakRef = _firestore.collection('analytics').doc(uid).collection('weakTopics');
-    final todayRef = _firestore.collection('usage').doc(uid).collection('daily').doc(_todayKey());
+    final sessionsRef = _firestore
+        .collection('attempts')
+        .doc(uid)
+        .collection('sessions');
+    final weakRef = _firestore
+        .collection('analytics')
+        .doc(uid)
+        .collection('weakTopics');
 
     var correctCount = 0;
     final results = <Map<String, dynamic>>[];
@@ -110,7 +113,8 @@ class ProgressRepository {
       await _firestore.runTransaction((txn) async {
         final snapshot = await txn.get(weakTopicDoc);
         final previousTotal = (snapshot.data()?['total'] as num?)?.toInt() ?? 0;
-        final previousCorrect = (snapshot.data()?['correct'] as num?)?.toInt() ?? 0;
+        final previousCorrect =
+            (snapshot.data()?['correct'] as num?)?.toInt() ?? 0;
         final total = previousTotal + 1;
         final correct = previousCorrect + (isCorrect ? 1 : 0);
         final accuracy = total == 0 ? 0 : ((correct / total) * 100).round();
@@ -126,7 +130,9 @@ class ProgressRepository {
       });
     }
 
-    final scorePercent = questions.isEmpty ? 0 : ((correctCount / questions.length) * 100).round();
+    final scorePercent = questions.isEmpty
+        ? 0
+        : ((correctCount / questions.length) * 100).round();
 
     await sessionsRef.add({
       'mode': mode,
@@ -138,21 +144,9 @@ class ProgressRepository {
       'correctCount': correctCount,
       'questionResults': results,
     });
-
-    try {
-      await todayRef.set({
-        'questionsUsed': FieldValue.increment(questions.length),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (e, stack) {
-      debugPrint('saveAttempt: usage counter update failed: $e');
-      FirebaseCrashlytics.instance.recordError(e, stack);
-    }
   }
 
-  Future<DashboardMetrics> fetchDashboardMetrics({
-    required String uid,
-  }) async {
+  Future<DashboardMetrics> fetchDashboardMetrics({required String uid}) async {
     try {
       final sessionsQuery = await _firestore
           .collection('attempts')
@@ -205,9 +199,21 @@ class ProgressRepository {
           WeakSectionMetric(section: 'Structural Systems', accuracy: 43),
         ],
         sectionTrends: [
-          SectionTrendMetric(section: 'Project Management', currentAccuracy: 52, delta: 8),
-          SectionTrendMetric(section: 'Programming & Analysis', currentAccuracy: 47, delta: -5),
-          SectionTrendMetric(section: 'Structural Systems', currentAccuracy: 61, delta: 4),
+          SectionTrendMetric(
+            section: 'Project Management',
+            currentAccuracy: 52,
+            delta: 8,
+          ),
+          SectionTrendMetric(
+            section: 'Programming & Analysis',
+            currentAccuracy: 47,
+            delta: -5,
+          ),
+          SectionTrendMetric(
+            section: 'Structural Systems',
+            currentAccuracy: 61,
+            delta: 4,
+          ),
         ],
       );
     }
@@ -260,11 +266,16 @@ class ProgressRepository {
           endedAt: DateTime.now().subtract(Duration(days: i)),
         ),
       );
-      return const AttemptHistoryPage(items: [], hasMore: false).copyWith(items: fallback);
+      return const AttemptHistoryPage(
+        items: [],
+        hasMore: false,
+      ).copyWith(items: fallback);
     }
   }
 
-  AttemptHistoryItem _mapAttemptHistoryItem(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+  AttemptHistoryItem _mapAttemptHistoryItem(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final data = doc.data();
     final ts = data['endedAt'];
     DateTime endedAt = DateTime.now();
@@ -293,7 +304,9 @@ class ProgressRepository {
   }
 
   @visibleForTesting
-  static List<SectionTrendMetric> computeSectionTrends(List<Map<String, dynamic>> sessions) {
+  static List<SectionTrendMetric> computeSectionTrends(
+    List<Map<String, dynamic>> sessions,
+  ) {
     if (sessions.isEmpty) {
       return const [];
     }
@@ -309,7 +322,9 @@ class ProgressRepository {
       final section = entry.key;
       final recent = entry.value;
       final prev = previousStats[section];
-      final currentAccuracy = recent.total == 0 ? 0 : ((recent.correct / recent.total) * 100).round();
+      final currentAccuracy = recent.total == 0
+          ? 0
+          : ((recent.correct / recent.total) * 100).round();
       final previousAccuracy = (prev == null || prev.total == 0)
           ? currentAccuracy
           : ((prev.correct / prev.total) * 100).round();
@@ -326,7 +341,9 @@ class ProgressRepository {
     return trends.take(4).toList();
   }
 
-  static Map<String, _SectionStats> _accumulateSectionStats(List<Map<String, dynamic>> sessions) {
+  static Map<String, _SectionStats> _accumulateSectionStats(
+    List<Map<String, dynamic>> sessions,
+  ) {
     final map = <String, _SectionStats>{};
     for (final session in sessions) {
       final results = session['questionResults'];
@@ -342,13 +359,6 @@ class ProgressRepository {
       }
     }
     return map;
-  }
-
-  String _todayKey() {
-    final now = DateTime.now();
-    final mm = now.month.toString().padLeft(2, '0');
-    final dd = now.day.toString().padLeft(2, '0');
-    return '${now.year}_${mm}_$dd';
   }
 
   String _normalizeSection(String value) {
