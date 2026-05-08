@@ -323,6 +323,9 @@ class _SessionFooter extends StatelessWidget {
               constraints: const BoxConstraints(minWidth: 88, minHeight: 44),
               child: OutlinedButton(
                 onPressed: onPrevious,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(88, 44),
+                ),
                 child: const Text('Previous'),
               ),
             ),
@@ -332,6 +335,7 @@ class _SessionFooter extends StatelessWidget {
                 height: 44,
                 child: FilledButton(
                   onPressed: onNext,
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
                   child: const Text('Next'),
                 ),
               ),
@@ -344,6 +348,7 @@ class _SessionFooter extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF1F2937),
                   foregroundColor: AppTheme.yellow,
+                  minimumSize: const Size(88, 44),
                   side: const BorderSide(color: AppTheme.yellow, width: 1),
                 ),
                 child: Text(saving ? '...' : 'Submit'),
