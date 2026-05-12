@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
@@ -52,9 +54,7 @@ class ReportRepository {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e, stack) {
-      try {
-        FirebaseCrashlytics.instance.recordError(e, stack);
-      } catch (_) {}
+      unawaited(FirebaseCrashlytics.instance.recordError(e, stack));
       rethrow;
     }
   }

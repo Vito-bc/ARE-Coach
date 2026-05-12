@@ -35,7 +35,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
   final _progressRepository = ProgressRepository();
 
   Timer? _timer;
-  int _elapsedSec = 0;
+  final _elapsedNotifier = ValueNotifier<int>(0);
   int _index = 0;
   bool _saving = false;
   bool _showResult = false;
@@ -72,7 +72,9 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
     var questions = await ref.read(allQuestionsProvider.future);
 
     if (_selectedSection != 'All Divisions') {
-      questions = questions.where((q) => q.section == _selectedSection).toList();
+      questions = questions
+          .where((q) => q.section == _selectedSection)
+          .toList();
     }
 
     questions.shuffle();
@@ -81,13 +83,13 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
     }
 
     if (!mounted) return;
+    _elapsedNotifier.value = 0;
     setState(() {
       _questions = questions;
       _loading = false;
       _index = 0;
       _answers.clear();
       _showResult = false;
-      _elapsedSec = 0;
     });
     _startTimer();
   }
@@ -95,12 +97,11 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
   void _startTimer() {
     _timer?.cancel();
     if (_mode == TestMode.timed) {
-      final limit = _questionCount * 90;
-      _elapsedSec = limit;
+      _elapsedNotifier.value = _questionCount * 90;
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
-        setState(() => _elapsedSec--);
-        if (_elapsedSec <= 0) {
+        _elapsedNotifier.value--;
+        if (_elapsedNotifier.value <= 0) {
           _submitTest();
         }
       });
@@ -109,18 +110,18 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
 
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || _showResult) return;
-      setState(() => _elapsedSec++);
+      _elapsedNotifier.value++;
     });
   }
 
   void _goBackToConfig() {
     _timer?.cancel();
+    _elapsedNotifier.value = 0;
     setState(() {
       _configuring = true;
       _questions = [];
       _answers.clear();
       _showResult = false;
-      _elapsedSec = 0;
       _index = 0;
     });
   }
@@ -129,7 +130,9 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
     if (_saving || _questions.isEmpty) return;
     _timer?.cancel();
 
-    final correct = _questions.where((q) => _answers[q.id] == q.correctOption).length;
+    final correct = _questions
+        .where((q) => _answers[q.id] == q.correctOption)
+        .length;
     final score = (correct / _questions.length * 100).round();
 
     setState(() {
@@ -145,7 +148,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
           uid: uid,
           questions: _questions,
           answersByQuestionId: _answers,
-          timeSpentSec: _elapsedSec,
+          timeSpentSec: _elapsedNotifier.value,
           mode: _mode.name,
         );
         ref.invalidate(dashboardMetricsProvider);
@@ -160,6 +163,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _elapsedNotifier.dispose();
     super.dispose();
   }
 
@@ -167,51 +171,92 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.navy,
-      body: SafeArea(
-        child: _configuring
-            ? _TestsConfigView(
-                mode: _mode,
-                selectedSection: _selectedSection,
-                questionCount: _questionCount,
-                studyMode: _studyMode,
-                onModeChanged: (mode) => setState(() => _mode = mode),
-                onSectionChanged: (section) => setState(() => _selectedSection = section),
-                onQuestionCountChanged: (count) => setState(() => _questionCount = count),
-                onStudyModeChanged: (value) => setState(() => _studyMode = value),
-                onStart: _startTest,
-              )
-            : _loading
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const _TestsBackground(),
+          SafeArea(
+            child: _configuring
+                ? _TestsConfigView(
+                    mode: _mode,
+                    selectedSection: _selectedSection,
+                    questionCount: _questionCount,
+                    studyMode: _studyMode,
+                    onModeChanged: (mode) => setState(() => _mode = mode),
+                    onSectionChanged: (section) =>
+                        setState(() => _selectedSection = section),
+                    onQuestionCountChanged: (count) =>
+                        setState(() => _questionCount = count),
+                    onStudyModeChanged: (value) =>
+                        setState(() => _studyMode = value),
+                    onStart: _startTest,
+                  )
+                : _loading
                 ? const _TestsLoadingView()
                 : _showResult
-                    ? TestResultScreen(
-                        questions: _questions,
-                        answers: _answers,
-                        score: _lastScore,
-                        elapsedSec: _elapsedSec,
-                        mode: _mode,
-                        firebaseReady: widget.firebaseReady,
-                        onNewConfig: _goBackToConfig,
-                        onRetry: _startTest,
-                      )
-                    : TestSessionScreen(
-                        questions: _questions,
-                        answers: _answers,
-                        index: _index,
-                        elapsedSec: _elapsedSec,
-                        mode: _mode,
-                        saving: _saving,
-                        firebaseReady: widget.firebaseReady,
-                        studyMode: _studyMode,
-                        onAnswerSelected: (questionId, option) =>
-                            setState(() => _answers[questionId] = option),
-                        onPrevious: _index == 0 ? null : () => setState(() => _index--),
-                        onNext: _index < _questions.length - 1
-                            ? () => setState(() => _index++)
-                            : null,
-                        onSubmit: _answers.isEmpty || _saving ? null : _submitTest,
-                        onExit: _goBackToConfig,
-                      ),
+                ? TestResultScreen(
+                    questions: _questions,
+                    answers: _answers,
+                    score: _lastScore,
+                    elapsedSec: _elapsedNotifier.value,
+                    mode: _mode,
+                    firebaseReady: widget.firebaseReady,
+                    onNewConfig: _goBackToConfig,
+                    onRetry: _startTest,
+                  )
+                : TestSessionScreen(
+                    questions: _questions,
+                    answers: _answers,
+                    index: _index,
+                    elapsedListenable: _elapsedNotifier,
+                    mode: _mode,
+                    saving: _saving,
+                    firebaseReady: widget.firebaseReady,
+                    studyMode: _studyMode,
+                    onAnswerSelected: (questionId, option) =>
+                        setState(() => _answers[questionId] = option),
+                    onPrevious: _index == 0
+                        ? null
+                        : () => setState(() => _index--),
+                    onNext: _index < _questions.length - 1
+                        ? () => setState(() => _index++)
+                        : null,
+                    onSubmit: _answers.isEmpty || _saving ? null : _submitTest,
+                    onExit: _goBackToConfig,
+                  ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _TestsBackground extends StatelessWidget {
+  const _TestsBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          'assets/images/testPageBack.png',
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        ),
+        const DecoratedBox(decoration: BoxDecoration(color: Color(0xB30D1117))),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0x330D1117), Color(0x990D1117), Color(0xEE0D1117)],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -296,14 +341,19 @@ class _TestsConfigView extends StatelessWidget {
             return GestureDetector(
               onTap: () => onSectionChanged(section),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? AppTheme.yellow.withValues(alpha: 0.15)
                       : const Color(0xFF1F2937),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isSelected ? AppTheme.yellow : const Color(0xFF374151),
+                    color: isSelected
+                        ? AppTheme.yellow
+                        : const Color(0xFF374151),
                     width: isSelected ? 1.5 : 0.5,
                   ),
                 ),
@@ -311,17 +361,24 @@ class _TestsConfigView extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      TestsScreenStateConfig.sectionIcons[section] ?? Icons.circle_outlined,
+                      TestsScreenStateConfig.sectionIcons[section] ??
+                          Icons.circle_outlined,
                       size: 14,
-                      color: isSelected ? AppTheme.yellow : AppTheme.textSecondary,
+                      color: isSelected
+                          ? AppTheme.yellow
+                          : AppTheme.textSecondary,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       section,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                        color: isSelected ? AppTheme.yellow : AppTheme.textSecondary,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: isSelected
+                            ? AppTheme.yellow
+                            : AppTheme.textSecondary,
                       ),
                     ),
                   ],
@@ -344,10 +401,14 @@ class _TestsConfigView extends StatelessWidget {
                   width: 56,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: isSelected ? AppTheme.yellow : const Color(0xFF1F2937),
+                    color: isSelected
+                        ? AppTheme.yellow
+                        : const Color(0xFF1F2937),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: isSelected ? AppTheme.yellow : const Color(0xFF374151),
+                      color: isSelected
+                          ? AppTheme.yellow
+                          : const Color(0xFF374151),
                     ),
                   ),
                   child: Center(
@@ -356,7 +417,9 @@ class _TestsConfigView extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: isSelected ? AppTheme.navy : AppTheme.textSecondary,
+                        color: isSelected
+                            ? AppTheme.navy
+                            : AppTheme.textSecondary,
                       ),
                     ),
                   ),
@@ -368,7 +431,7 @@ class _TestsConfigView extends StatelessWidget {
         const SizedBox(height: 8),
         if (mode == TestMode.timed)
           Text(
-            '� ${(questionCount * 1.5).round()} minutes',
+            '⏱ ${(questionCount * 1.5).round()} minutes',
             style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),
         const SizedBox(height: 24),
@@ -398,14 +461,19 @@ class _TestsConfigView extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: studyMode ? AppTheme.yellow : AppTheme.textPrimary,
+                        color: studyMode
+                            ? AppTheme.yellow
+                            : AppTheme.textPrimary,
                       ),
                     ),
                     Text(
                       studyMode
                           ? 'See explanation after each answer'
                           : 'Score revealed at the end',
-                      style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -431,9 +499,17 @@ class _TestsConfigView extends StatelessWidget {
           ),
           child: Column(
             children: [
-              _SummaryRow(icon: Icons.quiz_outlined, label: 'Questions', value: '$questionCount'),
+              _SummaryRow(
+                icon: Icons.quiz_outlined,
+                label: 'Questions',
+                value: '$questionCount',
+              ),
               const Divider(color: Color(0xFF374151), height: 16),
-              _SummaryRow(icon: Icons.category_outlined, label: 'Division', value: selectedSection),
+              _SummaryRow(
+                icon: Icons.category_outlined,
+                label: 'Division',
+                value: selectedSection,
+              ),
               const Divider(color: Color(0xFF374151), height: 16),
               _SummaryRow(
                 icon: Icons.timer_outlined,
@@ -441,8 +517,8 @@ class _TestsConfigView extends StatelessWidget {
                 value: mode == TestMode.quick
                     ? 'Quick Quiz'
                     : mode == TestMode.section
-                        ? 'By Division'
-                        : 'Timed Exam',
+                    ? 'By Division'
+                    : 'Timed Exam',
               ),
               const Divider(color: Color(0xFF374151), height: 16),
               _SummaryRow(

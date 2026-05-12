@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import '../core/theme/app_theme.dart';
 import 'home_shell.dart';
@@ -16,6 +19,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _controller = PageController();
   int _page = 0;
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _finishOnboarding() async {
+    final box = await Hive.openBox('settings');
+    await box.put('onboarded', true);
+    if (!mounted) return;
+    unawaited(Navigator.of(context).pushReplacementNamed(HomeShell.routeName));
+  }
+
   final _slides = const [
     (
       icon: Icons.location_city_rounded,
@@ -25,12 +41,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     (
       icon: Icons.smart_toy_outlined,
       title: 'Personal AI coach',
-      text: 'Ask by text or voice and get formulas, code references, and mistake alerts.',
+      text:
+          'Ask by text or voice and get formulas, code references, and mistake alerts.',
     ),
     (
       icon: Icons.rocket_launch_rounded,
       title: 'Start free, upgrade later',
-      text: 'Free tier for daily practice. Premium unlocks full coaching workflow.',
+      text:
+          'Free tier for daily practice. Premium unlocks full coaching workflow.',
     ),
   ];
 
@@ -50,7 +68,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               gradient: LinearGradient(
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
-                colors: [Color(0xFF1A2744), Color(0xFF0D1117), Color(0xFF1C1004)],
+                colors: [
+                  Color(0xFF1A2744),
+                  Color(0xFF0D1117),
+                  Color(0xFF1C1004),
+                ],
               ),
             ),
           ),
@@ -73,8 +95,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 end: Alignment.bottomCenter,
                 stops: [0.0, 0.3, 0.6, 1.0],
                 colors: [
+                  Color(0x66000000),
                   Color(0x33000000),
-                  Color(0x11000000),
                   Color(0xCC0D1117),
                   Color(0xFF0D1117),
                 ],
@@ -130,7 +152,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       decoration: BoxDecoration(
                         color: AppTheme.surface.withValues(alpha: 0.94),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.separator, width: 0.5),
+                        border: Border.all(
+                          color: AppTheme.separator,
+                          width: 0.5,
+                        ),
                       ),
                       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                       child: Column(
@@ -147,7 +172,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 return Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(s.icon, size: 32, color: AppTheme.yellow),
+                                    Icon(
+                                      s.icon,
+                                      size: 32,
+                                      color: AppTheme.yellow,
+                                    ),
                                     const SizedBox(height: 12),
                                     Text(
                                       s.title,
@@ -182,11 +211,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               _slides.length,
                               (i) => AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                margin: const EdgeInsets.symmetric(horizontal: 3),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 3,
+                                ),
                                 width: _page == i ? 16 : 6,
                                 height: 6,
                                 decoration: BoxDecoration(
-                                  color: _page == i ? AppTheme.yellow : AppTheme.separator,
+                                  color: _page == i
+                                      ? AppTheme.yellow
+                                      : AppTheme.separator,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                               ),
@@ -205,12 +238,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                     curve: Curves.easeInOut,
                                   );
                                 } else {
-                                  Navigator.of(context)
-                                      .pushReplacementNamed(HomeShell.routeName);
+                                  _finishOnboarding();
                                 }
                               },
                               child: Text(
-                                _page == _slides.length - 1 ? 'Start Free' : 'Continue',
+                                _page == _slides.length - 1
+                                    ? 'Start Free'
+                                    : 'Continue',
                               ),
                             ),
                           ),
@@ -220,8 +254,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton(
-                              onPressed: () => Navigator.of(context)
-                                  .pushReplacementNamed(HomeShell.routeName),
+                              onPressed: _finishOnboarding,
                               child: const Text('Sign In'),
                             ),
                           ),

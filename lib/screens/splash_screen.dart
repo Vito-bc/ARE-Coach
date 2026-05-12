@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import '../core/ui/app_chrome.dart';
+import 'home_shell.dart';
 import 'onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -18,9 +20,13 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(seconds: 3), () {
+    Timer(const Duration(seconds: 1), () async {
+      final box = await Hive.openBox('settings');
+      final onboarded = box.get('onboarded', defaultValue: false) as bool;
       if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed(OnboardingScreen.routeName);
+      unawaited(Navigator.of(context).pushReplacementNamed(
+        onboarded ? HomeShell.routeName : OnboardingScreen.routeName,
+      ));
     });
   }
 
@@ -29,7 +35,27 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          const Positioned.fill(child: AppBackdrop()),
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/ArchiEd.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+            ),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.18),
+                    Colors.black.withValues(alpha: 0.56),
+                  ],
+                ),
+              ),
+            ),
+          ),
           Center(
             child: AppGlassCard(
               child: Padding(

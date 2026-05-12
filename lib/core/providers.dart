@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/quiz_question.dart';
@@ -38,5 +39,16 @@ final dashboardMetricsProvider =
 /// All questions loaded once and cached for the app session.
 /// TestsScreen filters/shuffles client-side so re-starting a test is instant.
 final allQuestionsProvider = FutureProvider<List<QuizQuestion>>((ref) {
-  return QuestionRepository().loadNyQuestions(limit: 0);
+  return QuestionRepository().loadFromAsset(limit: 0);
+});
+
+/// Streams the user's role ('free' | 'premium') directly from Firestore.
+/// Auto-updates when validateReceipt writes role: 'premium' server-side.
+final userRoleProvider = StreamProvider.family<String, String?>((ref, uid) {
+  if (uid == null) return Stream.value('free');
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .snapshots()
+      .map((snap) => (snap.data()?['role'] as String?) ?? 'free');
 });

@@ -125,6 +125,30 @@ class AppBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(color: AppTheme.navy);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset(
+          'assets/images/bg_hero.jpg',
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (_, __, ___) => const ColoredBox(color: AppTheme.navy),
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xB30D1117),
+                Color(0xD90D1117),
+                Color(0xF20D1117),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

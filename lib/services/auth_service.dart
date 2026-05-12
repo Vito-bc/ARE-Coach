@@ -4,17 +4,26 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+
+typedef AppleCredentialRequest =
+    Future<({AuthorizationCredentialAppleID credential, String rawNonce})>
+    Function();
 
 class AuthService {
   AuthService({
     FirebaseAuth? auth,
     FirebaseFirestore? firestore,
-  })  : _providedAuth = auth,
-        _providedFirestore = firestore;
+    @visibleForTesting AppleCredentialRequest? appleCredentialRequest,
+  }) : _providedAuth = auth,
+       _providedFirestore = firestore,
+       _appleCredentialRequest = appleCredentialRequest;
 
   final FirebaseAuth? _providedAuth;
   final FirebaseFirestore? _providedFirestore;
+  final AppleCredentialRequest? _appleCredentialRequest;
+
   FirebaseAuth get _auth => _providedAuth ?? FirebaseAuth.instance;
   FirebaseFirestore get _firestore =>
       _providedFirestore ?? FirebaseFirestore.instance;
@@ -62,10 +71,11 @@ class AuthService {
   Future<User?> signInWithApple() async {
     final isAnon = _auth.currentUser?.isAnonymous ?? false;
     if (isAnon) return linkAnonymousToApple();
-    final appleCredential = await _requestAppleCredential();
+    final (:credential, :rawNonce) =
+        await (_appleCredentialRequest ?? _requestAppleCredential)();
     final oauthCredential = OAuthProvider('apple.com').credential(
-      idToken: appleCredential.identityToken,
-      rawNonce: appleCredential.authorizationCode,
+      idToken: credential.identityToken,
+      rawNonce: rawNonce,
     );
     final result = await _auth.signInWithCredential(oauthCredential);
     if (result.user != null) await _ensureUserRecord(result.user!);
@@ -73,14 +83,16 @@ class AuthService {
   }
 
   Future<User?> linkAnonymousToApple() async {
-    final appleCredential = await _requestAppleCredential();
+    final (:credential, :rawNonce) =
+        await (_appleCredentialRequest ?? _requestAppleCredential)();
     final oauthCredential = OAuthProvider('apple.com').credential(
-      idToken: appleCredential.identityToken,
-      rawNonce: appleCredential.authorizationCode,
+      idToken: credential.identityToken,
+      rawNonce: rawNonce,
     );
     try {
-      final result =
-          await _auth.currentUser!.linkWithCredential(oauthCredential);
+      final result = await _auth.currentUser!.linkWithCredential(
+        oauthCredential,
+      );
       if (result.user != null) await _ensureUserRecord(result.user!);
       return result.user;
     } on FirebaseAuthException catch (e) {
@@ -99,8 +111,9 @@ class AuthService {
       password: password,
     );
     try {
-      final result =
-          await _auth.currentUser!.linkWithCredential(emailCredential);
+      final result = await _auth.currentUser!.linkWithCredential(
+        emailCredential,
+      );
       if (result.user != null) await _ensureUserRecord(result.user!);
       return result.user;
     } on FirebaseAuthException catch (e) {
@@ -123,31 +136,36 @@ class AuthService {
 
   Future<void> _ensureUserRecord(User user) async {
     try {
-      await _firestore.collection('users').doc(user.uid).set({
+      final doc = _firestore.collection('users').doc(user.uid);
+      final snapshot = await doc.get();
+      final data = <String, dynamic>{
         'email': user.email,
         'name': user.displayName,
-        'role': 'free',
-        'subscriptionId': null,
-        'subscriptionStatus': null,
-        'premiumUntil': null,
         'lastActiveAt': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      };
+      if (!snapshot.exists) {
+        data['role'] = 'free';
+        data['createdAt'] = FieldValue.serverTimestamp();
+      }
+
+      await doc.set(data, SetOptions(merge: true));
     } catch (_) {
       // Keep auth flow resilient in local/dev modes.
     }
   }
 
-  Future<AuthorizationCredentialAppleID> _requestAppleCredential() async {
+  Future<({AuthorizationCredentialAppleID credential, String rawNonce})>
+  _requestAppleCredential() async {
     final rawNonce = _generateNonce();
-    final nonce = _sha256ofString(rawNonce);
-    return SignInWithApple.getAppleIDCredential(
+    final hashed = _sha256ofString(rawNonce);
+    final credential = await SignInWithApple.getAppleIDCredential(
       scopes: [
         AppleIDAuthorizationScopes.email,
         AppleIDAuthorizationScopes.fullName,
       ],
-      nonce: nonce,
+      nonce: hashed,
     );
+    return (credential: credential, rawNonce: rawNonce);
   }
 
   String _generateNonce([int length = 32]) {
@@ -155,7 +173,9 @@ class AuthService {
         '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
     final random = Random.secure();
     return List.generate(
-        length, (_) => charset[random.nextInt(charset.length)]).join();
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
   }
 
   String _sha256ofString(String input) {

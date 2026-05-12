@@ -4,24 +4,41 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
+
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
+
 class MockUserCredential extends Mock implements UserCredential {}
+
 class MockUser extends Mock implements User {}
+
 class MockCollectionReference extends Mock
     implements CollectionReference<Map<String, dynamic>> {}
+
 class MockDocumentReference extends Mock
     implements DocumentReference<Map<String, dynamic>> {}
+
+class MockDocumentSnapshot extends Mock
+    implements DocumentSnapshot<Map<String, dynamic>> {}
+
 class FakeAuthCredential extends Fake implements AuthCredential {}
+
+class MockAppleCredential extends Mock
+    implements AuthorizationCredentialAppleID {}
 
 void _stubFirestore(
   MockFirebaseFirestore mockFirestore,
   MockCollectionReference mockCollection,
   MockDocumentReference mockDoc,
-) {
+  MockDocumentSnapshot mockSnapshot, {
+  bool userExists = false,
+}) {
   when(() => mockFirestore.collection('users')).thenReturn(mockCollection);
   when(() => mockCollection.doc(any())).thenReturn(mockDoc);
+  when(() => mockDoc.get()).thenAnswer((_) async => mockSnapshot);
+  when(() => mockSnapshot.exists).thenReturn(userExists);
   when(() => mockDoc.set(any(), any())).thenAnswer((_) async {});
 }
 
@@ -30,6 +47,7 @@ void main() {
   late MockFirebaseFirestore mockFirestore;
   late MockCollectionReference mockCollection;
   late MockDocumentReference mockDoc;
+  late MockDocumentSnapshot mockSnapshot;
   late MockUser mockUser;
   late AuthService sut;
 
@@ -44,13 +62,14 @@ void main() {
     mockFirestore = MockFirebaseFirestore();
     mockCollection = MockCollectionReference();
     mockDoc = MockDocumentReference();
+    mockSnapshot = MockDocumentSnapshot();
     mockUser = MockUser();
 
     when(() => mockUser.uid).thenReturn('test-uid');
     when(() => mockUser.email).thenReturn('test@example.com');
     when(() => mockUser.displayName).thenReturn(null);
 
-    _stubFirestore(mockFirestore, mockCollection, mockDoc);
+    _stubFirestore(mockFirestore, mockCollection, mockDoc, mockSnapshot);
 
     sut = AuthService(auth: mockAuth, firestore: mockFirestore);
   });
@@ -99,7 +118,9 @@ void main() {
     test('calls signInAnonymously when no user is signed in', () async {
       final mockCredential = MockUserCredential();
       when(() => mockAuth.currentUser).thenReturn(null);
-      when(() => mockAuth.signInAnonymously()).thenAnswer((_) async => mockCredential);
+      when(
+        () => mockAuth.signInAnonymously(),
+      ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
       final result = await sut.ensureSignedIn();
@@ -109,10 +130,50 @@ void main() {
     });
   });
 
+  group('user record writes', () {
+    test('initializes free role only for a new user document', () async {
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(() => mockSnapshot.exists).thenReturn(false);
+
+      await sut.ensureSignedIn();
+
+      final captured = verify(() => mockDoc.set(captureAny(), any())).captured;
+      final data = captured.single as Map<String, dynamic>;
+      expect(data['role'], 'free');
+      expect(data.containsKey('createdAt'), isTrue);
+      expect(data.containsKey('subscriptionId'), isFalse);
+      expect(data.containsKey('subscriptionStatus'), isFalse);
+      expect(data.containsKey('premiumUntil'), isFalse);
+    });
+
+    test(
+      'does not overwrite entitlement fields for an existing user',
+      () async {
+        when(() => mockAuth.currentUser).thenReturn(mockUser);
+        when(() => mockSnapshot.exists).thenReturn(true);
+
+        await sut.ensureSignedIn();
+
+        final captured = verify(
+          () => mockDoc.set(captureAny(), any()),
+        ).captured;
+        final data = captured.single as Map<String, dynamic>;
+        expect(data.containsKey('role'), isFalse);
+        expect(data.containsKey('createdAt'), isFalse);
+        expect(data.containsKey('subscriptionId'), isFalse);
+        expect(data.containsKey('subscriptionStatus'), isFalse);
+        expect(data.containsKey('premiumUntil'), isFalse);
+        expect(data.containsKey('lastActiveAt'), isTrue);
+      },
+    );
+  });
+
   group('signInAnonymously', () {
     test('returns user and writes user record', () async {
       final mockCredential = MockUserCredential();
-      when(() => mockAuth.signInAnonymously()).thenAnswer((_) async => mockCredential);
+      when(
+        () => mockAuth.signInAnonymously(),
+      ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
       final result = await sut.signInAnonymously();
@@ -123,7 +184,9 @@ void main() {
 
     test('returns null when credential has no user', () async {
       final mockCredential = MockUserCredential();
-      when(() => mockAuth.signInAnonymously()).thenAnswer((_) async => mockCredential);
+      when(
+        () => mockAuth.signInAnonymously(),
+      ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(null);
 
       final result = await sut.signInAnonymously();
@@ -136,23 +199,30 @@ void main() {
   group('signInWithEmail', () {
     test('returns user on success', () async {
       final mockCredential = MockUserCredential();
-      when(() => mockAuth.signInWithEmailAndPassword(
-            email: 'test@example.com',
-            password: 'password123',
-          )).thenAnswer((_) async => mockCredential);
+      when(
+        () => mockAuth.signInWithEmailAndPassword(
+          email: 'test@example.com',
+          password: 'password123',
+        ),
+      ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
-      final result = await sut.signInWithEmail('test@example.com', 'password123');
+      final result = await sut.signInWithEmail(
+        'test@example.com',
+        'password123',
+      );
 
       expect(result, equals(mockUser));
       verify(() => mockDoc.set(any(), any())).called(1);
     });
 
     test('propagates FirebaseAuthException on failure', () {
-      when(() => mockAuth.signInWithEmailAndPassword(
-            email: any(named: 'email'),
-            password: any(named: 'password'),
-          )).thenThrow(FirebaseAuthException(code: 'user-not-found'));
+      when(
+        () => mockAuth.signInWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenThrow(FirebaseAuthException(code: 'user-not-found'));
 
       expect(
         () => sut.signInWithEmail('bad@example.com', 'wrong'),
@@ -165,13 +235,18 @@ void main() {
     test('creates new account when not anonymous', () async {
       final mockCredential = MockUserCredential();
       when(() => mockAuth.currentUser).thenReturn(null);
-      when(() => mockAuth.createUserWithEmailAndPassword(
-            email: 'new@example.com',
-            password: 'password123',
-          )).thenAnswer((_) async => mockCredential);
+      when(
+        () => mockAuth.createUserWithEmailAndPassword(
+          email: 'new@example.com',
+          password: 'password123',
+        ),
+      ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
-      final result = await sut.registerWithEmail('new@example.com', 'password123');
+      final result = await sut.registerWithEmail(
+        'new@example.com',
+        'password123',
+      );
 
       expect(result, equals(mockUser));
     });
@@ -184,10 +259,15 @@ void main() {
       when(() => anonUser.displayName).thenReturn(null);
       when(() => anonUser.isAnonymous).thenReturn(true);
       when(() => mockAuth.currentUser).thenReturn(anonUser);
-      when(() => anonUser.linkWithCredential(any())).thenAnswer((_) async => mockCredential);
+      when(
+        () => anonUser.linkWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
-      final result = await sut.registerWithEmail('anon@example.com', 'password123');
+      final result = await sut.registerWithEmail(
+        'anon@example.com',
+        'password123',
+      );
 
       expect(result, equals(mockUser));
       verify(() => anonUser.linkWithCredential(any())).called(1);
@@ -207,32 +287,44 @@ void main() {
 
     test('links successfully and returns user', () async {
       final mockCredential = MockUserCredential();
-      when(() => anonUser.linkWithCredential(any())).thenAnswer((_) async => mockCredential);
+      when(
+        () => anonUser.linkWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
-      final result = await sut.linkAnonymousToEmail('user@example.com', 'password123');
+      final result = await sut.linkAnonymousToEmail(
+        'user@example.com',
+        'password123',
+      );
 
       expect(result, equals(mockUser));
     });
 
     test('falls back to signIn on credential-already-in-use', () async {
       final mockSignInCredential = MockUserCredential();
-      when(() => anonUser.linkWithCredential(any()))
-          .thenThrow(FirebaseAuthException(code: 'credential-already-in-use'));
-      when(() => mockAuth.signInWithEmailAndPassword(
-            email: 'user@example.com',
-            password: 'password123',
-          )).thenAnswer((_) async => mockSignInCredential);
+      when(
+        () => anonUser.linkWithCredential(any()),
+      ).thenThrow(FirebaseAuthException(code: 'credential-already-in-use'));
+      when(
+        () => mockAuth.signInWithEmailAndPassword(
+          email: 'user@example.com',
+          password: 'password123',
+        ),
+      ).thenAnswer((_) async => mockSignInCredential);
       when(() => mockSignInCredential.user).thenReturn(mockUser);
 
-      final result = await sut.linkAnonymousToEmail('user@example.com', 'password123');
+      final result = await sut.linkAnonymousToEmail(
+        'user@example.com',
+        'password123',
+      );
 
       expect(result, equals(mockUser));
     });
 
     test('rethrows unrecognised FirebaseAuthException', () {
-      when(() => anonUser.linkWithCredential(any()))
-          .thenThrow(FirebaseAuthException(code: 'network-request-failed'));
+      when(
+        () => anonUser.linkWithCredential(any()),
+      ).thenThrow(FirebaseAuthException(code: 'network-request-failed'));
 
       expect(
         () => sut.linkAnonymousToEmail('user@example.com', 'password123'),
@@ -248,6 +340,87 @@ void main() {
       await sut.signOut();
 
       verify(() => mockAuth.signOut()).called(1);
+    });
+  });
+
+  group('signInWithApple — nonce handling', () {
+    const rawNonce = 'test-raw-nonce-abc123';
+    const idToken = 'fake-apple-id-token';
+    // Deliberately different from rawNonce to catch the original bug where
+    // authorizationCode was passed instead of rawNonce.
+    const authorizationCode = 'this-is-the-auth-code-NOT-the-nonce';
+
+    late MockAppleCredential fakeAppleCredential;
+
+    setUp(() {
+      fakeAppleCredential = MockAppleCredential();
+      when(() => fakeAppleCredential.identityToken).thenReturn(idToken);
+      when(
+        () => fakeAppleCredential.authorizationCode,
+      ).thenReturn(authorizationCode);
+    });
+
+    test('passes rawNonce (not authorizationCode) to signInWithCredential',
+        () async {
+      final mockCredential = MockUserCredential();
+      when(() => mockAuth.currentUser).thenReturn(null);
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockCredential.user).thenReturn(mockUser);
+
+      sut = AuthService(
+        auth: mockAuth,
+        firestore: mockFirestore,
+        appleCredentialRequest: () async => (
+          credential: fakeAppleCredential,
+          rawNonce: rawNonce,
+        ),
+      );
+
+      await sut.signInWithApple();
+
+      final captured =
+          verify(() => mockAuth.signInWithCredential(captureAny())).captured;
+      final oauthCredential = captured.single as OAuthCredential;
+      expect(
+        oauthCredential.rawNonce,
+        equals(rawNonce),
+        reason: 'rawNonce from the record must be forwarded, not authorizationCode',
+      );
+      expect(oauthCredential.rawNonce, isNot(equals(authorizationCode)));
+    });
+
+    test('linkAnonymousToApple passes rawNonce to linkWithCredential',
+        () async {
+      final anonUser = MockUser();
+      final mockCredential = MockUserCredential();
+      when(() => anonUser.uid).thenReturn('anon-uid');
+      when(() => anonUser.email).thenReturn(null);
+      when(() => anonUser.displayName).thenReturn(null);
+      when(() => anonUser.isAnonymous).thenReturn(true);
+      when(() => mockAuth.currentUser).thenReturn(anonUser);
+      when(
+        () => anonUser.linkWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockCredential.user).thenReturn(mockUser);
+
+      sut = AuthService(
+        auth: mockAuth,
+        firestore: mockFirestore,
+        appleCredentialRequest: () async => (
+          credential: fakeAppleCredential,
+          rawNonce: rawNonce,
+        ),
+      );
+
+      await sut.signInWithApple();
+
+      final captured =
+          verify(() => anonUser.linkWithCredential(captureAny())).captured;
+      final oauthCredential = captured.single as OAuthCredential;
+      expect(oauthCredential.rawNonce, equals(rawNonce));
+      expect(oauthCredential.rawNonce, isNot(equals(authorizationCode)));
     });
   });
 }

@@ -1,12 +1,13 @@
-import 'package:architectula_education_app/data/seed_questions.dart';
 import 'package:architectula_education_app/services/question_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('loadNyQuestions returns mapped rows from loader', () async {
     final repository = QuestionRepository(
       loader: (limit) async => [
-        MapEntry('qa', {
+        const MapEntry('qa', {
           'section': 'PA',
           'question': 'What?',
           'options': ['A', 'B'],
@@ -24,21 +25,21 @@ void main() {
     expect(result.first.correctOption, 'A');
   });
 
-  test('loadNyQuestions falls back to seedQuestions on empty loader', () async {
-    final repository = QuestionRepository(
-      loader: (limit) async => [],
-    );
+  test('loadNyQuestions falls back to bundled asset on empty loader', () async {
+    final repository = QuestionRepository(loader: (limit) async => []);
 
     final result = await repository.loadNyQuestions();
-    expect(result, seedQuestions);
+    expect(result, hasLength(20));
+    expect(result.every((question) => question.id.isNotEmpty), isTrue);
   });
 
-  test('loadNyQuestions falls back to seedQuestions on loader error', () async {
+  test('loadNyQuestions falls back to bundled asset on loader error', () async {
     final repository = QuestionRepository(
       loader: (limit) async => throw Exception('network'),
     );
 
     final result = await repository.loadNyQuestions();
-    expect(result, seedQuestions);
+    expect(result, hasLength(20));
+    expect(result.every((question) => question.question.isNotEmpty), isTrue);
   });
 }

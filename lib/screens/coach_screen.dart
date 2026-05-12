@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/result.dart';
 import '../core/theme/app_theme.dart';
+import '../core/ui/app_chrome.dart';
 import '../models/chat_message.dart';
 import '../services/coach_service.dart';
 import '../services/voice_service.dart';
@@ -162,9 +163,12 @@ Common mistakes:
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.navy,
-      body: SafeArea(
-        child: Column(
-          children: [
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppBackdrop()),
+          SafeArea(
+            child: Column(
+              children: [
             // ── Header ─────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
@@ -388,8 +392,10 @@ Common mistakes:
                 ],
               ),
             ),
-          ],
-        ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

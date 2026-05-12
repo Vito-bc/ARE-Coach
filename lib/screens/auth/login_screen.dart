@@ -322,11 +322,17 @@ class _FormCard extends StatelessWidget {
         children: [
           // Apple sign in
           if (showApple) ...[
-            SignInWithAppleButton(
-              onPressed: loading ? () {} : onApple,
-              style: SignInWithAppleButtonStyle.white,
-              borderRadius: BorderRadius.circular(12),
-              height: 52,
+            AbsorbPointer(
+              absorbing: loading,
+              child: Opacity(
+                opacity: loading ? 0.5 : 1.0,
+                child: SignInWithAppleButton(
+                  onPressed: onApple,
+                  style: SignInWithAppleButtonStyle.white,
+                  borderRadius: BorderRadius.circular(12),
+                  height: 52,
+                ),
+              ),
             ),
             const SizedBox(height: 20),
             _Divider(),
@@ -455,8 +461,8 @@ class _FormCard extends StatelessWidget {
 class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: const [
+    return const Row(
+      children: [
         Expanded(child: Divider(color: AppTheme.separator)),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 12),

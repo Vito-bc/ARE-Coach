@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/theme/app_theme.dart';
+import '../core/ui/app_chrome.dart';
 
 // Approximate raw-score cut points per division.
 // NCARB uses IRT scaling (passing scaled score = 265 on a 200-400 scale).
@@ -57,12 +58,15 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
       backgroundColor: AppTheme.navy,
       appBar: AppBar(
         title: const Text('NCARB Score Calculator'),
-        backgroundColor: AppTheme.navy,
+        backgroundColor: AppTheme.navy.withValues(alpha: 0.92),
         foregroundColor: AppTheme.textPrimary,
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      body: Stack(
         children: [
+          const Positioned.fill(child: AppBackdrop()),
+          ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+            children: [
           // Division selector
           const Text(
             'Division',
@@ -244,6 +248,8 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
               color: AppTheme.textSecondary,
               height: 1.5,
             ),
+          ),
+            ],
           ),
         ],
       ),
