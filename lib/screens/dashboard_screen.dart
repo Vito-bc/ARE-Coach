@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
+import '../core/readiness.dart';
 import '../core/ui/app_chrome.dart';
 import '../services/progress_repository.dart';
 import 'attempt_history_screen.dart';
@@ -310,11 +311,7 @@ class _ReadinessCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      percent >= 70
-                          ? 'On track for the exam'
-                          : percent >= 40
-                              ? 'Keep practicing'
-                              : 'Just getting started',
+                      readinessLabel(percent),
                       style: tt.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 4),
