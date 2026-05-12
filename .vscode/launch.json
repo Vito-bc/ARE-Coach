@@ -1,0 +1,30 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ARE-Coach (iOS)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app"
+      ]
+    },
+    {
+      "name": "ARE-Coach (Android)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app"
+      ]
+    },
+    {
+      "name": "ARE-Coach (profile)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "profile",
+      "args": [
+        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app"
+      ]
+    }
+  ]
+}

@@ -91,6 +91,7 @@ exports.validateReceipt = onRequest(
 
     try {
       const uid = await verifyBearerToken(req);
+      await verifyAppCheck(req);
 
       const { receiptData, platform } = req.body || {};
       if (!receiptData || typeof receiptData !== "string") {

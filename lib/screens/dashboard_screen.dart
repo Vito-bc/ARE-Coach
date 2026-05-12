@@ -30,147 +30,219 @@ class DashboardScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = Theme.of(context).colorScheme.primary;
     final loading = metricsAsync.isLoading;
+    final hasError = metricsAsync.hasError;
     final metrics = metricsAsync.valueOrNull ?? _emptyMetrics;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
-      body: SafeArea(
-        child: loading
-            ? const Center(child: CircularProgressIndicator())
-            : CustomScrollView(
-                slivers: [
-                  // Large title header
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Home', style: tt.displayLarge),
-                          const SizedBox(height: 4),
-                          Text(
-                            firebaseReady ? 'NYC ARE Prep' : 'Demo mode',
-                            style: tt.bodyMedium,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/bg_hero.jpg',
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+            ),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.42),
+                    const Color(0xFF0D1117).withValues(alpha: 0.72),
+                    const Color(0xFF0D1117).withValues(alpha: 0.94),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: loading
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                    children: [
+                      if (hasError)
+                        _ErrorBanner(
+                          onRetry: () => ref.invalidate(dashboardMetricsProvider),
+                        ),
+                      Expanded(child: CustomScrollView(
+                    slivers: [
+                      // Large title header
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Home', style: tt.displayLarge),
+                              const SizedBox(height: 4),
+                              Text(
+                                firebaseReady ? 'NYC ARE Prep' : 'Demo mode',
+                                style: tt.bodyMedium,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
 
-                  // Readiness card
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                      child: _ReadinessCard(
-                        percent: metrics.readinessPercent,
-                        attempts: metrics.attemptsCount,
-                        isDark: isDark,
-                        accent: accent,
-                        tt: tt,
+                      // Readiness card
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                          child: _ReadinessCard(
+                            percent: metrics.readinessPercent,
+                            attempts: metrics.attemptsCount,
+                            isDark: isDark,
+                            accent: accent,
+                            tt: tt,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-                  // Weak sections
-                  if (metrics.weakSections.isNotEmpty) ...[
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                        child: AppSection(
-                          title: 'Focus Areas',
-                          trailing: TextButton(
-                            onPressed: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => AttemptHistoryScreen(
-                                  firebaseReady: firebaseReady,
+                      // Weak sections
+                      if (metrics.weakSections.isNotEmpty) ...[
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                            child: AppSection(
+                              title: 'Focus Areas',
+                              trailing: TextButton(
+                                onPressed: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => AttemptHistoryScreen(
+                                      firebaseReady: firebaseReady,
+                                    ),
+                                  ),
                                 ),
+                                child: const Text('See All'),
+                              ),
+                              child: Column(
+                                children: [
+                                  ...metrics.weakSections.asMap().entries.map(
+                                    (e) => _WeakRow(
+                                      section: e.value.section,
+                                      accuracy: e.value.accuracy,
+                                      showDivider: e.key <
+                                          metrics.weakSections.length - 1,
+                                      isDark: isDark,
+                                      accent: accent,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            child: const Text('See All'),
-                          ),
-                          child: Column(
-                            children: [
-                              ...metrics.weakSections.asMap().entries.map(
-                                (e) => _WeakRow(
-                                  section: e.value.section,
-                                  accuracy: e.value.accuracy,
-                                  showDivider:
-                                      e.key < metrics.weakSections.length - 1,
-                                  isDark: isDark,
-                                  accent: accent,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
-                      ),
-                    ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                  ],
+                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                      ],
 
-                  // Section trends
-                  if (metrics.sectionTrends.isNotEmpty) ...[
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                        child: AppSection(
-                          title: 'Section Trends',
-                          child: Column(
-                            children: [
-                              ...metrics.sectionTrends.asMap().entries.map(
-                                (e) => _TrendRow(
-                                  metric: e.value,
-                                  showDivider:
-                                      e.key < metrics.sectionTrends.length - 1,
-                                  isDark: isDark,
-                                ),
+                      // Section trends
+                      if (metrics.sectionTrends.isNotEmpty) ...[
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                            child: AppSection(
+                              title: 'Section Trends',
+                              child: Column(
+                                children: [
+                                  ...metrics.sectionTrends.asMap().entries.map(
+                                    (e) => _TrendRow(
+                                      metric: e.value,
+                                      showDivider: e.key <
+                                          metrics.sectionTrends.length - 1,
+                                      isDark: isDark,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                  ],
+                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                      ],
 
-                  // Empty state
-                  if (metrics.weakSections.isEmpty &&
-                      metrics.sectionTrends.isEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                        child: AppGlassCard(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.quiz_outlined,
-                                size: 40,
-                                color: accent.withValues(alpha: 0.6),
+                      // Empty state
+                      if (metrics.weakSections.isEmpty &&
+                          metrics.sectionTrends.isEmpty)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                            child: AppGlassCard(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.quiz_outlined,
+                                    size: 40,
+                                    color: accent.withValues(alpha: 0.6),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Take your first test',
+                                    style: tt.titleSmall,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Complete a practice session to unlock your readiness analytics.',
+                                    style: tt.bodyMedium,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Take your first test',
-                                style: tt.titleSmall,
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Complete a practice session to unlock your readiness analytics.',
-                                style: tt.bodyMedium,
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                      const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                    ],
+                  )),
                 ],
               ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFF3D0000),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.wifi_off_rounded, size: 16, color: Colors.redAccent),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Could not load your data. Check your connection.',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.redAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Retry', style: TextStyle(fontSize: 12)),
+          ),
+        ],
       ),
     );
   }

@@ -213,32 +213,7 @@ class ProgressRepository {
     } catch (e, stack) {
       debugPrint('fetchDashboardMetrics failed: $e');
       FirebaseCrashlytics.instance.recordError(e, stack);
-      return const DashboardMetrics(
-        readinessPercent: 42,
-        attemptsCount: 0,
-        weakSections: [
-          WeakSectionMetric(section: 'Project Management', accuracy: 31),
-          WeakSectionMetric(section: 'Programming & Analysis', accuracy: 38),
-          WeakSectionMetric(section: 'Structural Systems', accuracy: 43),
-        ],
-        sectionTrends: [
-          SectionTrendMetric(
-            section: 'Project Management',
-            currentAccuracy: 52,
-            delta: 8,
-          ),
-          SectionTrendMetric(
-            section: 'Programming & Analysis',
-            currentAccuracy: 47,
-            delta: -5,
-          ),
-          SectionTrendMetric(
-            section: 'Structural Systems',
-            currentAccuracy: 61,
-            delta: 4,
-          ),
-        ],
-      );
+      rethrow;
     }
   }
 
@@ -277,22 +252,7 @@ class ProgressRepository {
     } catch (e, stack) {
       debugPrint('fetchAttemptHistoryPage failed: $e');
       FirebaseCrashlytics.instance.recordError(e, stack);
-      final fallback = List.generate(
-        5,
-        (i) => AttemptHistoryItem(
-          id: 'demo_$i',
-          mode: 'section',
-          score: 55 + (i * 6),
-          questionCount: 5,
-          correctCount: 3 + (i % 2),
-          timeSpentSec: 220 + (i * 35),
-          endedAt: DateTime.now().subtract(Duration(days: i)),
-        ),
-      );
-      return const AttemptHistoryPage(
-        items: [],
-        hasMore: false,
-      ).copyWith(items: fallback);
+      rethrow;
     }
   }
 
@@ -400,16 +360,3 @@ class _AttemptSectionStats extends _SectionStats {
   final String section;
 }
 
-extension on AttemptHistoryPage {
-  AttemptHistoryPage copyWith({
-    List<AttemptHistoryItem>? items,
-    bool? hasMore,
-    QueryDocumentSnapshot<Map<String, dynamic>>? cursor,
-  }) {
-    return AttemptHistoryPage(
-      items: items ?? this.items,
-      hasMore: hasMore ?? this.hasMore,
-      cursor: cursor ?? this.cursor,
-    );
-  }
-}

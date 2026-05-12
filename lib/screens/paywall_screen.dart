@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
@@ -19,6 +21,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   String? _errorMessage;
   String _selectedId = IAPService.kYearlyId;
   bool _purchasing = false;
+  StreamSubscription<PurchaseDetails>? _purchaseSub;
 
   static const List<_Feature> _features = [
     _Feature(Icons.psychology_outlined, 'AI Coach — unlimited sessions'),
@@ -31,7 +34,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
   void initState() {
     super.initState();
     _loadProducts();
-    widget.iapService.purchaseUpdates.listen(_onPurchaseUpdate);
+    _purchaseSub = widget.iapService.purchaseUpdates.listen(_onPurchaseUpdate);
+  }
+
+  @override
+  void dispose() {
+    _purchaseSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadProducts() async {

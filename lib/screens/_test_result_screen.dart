@@ -64,9 +64,9 @@ class TestResultScreen extends StatelessWidget {
               ),
               Text(
                 score >= 70
-                    ? 'Passing � great work!'
+                    ? 'Passing — great work!'
                     : score >= 50
-                        ? 'Almost there � keep studying'
+                        ? 'Almost there — keep studying'
                         : 'Needs more practice',
                 style: const TextStyle(
                   color: Colors.white,

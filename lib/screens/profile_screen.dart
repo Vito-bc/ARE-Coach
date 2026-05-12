@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/providers.dart';
 import 'ncarb_calculator_screen.dart';
 import '../core/theme/app_theme.dart';
+import '../core/ui/app_chrome.dart';
 import '../services/iap_service.dart';
 import '../services/notification_service.dart';
 import 'paywall_screen.dart';
@@ -76,6 +77,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final metricsAsync = ref.watch(
       dashboardMetricsProvider((uid: uid, firebaseReady: widget.firebaseReady)),
     );
+    final role = ref.watch(userRoleProvider(uid)).valueOrNull ?? 'free';
+    final isPremium = role == 'premium';
     final reminderEnabled = ref.watch(_reminderEnabledProvider);
 
     final user = widget.firebaseReady ? FirebaseAuth.instance.currentUser : null;
@@ -92,10 +95,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.navy,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-          children: [
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppBackdrop()),
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+              children: [
             // ── Header ─────────────────────────────────────────────
             Text('Profile', style: tt.displayLarge),
             const SizedBox(height: 20),
@@ -131,11 +137,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
-                        const Text(
-                          'Free plan',
+                        Text(
+                          isPremium ? 'Premium' : 'Free plan',
                           style: TextStyle(
                             fontSize: 13,
-                            color: AppTheme.textSecondary,
+                            color: isPremium
+                                ? AppTheme.yellow
+                                : AppTheme.textSecondary,
+                            fontWeight: isPremium
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                       ],
@@ -222,70 +233,122 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             const SizedBox(height: 16),
 
-            // ── Upgrade card ───────────────────────────────────────
-            GestureDetector(
-              onTap: _openPaywall,
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF1A2744), Color(0xFF1C1004)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  border: Border.all(
-                    color: AppTheme.yellow.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-                padding: const EdgeInsets.all(20),
+            // ── Upgrade / Premium card ─────────────────────────────
+            if (isPremium)
+              _Card(
                 child: Row(
                   children: [
                     Container(
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: AppTheme.yellow.withValues(alpha: 0.15),
+                        color: AppTheme.yellow.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
-                        Icons.bolt_rounded,
+                        Icons.workspace_premium_rounded,
                         color: AppTheme.yellow,
-                        size: 24,
+                        size: 22,
                       ),
                     ),
                     const SizedBox(width: 14),
-                    Expanded(
+                    const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Upgrade to Premium',
+                          Text(
+                            'Premium active',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                               color: AppTheme.textPrimary,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           Text(
-                            'Unlimited coach · all divisions · voice mode',
+                            'Manage in Apple ID settings',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.textSecondary.withValues(alpha: 0.8),
+                              color: AppTheme.textSecondary,
                             ),
                           ),
                         ],
                       ),
                     ),
                     const Icon(
-                      Icons.chevron_right_rounded,
+                      Icons.check_circle_rounded,
                       color: AppTheme.yellow,
+                      size: 20,
                     ),
                   ],
                 ),
+              )
+            else
+              GestureDetector(
+                onTap: _openPaywall,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1A2744), Color(0xFF1C1004)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: AppTheme.yellow.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppTheme.yellow.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.bolt_rounded,
+                          color: AppTheme.yellow,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Upgrade to Premium',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Unlimited coach · all divisions · voice mode',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textSecondary.withValues(
+                                  alpha: 0.8,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppTheme.yellow,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
             const SizedBox(height: 16),
 
             // ── Tools ──────────────────────────────────────────────
@@ -400,8 +463,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 height: 1.5,
               ),
             ),
-          ],
-        ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

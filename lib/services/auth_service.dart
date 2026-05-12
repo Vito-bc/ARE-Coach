@@ -4,15 +4,26 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+typedef AppleCredentialRequest =
+    Future<({AuthorizationCredentialAppleID credential, String rawNonce})>
+    Function();
+
 class AuthService {
-  AuthService({FirebaseAuth? auth, FirebaseFirestore? firestore})
-    : _providedAuth = auth,
-      _providedFirestore = firestore;
+  AuthService({
+    FirebaseAuth? auth,
+    FirebaseFirestore? firestore,
+    @visibleForTesting AppleCredentialRequest? appleCredentialRequest,
+  }) : _providedAuth = auth,
+       _providedFirestore = firestore,
+       _appleCredentialRequest = appleCredentialRequest;
 
   final FirebaseAuth? _providedAuth;
   final FirebaseFirestore? _providedFirestore;
+  final AppleCredentialRequest? _appleCredentialRequest;
+
   FirebaseAuth get _auth => _providedAuth ?? FirebaseAuth.instance;
   FirebaseFirestore get _firestore =>
       _providedFirestore ?? FirebaseFirestore.instance;
@@ -60,10 +71,11 @@ class AuthService {
   Future<User?> signInWithApple() async {
     final isAnon = _auth.currentUser?.isAnonymous ?? false;
     if (isAnon) return linkAnonymousToApple();
-    final appleCredential = await _requestAppleCredential();
+    final (:credential, :rawNonce) =
+        await (_appleCredentialRequest ?? _requestAppleCredential)();
     final oauthCredential = OAuthProvider('apple.com').credential(
-      idToken: appleCredential.identityToken,
-      rawNonce: appleCredential.authorizationCode,
+      idToken: credential.identityToken,
+      rawNonce: rawNonce,
     );
     final result = await _auth.signInWithCredential(oauthCredential);
     if (result.user != null) await _ensureUserRecord(result.user!);
@@ -71,10 +83,11 @@ class AuthService {
   }
 
   Future<User?> linkAnonymousToApple() async {
-    final appleCredential = await _requestAppleCredential();
+    final (:credential, :rawNonce) =
+        await (_appleCredentialRequest ?? _requestAppleCredential)();
     final oauthCredential = OAuthProvider('apple.com').credential(
-      idToken: appleCredential.identityToken,
-      rawNonce: appleCredential.authorizationCode,
+      idToken: credential.identityToken,
+      rawNonce: rawNonce,
     );
     try {
       final result = await _auth.currentUser!.linkWithCredential(
@@ -141,16 +154,18 @@ class AuthService {
     }
   }
 
-  Future<AuthorizationCredentialAppleID> _requestAppleCredential() async {
+  Future<({AuthorizationCredentialAppleID credential, String rawNonce})>
+  _requestAppleCredential() async {
     final rawNonce = _generateNonce();
-    final nonce = _sha256ofString(rawNonce);
-    return SignInWithApple.getAppleIDCredential(
+    final hashed = _sha256ofString(rawNonce);
+    final credential = await SignInWithApple.getAppleIDCredential(
       scopes: [
         AppleIDAuthorizationScopes.email,
         AppleIDAuthorizationScopes.fullName,
       ],
-      nonce: nonce,
+      nonce: hashed,
     );
+    return (credential: credential, rawNonce: rawNonce);
   }
 
   String _generateNonce([int length = 32]) {

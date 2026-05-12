@@ -431,7 +431,7 @@ class _TestsConfigView extends StatelessWidget {
         const SizedBox(height: 8),
         if (mode == TestMode.timed)
           Text(
-            '� ${(questionCount * 1.5).round()} minutes',
+            '⏱ ${(questionCount * 1.5).round()} minutes',
             style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),
         const SizedBox(height: 24),

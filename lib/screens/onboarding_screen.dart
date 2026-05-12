@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import '../core/theme/app_theme.dart';
 import 'home_shell.dart';
@@ -15,6 +16,19 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _controller = PageController();
   int _page = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _finishOnboarding() async {
+    final box = await Hive.openBox('settings');
+    await box.put('onboarded', true);
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed(HomeShell.routeName);
+  }
 
   final _slides = const [
     (
@@ -64,7 +78,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // 2. Hero image — full screen
           Positioned.fill(
             child: Image.asset(
-              'assets/images/ArchiEd.png',
+              'assets/images/bg_hero.jpg',
               fit: BoxFit.cover,
               alignment: Alignment.topCenter,
               errorBuilder: (_, __, ___) => const SizedBox.shrink(),
@@ -222,9 +236,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                     curve: Curves.easeInOut,
                                   );
                                 } else {
-                                  Navigator.of(
-                                    context,
-                                  ).pushReplacementNamed(HomeShell.routeName);
+                                  _finishOnboarding();
                                 }
                               },
                               child: Text(
@@ -240,9 +252,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton(
-                              onPressed: () => Navigator.of(
-                                context,
-                              ).pushReplacementNamed(HomeShell.routeName),
+                              onPressed: _finishOnboarding,
                               child: const Text('Sign In'),
                             ),
                           ),

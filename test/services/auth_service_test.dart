@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
 
@@ -23,6 +24,9 @@ class MockDocumentSnapshot extends Mock
     implements DocumentSnapshot<Map<String, dynamic>> {}
 
 class FakeAuthCredential extends Fake implements AuthCredential {}
+
+class MockAppleCredential extends Mock
+    implements AuthorizationCredentialAppleID {}
 
 void _stubFirestore(
   MockFirebaseFirestore mockFirestore,
@@ -336,6 +340,87 @@ void main() {
       await sut.signOut();
 
       verify(() => mockAuth.signOut()).called(1);
+    });
+  });
+
+  group('signInWithApple — nonce handling', () {
+    const rawNonce = 'test-raw-nonce-abc123';
+    const idToken = 'fake-apple-id-token';
+    // Deliberately different from rawNonce to catch the original bug where
+    // authorizationCode was passed instead of rawNonce.
+    const authorizationCode = 'this-is-the-auth-code-NOT-the-nonce';
+
+    late MockAppleCredential fakeAppleCredential;
+
+    setUp(() {
+      fakeAppleCredential = MockAppleCredential();
+      when(() => fakeAppleCredential.identityToken).thenReturn(idToken);
+      when(
+        () => fakeAppleCredential.authorizationCode,
+      ).thenReturn(authorizationCode);
+    });
+
+    test('passes rawNonce (not authorizationCode) to signInWithCredential',
+        () async {
+      final mockCredential = MockUserCredential();
+      when(() => mockAuth.currentUser).thenReturn(null);
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockCredential.user).thenReturn(mockUser);
+
+      sut = AuthService(
+        auth: mockAuth,
+        firestore: mockFirestore,
+        appleCredentialRequest: () async => (
+          credential: fakeAppleCredential,
+          rawNonce: rawNonce,
+        ),
+      );
+
+      await sut.signInWithApple();
+
+      final captured =
+          verify(() => mockAuth.signInWithCredential(captureAny())).captured;
+      final oauthCredential = captured.single as OAuthCredential;
+      expect(
+        oauthCredential.rawNonce,
+        equals(rawNonce),
+        reason: 'rawNonce from the record must be forwarded, not authorizationCode',
+      );
+      expect(oauthCredential.rawNonce, isNot(equals(authorizationCode)));
+    });
+
+    test('linkAnonymousToApple passes rawNonce to linkWithCredential',
+        () async {
+      final anonUser = MockUser();
+      final mockCredential = MockUserCredential();
+      when(() => anonUser.uid).thenReturn('anon-uid');
+      when(() => anonUser.email).thenReturn(null);
+      when(() => anonUser.displayName).thenReturn(null);
+      when(() => anonUser.isAnonymous).thenReturn(true);
+      when(() => mockAuth.currentUser).thenReturn(anonUser);
+      when(
+        () => anonUser.linkWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockCredential.user).thenReturn(mockUser);
+
+      sut = AuthService(
+        auth: mockAuth,
+        firestore: mockFirestore,
+        appleCredentialRequest: () async => (
+          credential: fakeAppleCredential,
+          rawNonce: rawNonce,
+        ),
+      );
+
+      await sut.signInWithApple();
+
+      final captured =
+          verify(() => anonUser.linkWithCredential(captureAny())).captured;
+      final oauthCredential = captured.single as OAuthCredential;
+      expect(oauthCredential.rawNonce, equals(rawNonce));
+      expect(oauthCredential.rawNonce, isNot(equals(authorizationCode)));
     });
   });
 }
