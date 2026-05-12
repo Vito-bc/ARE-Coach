@@ -214,9 +214,8 @@ class TestResultScreen extends StatelessWidget {
   }
 
   String _formatTime() {
-    final displaySeconds = mode == TestMode.timed ? elapsedSec : elapsedSec;
-    final minutes = (displaySeconds ~/ 60).toString().padLeft(2, '0');
-    final seconds = (displaySeconds % 60).toString().padLeft(2, '0');
+    final minutes = (elapsedSec ~/ 60).toString().padLeft(2, '0');
+    final seconds = (elapsedSec % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
   }
 }

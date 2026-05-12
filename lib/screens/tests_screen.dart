@@ -102,7 +102,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
         if (!mounted) return;
         _elapsedNotifier.value--;
         if (_elapsedNotifier.value <= 0) {
-          _submitTest();
+          _onTimerExpired();
         }
       });
       return;
@@ -124,6 +124,58 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
       _showResult = false;
       _index = 0;
     });
+  }
+
+  void _onTimerExpired() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Time's up! Submitting your test…"),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    _submitTest();
+  }
+
+  Future<void> _confirmAndSubmit() async {
+    if (_saving) return;
+    final unanswered = _questions.length - _answers.length;
+    if (unanswered == 0) {
+      await _submitTest();
+      return;
+    }
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1F2937),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Submit test?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          '$unanswered ${unanswered == 1 ? 'question' : 'questions'} unanswered. '
+          'Skipped questions count as wrong.',
+          style: const TextStyle(color: AppTheme.textSecondary, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep going'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.yellow,
+              foregroundColor: AppTheme.navy,
+            ),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _submitTest();
   }
 
   Future<void> _submitTest() async {
@@ -221,7 +273,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
                     onNext: _index < _questions.length - 1
                         ? () => setState(() => _index++)
                         : null,
-                    onSubmit: _answers.isEmpty || _saving ? null : _submitTest,
+                    onSubmit: _answers.isEmpty || _saving ? null : _confirmAndSubmit,
                     onExit: _goBackToConfig,
                   ),
           ),

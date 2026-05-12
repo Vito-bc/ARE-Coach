@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../core/theme/app_theme.dart';
 import '../models/quiz_question.dart';
@@ -124,6 +125,7 @@ class TestSessionScreen extends StatelessWidget {
                   locked: studyMode && selected != null,
                   onTap: () {
                     if (studyMode && selected != null) return;
+                    HapticFeedback.lightImpact();
                     onAnswerSelected(question.id, option);
                   },
                 ),
@@ -185,6 +187,7 @@ class _SessionHeader extends StatelessWidget {
           SizedBox.square(
             dimension: 52,
             child: IconButton(
+              tooltip: 'Exit test',
               onPressed: onExit,
               icon: const Icon(
                 Icons.close_rounded,
@@ -249,6 +252,7 @@ class _SessionHeader extends StatelessWidget {
           SizedBox.square(
             dimension: 52,
             child: IconButton(
+              tooltip: 'Flag question',
               onPressed: onFlag,
               icon: const Icon(Icons.flag_outlined, size: 18),
               color: AppTheme.textSecondary,
@@ -275,7 +279,7 @@ class _ProgressStrip extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(2),
       child: SizedBox(
-        height: 4,
+        height: 6,
         child: DecoratedBox(
           decoration: const BoxDecoration(color: Color(0xFF374151)),
           child: Align(
@@ -351,7 +355,16 @@ class _SessionFooter extends StatelessWidget {
                   minimumSize: const Size(88, 44),
                   side: const BorderSide(color: AppTheme.yellow, width: 1),
                 ),
-                child: Text(saving ? '...' : 'Submit'),
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.yellow,
+                        ),
+                      )
+                    : const Text('Submit'),
               ),
             ),
           ],
