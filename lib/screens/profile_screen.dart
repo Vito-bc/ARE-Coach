@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/providers.dart';
@@ -29,12 +32,20 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _iapService = IAPService();
+  StreamSubscription<PurchaseDetails>? _purchaseSub;
+  bool _restoring = false;
 
   @override
   void initState() {
     super.initState();
     _iapService.initialize();
     _loadReminderPref();
+    _purchaseSub = _iapService.purchaseUpdates.listen(
+      _onPurchaseUpdate,
+      onError: (_) {
+        if (mounted) setState(() => _restoring = false);
+      },
+    );
   }
 
   Future<void> _loadReminderPref() async {
@@ -65,8 +76,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  void _onPurchaseUpdate(PurchaseDetails details) {
+    if (!mounted) return;
+    setState(() => _restoring = false);
+    if (details.status == PurchaseStatus.restored) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Purchases restored successfully!')),
+      );
+    }
+  }
+
+  Future<void> _restorePurchases() async {
+    if (_restoring) return;
+    setState(() => _restoring = true);
+    try {
+      await _iapService.restorePurchases();
+      // Results arrive via _purchaseSub / _onPurchaseUpdate.
+      // If nothing is restored the stream stays silent, so reset after a delay.
+      await Future<void>.delayed(const Duration(seconds: 8));
+      if (mounted && _restoring) setState(() => _restoring = false);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _restoring = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Restore failed. Please try again.')),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
+    _purchaseSub?.cancel();
     _iapService.dispose();
     super.dispose();
   }
@@ -349,7 +390,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
               ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+
+            // Restore row — needed for users who reinstall or switch devices.
+            Center(
+              child: TextButton.icon(
+                onPressed: _restoring ? null : _restorePurchases,
+                icon: _restoring
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.restore_rounded, size: 16),
+                label: Text(_restoring ? 'Restoring…' : 'Restore Purchases'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.textSecondary,
+                  textStyle: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
 
             // ── Tools ──────────────────────────────────────────────
             _Card(
