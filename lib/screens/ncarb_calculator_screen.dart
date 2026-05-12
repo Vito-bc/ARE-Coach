@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/theme/app_theme.dart';
 import '../core/ui/app_chrome.dart';
@@ -186,14 +187,33 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'ESTIMATED CUT SCORES',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.8,
-                    color: AppTheme.textSecondary,
-                  ),
+                Row(
+                  children: [
+                    const Text(
+                      'ESTIMATED CUT SCORES',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.8,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => launchUrl(
+                        Uri.parse('https://www.ncarb.org/pass-the-are/prepare/are-exam-prep/scoring'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      child: const Text(
+                        'community estimates ↗',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.textSecondary,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 ..._cutScores.entries.map((e) => Padding(

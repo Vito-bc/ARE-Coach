@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/readiness.dart';
 import '../core/theme/app_theme.dart';
 import '../models/quiz_question.dart';
 import '../widgets/flag_question_sheet.dart';
@@ -63,11 +64,7 @@ class TestResultScreen extends StatelessWidget {
                 ),
               ),
               Text(
-                score >= 70
-                    ? 'Passing — great work!'
-                    : score >= 50
-                        ? 'Almost there — keep studying'
-                        : 'Needs more practice',
+                resultLabel(score),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,

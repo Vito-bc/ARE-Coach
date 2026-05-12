@@ -8,6 +8,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/providers.dart';
+import '../core/readiness.dart';
 import 'ncarb_calculator_screen.dart';
 import '../core/theme/app_theme.dart';
 import '../core/ui/app_chrome.dart';
@@ -229,7 +230,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         _StatBox(
                           value: '${data.readiness}%',
                           label: 'Readiness',
-                          color: _readinessColor(data.readiness),
+                          color: readinessColor(data.readiness),
                         ),
                         const SizedBox(width: 12),
                         _StatBox(
@@ -252,7 +253,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       value: (data.readiness / 100).clamp(0.0, 1.0),
                       minHeight: 6,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        _readinessColor(data.readiness),
+                        readinessColor(data.readiness),
                       ),
                       backgroundColor: const Color(0xFF21262D),
                     ),
@@ -472,7 +473,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const _SettingsRow(
                     icon: Icons.info_outline_rounded,
                     label: 'Version',
-                    value: '1.0.0',
+                    value: kAppVersion,
                     onTap: null,
                   ),
                   _Divider(),
@@ -530,12 +531,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
       ),
     );
-  }
-
-  Color _readinessColor(int percent) {
-    if (percent >= 70) return AppTheme.success;
-    if (percent >= 40) return AppTheme.warning;
-    return AppTheme.error;
   }
 
   String _initials(String email) {
