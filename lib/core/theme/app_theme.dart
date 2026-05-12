@@ -18,7 +18,7 @@ class AppTheme {
 
   // The app only uses dark mode — matches the urban night aesthetic
   static ThemeData dark() {
-    final scheme = ColorScheme(
+    final scheme = const ColorScheme(
       brightness: Brightness.dark,
       primary: yellow,
       onPrimary: navy,
@@ -86,7 +86,7 @@ class AppTheme {
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: yellow,
-          backgroundColor: Color(0xFF1F2937),
+          backgroundColor: const Color(0xFF1F2937),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -147,7 +147,7 @@ class AppTheme {
         ),
         subtitleTextStyle: TextStyle(fontSize: 13, color: textSecondary),
       ),
-      progressIndicatorTheme: ProgressIndicatorThemeData(
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: yellow,
         linearTrackColor: separator,
         circularTrackColor: separator,

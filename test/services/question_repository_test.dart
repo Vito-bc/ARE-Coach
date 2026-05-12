@@ -7,7 +7,7 @@ void main() {
   test('loadNyQuestions returns mapped rows from loader', () async {
     final repository = QuestionRepository(
       loader: (limit) async => [
-        MapEntry('qa', {
+        const MapEntry('qa', {
           'section': 'PA',
           'question': 'What?',
           'options': ['A', 'B'],

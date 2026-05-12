@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -212,7 +214,7 @@ class ProgressRepository {
       );
     } catch (e, stack) {
       debugPrint('fetchDashboardMetrics failed: $e');
-      FirebaseCrashlytics.instance.recordError(e, stack);
+      unawaited(FirebaseCrashlytics.instance.recordError(e, stack));
       rethrow;
     }
   }
@@ -251,7 +253,7 @@ class ProgressRepository {
       );
     } catch (e, stack) {
       debugPrint('fetchAttemptHistoryPage failed: $e');
-      FirebaseCrashlytics.instance.recordError(e, stack);
+      unawaited(FirebaseCrashlytics.instance.recordError(e, stack));
       rethrow;
     }
   }

@@ -48,7 +48,7 @@ class QuestionRepository {
       return questions;
     } catch (e, stack) {
       debugPrint('loadNyQuestions: bundled asset failed, falling back to seed ($e)');
-      try { FirebaseCrashlytics.instance.recordError(e, stack); } catch (_) {}
+      try { unawaited(FirebaseCrashlytics.instance.recordError(e, stack)); } catch (_) {}
     }
 
     // 3. Last resort — 3 hardcoded questions
@@ -69,7 +69,7 @@ class QuestionRepository {
           : questions;
     } catch (e, stack) {
       debugPrint('loadFromAsset failed, falling back to seed ($e)');
-      try { FirebaseCrashlytics.instance.recordError(e, stack); } catch (_) {}
+      try { unawaited(FirebaseCrashlytics.instance.recordError(e, stack)); } catch (_) {}
       return seedQuestions;
     }
   }

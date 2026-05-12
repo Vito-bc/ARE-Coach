@@ -91,7 +91,7 @@ class NotificationService {
       'Time to study! 📐',
       'Keep your ARE prep streak going — a quick quiz takes 5 minutes.',
       scheduled,
-      NotificationDetails(
+      const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
           _channelName,
@@ -100,7 +100,7 @@ class NotificationService {
           priority: Priority.defaultPriority,
           icon: '@mipmap/ic_launcher',
         ),
-        iOS: const DarwinNotificationDetails(
+        iOS: DarwinNotificationDetails(
           categoryIdentifier: 'daily_reminder',
         ),
       ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -27,7 +29,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final box = await Hive.openBox('settings');
     await box.put('onboarded', true);
     if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed(HomeShell.routeName);
+    unawaited(Navigator.of(context).pushReplacementNamed(HomeShell.routeName));
   }
 
   final _slides = const [

@@ -24,9 +24,9 @@ class _SplashScreenState extends State<SplashScreen> {
       final box = await Hive.openBox('settings');
       final onboarded = box.get('onboarded', defaultValue: false) as bool;
       if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed(
+      unawaited(Navigator.of(context).pushReplacementNamed(
         onboarded ? HomeShell.routeName : OnboardingScreen.routeName,
-      );
+      ));
     });
   }
 

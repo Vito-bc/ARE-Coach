@@ -393,7 +393,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       onTap: null,
                     ),
                   _Divider(),
-                  _SettingsRow(
+                  const _SettingsRow(
                     icon: Icons.download_outlined,
                     label: 'Offline cache',
                     value: 'Enabled',
@@ -408,7 +408,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             _Card(
               child: Column(
                 children: [
-                  _SettingsRow(
+                  const _SettingsRow(
                     icon: Icons.info_outline_rounded,
                     label: 'Version',
                     value: '1.0.0',

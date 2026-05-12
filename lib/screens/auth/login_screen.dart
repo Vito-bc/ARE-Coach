@@ -461,8 +461,8 @@ class _FormCard extends StatelessWidget {
 class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: const [
+    return const Row(
+      children: [
         Expanded(child: Divider(color: AppTheme.separator)),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 12),
