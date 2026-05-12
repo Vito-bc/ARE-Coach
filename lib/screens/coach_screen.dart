@@ -16,7 +16,7 @@ class CoachScreen extends StatefulWidget {
   State<CoachScreen> createState() => _CoachScreenState();
 }
 
-class _CoachScreenState extends State<CoachScreen> {
+class _CoachScreenState extends State<CoachScreen> with WidgetsBindingObserver {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _coachService = CoachService();
@@ -34,6 +34,7 @@ class _CoachScreenState extends State<CoachScreen> {
   bool _loading = false;
   bool _voiceReady = false;
   bool _listening = false;
+  String? _lastUserPrompt;
 
   static const _demoPrompt =
       'I do not understand egress capacity for 300 people in a hall.';
@@ -54,6 +55,7 @@ Common mistakes:
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _bootstrapVoice();
     if (widget.initialMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -69,18 +71,25 @@ Common mistakes:
     setState(() => _voiceReady = ready);
   }
 
-  Future<void> _sendMessage() async {
-    final prompt = _controller.text.trim();
+  Future<void> _sendMessage({String? retryPrompt}) async {
+    final prompt = retryPrompt ?? _controller.text.trim();
     if (prompt.isEmpty || _loading) return;
+    _lastUserPrompt = prompt;
 
     setState(() {
       _loading = true;
-      _messages.add(ChatMessage(
-        role: ChatRole.user,
-        text: prompt,
-        time: DateTime.now(),
-      ));
-      _controller.clear();
+      if (retryPrompt != null) {
+        // Remove the trailing error bubble before retrying.
+        final idx = _messages.lastIndexWhere((m) => m.role == ChatRole.error);
+        if (idx != -1) _messages.removeAt(idx);
+      } else {
+        _messages.add(ChatMessage(
+          role: ChatRole.user,
+          text: prompt,
+          time: DateTime.now(),
+        ));
+        _controller.clear();
+      }
     });
     _scrollToBottom();
 
@@ -151,7 +160,15 @@ Common mistakes:
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused && _listening) {
+      _toggleListening();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     _scrollController.dispose();
     _coachService.dispose();
@@ -199,8 +216,8 @@ Common mistakes:
                       ],
                     ),
                   ),
-                  // speak last coach message
                   IconButton(
+                    tooltip: 'Read last response aloud',
                     onPressed: _speakLastCoachMessage,
                     icon: const Icon(Icons.volume_up_outlined),
                     color: AppTheme.textSecondary,
@@ -330,6 +347,29 @@ Common mistakes:
                               ),
                             ),
                           ],
+                          if (isError && !msg.text.contains('Daily AI limit')) ...[
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: _loading
+                                  ? null
+                                  : () => _sendMessage(retryPrompt: _lastUserPrompt),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.refresh_rounded,
+                                      size: 13, color: AppTheme.textSecondary),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Retry',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -357,6 +397,7 @@ Common mistakes:
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   IconButton(
+                    tooltip: _listening ? 'Stop listening' : 'Voice input',
                     onPressed: _voiceReady ? _toggleListening : null,
                     icon: Icon(
                       _listening ? Icons.mic_rounded : Icons.mic_none_rounded,
@@ -385,6 +426,7 @@ Common mistakes:
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Send message',
                     onPressed: _loading ? null : _sendMessage,
                     icon: const Icon(Icons.send_rounded),
                     color: _loading ? AppTheme.textSecondary : AppTheme.yellow,
