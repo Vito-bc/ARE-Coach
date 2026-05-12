@@ -28,16 +28,11 @@ service cloud.firestore {
     }
 
     function ownerCanUpdateUser(uid) {
+      // Only name and targetExamDate are user-editable; all other fields are server-owned.
       return isOwner(uid)
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.keys().hasOnly([
-          'email',
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'name',
-          'role',
-          'targetExamDate',
-          'createdAt',
-          'lastActiveAt',
-          'dailyLimits'
+          'targetExamDate'
         ]);
     }
 
@@ -54,18 +49,22 @@ service cloud.firestore {
     }
 
     match /attempts/{uid}/sessions/{sessionId} {
-      allow read, write: if isOwner(uid) || isAdmin();
+      allow read, create: if isOwner(uid) || isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     match /analytics/{uid}/weakTopics/{topicId} {
-      allow read, write: if isOwner(uid) || isAdmin();
+      allow read, create, update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /coach_chats/{uid}/threads/{threadId} {
-      allow read, write: if isOwner(uid) || isAdmin();
+      allow read, create, update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
 
       match /messages/{messageId} {
-        allow read, write: if isOwner(uid) || isAdmin();
+        allow read, create: if isOwner(uid) || isAdmin();
+        allow update, delete: if isAdmin();
       }
     }
 
@@ -82,8 +81,10 @@ service cloud.firestore {
     match /reports/{reportId} {
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.keys().hasAll(['uid', 'questionId', 'reason', 'status', 'createdAt'])
-        && request.resource.data.status == 'pending';
+        && request.resource.data.keys().hasAll(['uid', 'questionId', 'questionText', 'reason', 'status', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'questionId', 'questionText', 'reason', 'comment', 'status', 'createdAt'])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.reason in ['incorrect_answer', 'outdated', 'unclear_wording', 'other'];
       allow read, update, delete: if isAdmin();
     }
   }
