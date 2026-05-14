@@ -11,6 +11,7 @@ import '../models/flashcard.dart';
 import '../services/flashcard_repository.dart';
 import '../services/progress_repository.dart';
 import 'attempt_history_screen.dart';
+import 'insights_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key, required this.firebaseReady});
@@ -242,7 +243,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   ),
                                 ),
                               ),
-                              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                              // Insights entry
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                                  child: _InsightsEntryRow(
+                                    firebaseReady: widget.firebaseReady,
+                                  ),
+                                ),
+                              ),
+                              const SliverToBoxAdapter(child: SizedBox(height: 8)),
                             ],
 
                             // Empty state
@@ -646,6 +657,57 @@ class _WeakRow extends StatelessWidget {
             thickness: 0.5,
           ),
       ],
+    );
+  }
+}
+
+// ── Insights entry ─────────────────────────────────────────────────────────
+
+class _InsightsEntryRow extends StatelessWidget {
+  const _InsightsEntryRow({required this.firebaseReady});
+
+  final bool firebaseReady;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => InsightsScreen(firebaseReady: firebaseReady),
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceElevated,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppTheme.yellow.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.insights_rounded, size: 18, color: AppTheme.yellow),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'View Progress Insights',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 13,
+              color: AppTheme.textSecondary,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
