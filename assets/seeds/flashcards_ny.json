@@ -1,0 +1,1146 @@
+[
+  {
+    "id": "fc_pcm_01",
+    "section": "Practice Management",
+    "front": "Design-Bid-Build (DBB)",
+    "back": "Traditional delivery method where design is fully completed before construction is bid. Owner holds separate contracts with architect and contractor. Maximum design control for owner; lowest financial risk during design phase.",
+    "codeRef": "AIA Document A201",
+    "examTip": "Most common delivery method on the ARE. Know the three phases: design → bid → build. Architect has no contract with contractor."
+  },
+  {
+    "id": "fc_pcm_02",
+    "section": "Practice Management",
+    "front": "Design-Build (DB)",
+    "back": "Single entity provides both design and construction services under one contract with the owner. Faster delivery, single point of accountability, but owner has less design control and less influence over aesthetics.",
+    "codeRef": "AIA Document A141",
+    "examTip": "Owner trades control for speed. Architect often works for the contractor—not the owner—in this model."
+  },
+  {
+    "id": "fc_pcm_03",
+    "section": "Practice Management",
+    "front": "Construction Manager at Risk (CMR)",
+    "back": "CM provides a Guaranteed Maximum Price (GMP) and assumes financial risk for construction. Acts as advisor during design and as general contractor during construction, holding trade contracts.",
+    "codeRef": "AIA Document A133",
+    "examTip": "Key distinction: the 'at risk' CM holds trade contracts and guarantees the GMP. Contractor is selected early, before CDs are complete."
+  },
+  {
+    "id": "fc_pcm_04",
+    "section": "Practice Management",
+    "front": "Construction Manager as Agent (CMa)",
+    "back": "CM advises the owner and manages the construction process but does not hold trade contracts or guarantee cost. Owner retains financial risk. CM is a pure consultant with no construction liability.",
+    "codeRef": "AIA Document B132",
+    "examTip": "No GMP, no trade contracts. Owner is exposed to cost overruns. CMa = advisor only."
+  },
+  {
+    "id": "fc_pcm_05",
+    "section": "Practice Management",
+    "front": "Integrated Project Delivery (IPD)",
+    "back": "Contractual model where owner, architect, and contractor share risk, reward, and responsibility through a multi-party agreement. Encourages collaboration from project inception; typically uses BIM and target-cost budgeting.",
+    "codeRef": "AIA Document C191",
+    "examTip": "IPD = shared risk + shared reward. All key parties sign one contract. Profits and losses are distributed based on project outcomes."
+  },
+  {
+    "id": "fc_pcm_06",
+    "section": "Practice Management",
+    "front": "Errors & Omissions (E&O) Insurance",
+    "back": "Professional liability insurance covering claims arising from the architect's professional acts, errors, or omissions in providing design services. Does not cover intentional acts or guarantees beyond the standard of care.",
+    "codeRef": "AIA Document B101 §2.1",
+    "examTip": "E&O = professional liability. Standard of care is the benchmark—not perfection. The policy covers negligence, not guarantees."
+  },
+  {
+    "id": "fc_pcm_07",
+    "section": "Practice Management",
+    "front": "AIA B101 — Owner-Architect Agreement",
+    "back": "Standard agreement defining the architect's scope of basic services (SD, DD, CDs, Bidding, CA), additional services, owner's responsibilities, compensation, and terms of the agreement.",
+    "codeRef": "AIA B101-2017",
+    "examTip": "Know the five phases of basic services. Additional services (site analysis, renderings, LEED) are extra unless listed in §4."
+  },
+  {
+    "id": "fc_pcm_08",
+    "section": "Practice Management",
+    "front": "Stipulated Sum (Lump Sum) Contract",
+    "back": "Fixed-price contract where the contractor agrees to perform the work for a specific total amount. Best used when scope is well-defined. Owner's financial risk is low; contractor assumes cost risk.",
+    "codeRef": "AIA Document A101",
+    "examTip": "Requires complete CDs before bidding. Owner cannot change scope without a change order. Lowest owner risk once signed."
+  },
+  {
+    "id": "fc_pcm_09",
+    "section": "Practice Management",
+    "front": "Cost Plus Fee Contract",
+    "back": "Contractor is reimbursed for actual construction costs plus a fee (fixed or percentage). Used when scope is uncertain. Owner carries cost risk; contractor is motivated to control costs only if fee is fixed.",
+    "codeRef": "AIA Document A102",
+    "examTip": "Best for fast-track or undefined projects. A GMP cap can be added to limit owner's exposure."
+  },
+  {
+    "id": "fc_pcm_10",
+    "section": "Practice Management",
+    "front": "Standard of Care",
+    "back": "The degree of skill and care ordinarily exercised by other architects in the same community under similar circumstances. NOT a guarantee of perfection—only reasonable competence.",
+    "codeRef": "AIA B101 §2.2",
+    "examTip": "Architects are held to 'reasonable competence,' not perfection. Exceeding standard of care creates an implied warranty—avoid it."
+  },
+  {
+    "id": "fc_pcm_11",
+    "section": "Practice Management",
+    "front": "General Partnership",
+    "back": "Business structure where two or more partners share management, profits, and unlimited personal liability. Simple to form; any partner can bind the firm. Each partner is liable for all debts.",
+    "codeRef": "NCARB Practice Guidelines",
+    "examTip": "Unlimited personal liability = major risk. In a general partnership, each partner is fully liable for ALL firm debts—even debts created by other partners."
+  },
+  {
+    "id": "fc_pcm_12",
+    "section": "Practice Management",
+    "front": "Limited Liability Company (LLC)",
+    "back": "Business entity combining the tax benefits of a partnership with the liability protection of a corporation. Members' personal assets are protected from firm liabilities. Flexible management structure.",
+    "codeRef": "NCARB Practice Guidelines",
+    "examTip": "LLC = liability protection + tax pass-through. Members are not personally liable for firm debts. Increasingly popular for small architecture firms."
+  },
+  {
+    "id": "fc_pcm_13",
+    "section": "Practice Management",
+    "front": "Professional Corporation (PC)",
+    "back": "Corporation formed by licensed professionals. Provides some liability protection but shareholders can still be personally liable for their own professional negligence. Required in some states for architecture firms.",
+    "codeRef": "NCARB Practice Guidelines",
+    "examTip": "A PC does NOT protect against your own malpractice—only against others' liabilities and general business debts."
+  },
+  {
+    "id": "fc_pcm_14",
+    "section": "Practice Management",
+    "front": "Indemnification Clause",
+    "back": "Contract provision where one party agrees to defend and hold harmless the other from certain claims or losses. Architects should limit indemnity to their own negligence—avoid broad indemnification for the contractor's actions.",
+    "codeRef": "AIA A201 §3.18",
+    "examTip": "Unilateral broad indemnification clauses favor the owner. The ARE presents scenarios where the architect must recognize overreaching indemnity language."
+  },
+  {
+    "id": "fc_pcm_15",
+    "section": "Practice Management",
+    "front": "Certificate of Insurance",
+    "back": "Document issued by an insurance company confirming that a party has the required types and amounts of insurance coverage in force. Does not modify the policy—it is evidence only.",
+    "codeRef": "AIA A201 §11",
+    "examTip": "The owner requests COIs from both architect and contractor. It proves coverage exists but does not guarantee claims will be paid."
+  },
+  {
+    "id": "fc_pcm_16",
+    "section": "Practice Management",
+    "front": "Consequential Damages",
+    "back": "Indirect losses resulting from a breach of contract, such as lost profits, loss of use, or business interruption. AIA contracts include a mutual waiver of consequential damages to limit exposure.",
+    "codeRef": "AIA B101 §8.1.3 / A201 §15.1.7",
+    "examTip": "Mutual waiver = both parties give up the right to sue each other for consequential damages. Protects the architect from catastrophic exposure."
+  },
+  {
+    "id": "fc_pcm_17",
+    "section": "Practice Management",
+    "front": "Scope Creep",
+    "back": "Gradual expansion of project scope beyond the original agreement without a corresponding increase in fee or schedule. Major cause of reduced project profitability for architecture firms.",
+    "codeRef": "AIA B101 §4 (Additional Services)",
+    "examTip": "Track scope creep with additional services authorizations. If the owner adds tasks, document them and bill accordingly. Silence implies acceptance."
+  },
+  {
+    "id": "fc_pcm_18",
+    "section": "Practice Management",
+    "front": "Utilization Rate",
+    "back": "Percentage of an employee's total work hours that are billable to projects versus overhead activities. Utilization Rate = billable hours ÷ total hours. Healthy firm target: 60–65%.",
+    "codeRef": "NCARB Practice Guidelines",
+    "examTip": "A low utilization rate means too much time on non-billable work—hurts firm profitability. Time tracking is essential to monitor utilization."
+  },
+  {
+    "id": "fc_pcm_19",
+    "section": "Practice Management",
+    "front": "Overhead Rate",
+    "back": "Ratio of indirect costs (rent, utilities, admin salaries, marketing) to direct labor costs. Overhead Rate = indirect costs ÷ direct labor. Typical rate is 1.5–2.0×.",
+    "codeRef": "NCARB Practice Guidelines",
+    "examTip": "A project's fee must cover: direct labor + overhead + profit margin. The multiplier (direct salary × multiplier = billing rate) must exceed 1 + overhead rate to generate profit."
+  },
+  {
+    "id": "fc_pcm_20",
+    "section": "Practice Management",
+    "front": "Break-Even Point",
+    "back": "The billing level at which revenue exactly covers all direct and indirect costs with no profit. Revenue = Direct Labor × (1 + Overhead Rate). Any billing above this generates profit.",
+    "codeRef": "NCARB Practice Guidelines",
+    "examTip": "Break-even = covering all costs without profit. Understanding the multiplier and overhead rate is essential for pricing projects correctly."
+  },
+  {
+    "id": "fc_pcm_21",
+    "section": "Practice Management",
+    "front": "Request for Proposal (RFP)",
+    "back": "Document issued by an owner inviting architecture firms to submit qualifications and fee proposals for a project. Defines scope, deliverables, selection criteria, and submission requirements.",
+    "codeRef": "NCARB Practice Guidelines",
+    "examTip": "RFP = owner seeking proposals. Distinguish from RFQ (Request for Qualifications—asks for qualifications only, no fee). Government projects often use a two-step RFQ → RFP process."
+  },
+  {
+    "id": "fc_pcm_22",
+    "section": "Practice Management",
+    "front": "Contingency",
+    "back": "Reserve funds set aside in a project budget to cover unforeseen conditions or changes. Design contingency covers design changes; construction contingency covers unexpected field conditions.",
+    "codeRef": "AIA Document G702/G703",
+    "examTip": "Design contingency: 5–15% for early phases. Construction contingency: 3–10% depending on project complexity. Contingency decreases as design definition increases."
+  },
+  {
+    "id": "fc_pcm_23",
+    "section": "Practice Management",
+    "front": "AIA Code of Ethics",
+    "back": "Ethical obligations governing AIA members across three tiers: Canons (broad goals), Ethical Standards (conduct expected), and Rules of Conduct (mandatory, enforceable rules).",
+    "codeRef": "AIA Code of Ethics and Professional Conduct",
+    "examTip": "Only Rules of Conduct are mandatory and enforceable. Five Canons: (1) General Obligations, (2) Obligations to Public, (3) Obligations to Clients, (4) Obligations to Profession, (5) Obligations to Colleagues."
+  },
+  {
+    "id": "fc_pcm_24",
+    "section": "Practice Management",
+    "front": "Ownership of Instruments of Service",
+    "back": "Drawings, specifications, and other documents prepared by the architect are instruments of service and are the architect's property, regardless of whether the project is built. The owner gets a license to use them.",
+    "codeRef": "AIA B101 §7",
+    "examTip": "Architect retains copyright. Owner gets a limited license to use documents for this project only. If the fee is unpaid, the architect can revoke the license."
+  },
+  {
+    "id": "fc_pcm_25",
+    "section": "Practice Management",
+    "front": "SWOT Analysis",
+    "back": "Strategic planning tool identifying a firm's internal Strengths and Weaknesses, and external Opportunities and Threats. Used for business development planning and project pursuit decisions.",
+    "codeRef": "NCARB Practice Guidelines",
+    "examTip": "S/W = internal factors (within the firm's control). O/T = external factors (market conditions, competition). Used in strategic planning for firm direction."
+  },
+  {
+    "id": "fc_pjm_01",
+    "section": "Project Management",
+    "front": "Critical Path Method (CPM)",
+    "back": "Project scheduling technique identifying the longest sequence of dependent tasks from start to finish. Any delay on the critical path directly delays project completion. Critical path tasks have zero float.",
+    "codeRef": "AIA Document G714",
+    "examTip": "Critical path = longest path = 0 float. Float exists only on non-critical paths. Compressing the critical path is called 'crashing.'"
+  },
+  {
+    "id": "fc_pjm_02",
+    "section": "Project Management",
+    "front": "Float (Slack)",
+    "back": "The amount of time a task can be delayed without affecting project completion. Total float affects the overall schedule; free float affects only the next task. Critical path tasks have zero float.",
+    "codeRef": "AIA Document G714",
+    "examTip": "Float belongs to the project, not the owner or contractor. If the owner uses contractor float, the contractor may be entitled to a time extension."
+  },
+  {
+    "id": "fc_pjm_03",
+    "section": "Project Management",
+    "front": "Change Order",
+    "back": "Written agreement modifying the contract sum, contract time, or both. All three parties must sign: owner, contractor, and architect. Required for all changes to original contract scope after signing.",
+    "codeRef": "AIA A201 §7 / AIA G701",
+    "examTip": "All three parties sign. A CCD (Construction Change Directive) allows the owner to direct a change without the contractor's agreement—used when parties can't agree on cost."
+  },
+  {
+    "id": "fc_pjm_04",
+    "section": "Project Management",
+    "front": "Construction Change Directive (CCD)",
+    "back": "Written order signed by the owner and architect directing a change in the work when a Change Order cannot be agreed upon. Contractor must proceed; cost and time are determined later.",
+    "codeRef": "AIA A201 §7.3 / AIA G714",
+    "examTip": "CCD = proceed now, negotiate later. Owner and architect sign (not contractor). Used when contractor and owner disagree on cost or time impact."
+  },
+  {
+    "id": "fc_pjm_05",
+    "section": "Project Management",
+    "front": "Request for Information (RFI)",
+    "back": "Formal written request from the contractor seeking clarification of contract documents. RFIs clarify intent—they do not change the contract. Architect must respond promptly to avoid contractor claims.",
+    "codeRef": "AIA A201 §3.2.2",
+    "examTip": "RFIs clarify—they don't change. An RFI response that expands scope should trigger a Change Order. Unanswered RFIs can delay the contractor and create cost claims."
+  },
+  {
+    "id": "fc_pjm_06",
+    "section": "Project Management",
+    "front": "Submittal",
+    "back": "Shop drawings, product data, and samples provided by the contractor for the architect's review to verify conformance with design intent. Approval does NOT relieve the contractor of responsibility for accuracy.",
+    "codeRef": "AIA A201 §3.12",
+    "examTip": "Architect reviews for conformance with design intent—not for construction means and methods. Approval is not a guarantee of quality or field accuracy."
+  },
+  {
+    "id": "fc_pjm_07",
+    "section": "Project Management",
+    "front": "Substantial Completion",
+    "back": "The stage when the work is sufficiently complete for the owner to occupy and use it for its intended purpose. Triggers the start of the warranty period and the release of retainage.",
+    "codeRef": "AIA A201 §9.8 / AIA G704",
+    "examTip": "Substantial completion ≠ final completion. The architect issues a Certificate of Substantial Completion (G704). Warranty period and retainage release begin at this date."
+  },
+  {
+    "id": "fc_pjm_08",
+    "section": "Project Management",
+    "front": "Liquidated Damages",
+    "back": "Pre-agreed sum the contractor pays the owner for each day the project is late beyond the contract completion date. Must be a genuine pre-estimate of damages, not a penalty.",
+    "codeRef": "AIA A201 §3.3",
+    "examTip": "LD must be a reasonable estimate of actual damages—not punitive. If the delay is owner-caused, the contractor is excused. LDs are often $X per calendar day in the contract."
+  },
+  {
+    "id": "fc_pjm_09",
+    "section": "Project Management",
+    "front": "Retainage",
+    "back": "A percentage (typically 5–10%) of each progress payment withheld by the owner until substantial completion to ensure the contractor completes all work. Released upon final completion or per contract terms.",
+    "codeRef": "AIA A201 §9.3.1",
+    "examTip": "Retainage protects the owner by giving the contractor an incentive to finish. Typically reduced at substantial completion and released at final completion."
+  },
+  {
+    "id": "fc_pjm_10",
+    "section": "Project Management",
+    "front": "Schedule of Values",
+    "back": "A breakdown of the contract sum allocated to various portions of work, used as the basis for reviewing contractor's applications for payment. Must be submitted before the first payment application.",
+    "codeRef": "AIA A201 §9.2 / AIA G703",
+    "examTip": "The schedule of values must be approved before payment applications are reviewed. Front-loading (assigning high values to early work) is a red flag for the architect."
+  },
+  {
+    "id": "fc_pjm_11",
+    "section": "Project Management",
+    "front": "Application for Payment",
+    "back": "Contractor's monthly request for payment based on percentage of work completed. The architect reviews and issues a Certificate for Payment if the application is properly submitted and work is as represented.",
+    "codeRef": "AIA A201 §9.3 / AIA G702",
+    "examTip": "Architect has 7 days to act on a payment application. G702 = cover sheet, G703 = continuation sheet (schedule of values breakdown)."
+  },
+  {
+    "id": "fc_pjm_12",
+    "section": "Project Management",
+    "front": "Architect's Supplemental Instruction (ASI)",
+    "back": "Written instruction from the architect clarifying or interpreting the contract documents without changing the contract sum or time. If it impacts cost or time, it must become a Change Order.",
+    "codeRef": "AIA G710",
+    "examTip": "ASI = no cost, no time change. If the contractor believes an ASI changes scope, they must notify the architect before proceeding—otherwise they waive the claim."
+  },
+  {
+    "id": "fc_pjm_13",
+    "section": "Project Management",
+    "front": "Punch List",
+    "back": "A list of deficient items or incomplete work identified at or near substantial completion that must be corrected before final completion and final payment. Generated by the architect during final inspection.",
+    "codeRef": "AIA A201 §9.10",
+    "examTip": "A punch list does NOT mean substantial completion is denied. The project can be substantially complete even with punch list items remaining."
+  },
+  {
+    "id": "fc_pjm_14",
+    "section": "Project Management",
+    "front": "Geotechnical Report (Soils Report)",
+    "back": "Report by a geotechnical engineer analyzing soil conditions, bearing capacity, groundwater levels, and foundation recommendations. Owner typically provides this to the architect and contractor.",
+    "codeRef": "AIA A201 §2.1.2",
+    "examTip": "The owner is responsible for providing geotechnical data. Concealed conditions (different from the report) can entitle the contractor to a Change Order."
+  },
+  {
+    "id": "fc_pjm_15",
+    "section": "Project Management",
+    "front": "Differing Site Conditions",
+    "back": "Unforeseen physical conditions at the site that differ materially from what was indicated in the contract documents. Entitle the contractor to a Change Order for additional cost and time.",
+    "codeRef": "AIA A201 §3.7.4",
+    "examTip": "Two types: (1) Conditions differ from contract docs, (2) Conditions unusual for the work type. Contractor must notify the architect before disturbing the condition."
+  },
+  {
+    "id": "fc_pjm_16",
+    "section": "Project Management",
+    "front": "Notice to Proceed (NTP)",
+    "back": "Written communication from the owner to the contractor authorizing work to begin and establishing the contract start date. Contract time begins running from the NTP date.",
+    "codeRef": "AIA A201 §8.2.2",
+    "examTip": "Contract time starts with the NTP, not contract signing. Delays in issuing the NTP can give the contractor grounds for a time extension."
+  },
+  {
+    "id": "fc_pjm_17",
+    "section": "Project Management",
+    "front": "Fast-Track Construction",
+    "back": "Delivery approach where construction begins before design is fully complete. Early phases (site, foundations) start while later phases (interiors) are still in design. Compresses schedule but increases risk.",
+    "codeRef": "NCARB Practice Guidelines",
+    "examTip": "Fast-track = overlapping design and construction phases. Reduces schedule but increases cost risk (design changes during construction are expensive). Cost-plus contracts are typical."
+  },
+  {
+    "id": "fc_pjm_18",
+    "section": "Project Management",
+    "front": "Certificate for Payment",
+    "back": "Document issued by the architect to the owner certifying the amount the contractor is owed. The architect acts as an impartial interpreter—not an advocate for either party.",
+    "codeRef": "AIA A201 §9.4 / AIA G702",
+    "examTip": "The architect certifies, not approves. Certification means the work is as represented and the amount is properly calculated—not that the work is defect-free."
+  },
+  {
+    "id": "fc_pjm_19",
+    "section": "Project Management",
+    "front": "Mediation",
+    "back": "Non-binding dispute resolution where a neutral third party helps parties reach a voluntary settlement. Required first step before arbitration or litigation under AIA contracts.",
+    "codeRef": "AIA A201 §15.3",
+    "examTip": "Mediation is mandatory before arbitration under AIA. Non-binding = no one has to accept the outcome. If mediation fails, parties proceed to binding arbitration or litigation."
+  },
+  {
+    "id": "fc_pjm_20",
+    "section": "Project Management",
+    "front": "Arbitration",
+    "back": "Binding dispute resolution where a neutral arbitrator hears evidence and issues a final, enforceable award. AIA contracts require arbitration as the default before litigation.",
+    "codeRef": "AIA A201 §15.4",
+    "examTip": "Arbitration = binding (unlike mediation). Awards are enforceable in court. Typically faster and less expensive than litigation. AIA requires mediation first."
+  },
+  {
+    "id": "fc_pjm_21",
+    "section": "Project Management",
+    "front": "Bid Bond",
+    "back": "Surety bond submitted with a bid guaranteeing that if selected, the bidder will enter into the contract at the bid price. Typically 5–10% of the bid amount.",
+    "codeRef": "AIA Document A310",
+    "examTip": "Bid bond = promise to sign the contract. If the low bidder refuses, the surety pays the difference between their bid and the next lowest bid (up to the bond amount)."
+  },
+  {
+    "id": "fc_pjm_22",
+    "section": "Project Management",
+    "front": "Performance Bond",
+    "back": "Surety bond guaranteeing that the contractor will complete the project per the contract terms. If the contractor defaults, the surety either completes the work or pays the owner the bond amount.",
+    "codeRef": "AIA Document A312",
+    "examTip": "Performance bond = guarantee of project completion. Payment bond guarantees subcontractors/suppliers will be paid. Both are often required on public projects."
+  },
+  {
+    "id": "fc_pjm_23",
+    "section": "Project Management",
+    "front": "Invitation to Bid",
+    "back": "Document issued by the owner inviting qualified contractors to submit bids. Part of the bidding documents along with Instructions to Bidders, bid forms, and contract documents.",
+    "codeRef": "AIA Document A701",
+    "examTip": "On public projects, bidding is open and competitive. On private projects, the owner can invite a select list of pre-qualified bidders (selective bidding)."
+  },
+  {
+    "id": "fc_pjm_24",
+    "section": "Project Management",
+    "front": "Pre-Bid Conference",
+    "back": "Meeting between the owner, architect, and prospective bidders to explain the project and clarify bidding documents. Questions and answers are issued as addenda to all bidders.",
+    "codeRef": "AIA A701 §3.2",
+    "examTip": "Only addenda are binding clarifications. Verbal answers at a pre-bid conference are NOT binding unless incorporated into an addendum."
+  },
+  {
+    "id": "fc_pjm_25",
+    "section": "Project Management",
+    "front": "Addendum",
+    "back": "Written or graphic document issued by the architect before the bid date that modifies, clarifies, or supplements the bidding documents. Must be acknowledged in the bid form to be valid.",
+    "codeRef": "AIA A701 §3.3",
+    "examTip": "Addenda are issued before bid opening and are binding. All addenda must be acknowledged on the bid form. Contrast with a Bulletin (issued during construction)."
+  },
+  {
+    "id": "fc_pa_01",
+    "section": "Programming & Analysis",
+    "front": "Occupant Load",
+    "back": "The number of persons for which a building space is designed, calculated by dividing the floor area by the occupant load factor for the occupancy type. Drives egress design, exit width, and number of exits.",
+    "codeRef": "IBC Table 1004.5",
+    "examTip": "Assembly (unconcentrated): 15 sf/person. Assembly (concentrated): 7 sf/person. Business: 150 sf/person. Residential: 200 sf/person. Memorize key occupant load factors."
+  },
+  {
+    "id": "fc_pa_02",
+    "section": "Programming & Analysis",
+    "front": "Egress Width — Stairs",
+    "back": "Stair egress width = 0.3 inches per occupant. Level egress (corridors, ramps) = 0.2 in/occupant. Minimum stair width: 44 inches (28 in for ≤49 occupants).",
+    "codeRef": "IBC §1005.1",
+    "examTip": "Stairs: 0.3 in/occupant. Level egress: 0.2 in/occupant. The 44-inch minimum is independent of occupant load (unless serving fewer than 50 occupants—then 28 inches)."
+  },
+  {
+    "id": "fc_pa_03",
+    "section": "Programming & Analysis",
+    "front": "ADA — Accessible Route",
+    "back": "Continuous path connecting accessible elements complying with ADA: min 36-inch clear width, cross-slope max 1:48, firm/stable/slip-resistant surface, running slope max 1:20 (steeper = ramp).",
+    "codeRef": "ADA Standards §402 / IBC §1104",
+    "examTip": "Accessible route width: 36 in min (60 in at passing spaces). Cross slope: 1:48 max. Running slope above 1:20 requires a ramp with handrails."
+  },
+  {
+    "id": "fc_pa_04",
+    "section": "Programming & Analysis",
+    "front": "ADA — Clear Floor Space",
+    "back": "Minimum floor area for a wheelchair positioned at an element: 30 inches × 48 inches, parallel or forward approach. Must be on an accessible route.",
+    "codeRef": "ADA Standards §305",
+    "examTip": "30\" × 48\" = clear floor space at an element. 60\" diameter = turning circle. These dimensions appear frequently—memorize them."
+  },
+  {
+    "id": "fc_pa_05",
+    "section": "Programming & Analysis",
+    "front": "ADA — Turning Space",
+    "back": "Minimum space for a wheelchair to turn: 60-inch diameter circle OR a T-shaped space (60\" × 60\" each leg). Required in accessible toilet rooms and at dead-end corridors.",
+    "codeRef": "ADA Standards §304",
+    "examTip": "60\" diameter = turning circle. T-turn space is the alternative. Doors cannot swing into the turning space and reduce it below the minimum."
+  },
+  {
+    "id": "fc_pa_06",
+    "section": "Programming & Analysis",
+    "front": "Floor Area Ratio (FAR)",
+    "back": "Zoning measure expressing the ratio of a building's total floor area to the lot area. FAR = Total Floor Area ÷ Lot Area. FAR of 2.0 on a 10,000 sf lot = 20,000 sf allowable.",
+    "codeRef": "Local Zoning Resolution",
+    "examTip": "FAR controls building bulk and density. In NYC, residential FAR ranges from 0.5 in low-density zones to 12.0 in highest-density commercial zones."
+  },
+  {
+    "id": "fc_pa_07",
+    "section": "Programming & Analysis",
+    "front": "Zoning Variance",
+    "back": "Permission granted by a zoning board to deviate from dimensional or use requirements due to practical difficulties or unnecessary hardship. Must demonstrate unique site conditions not self-created.",
+    "codeRef": "Local Zoning Resolution / Board of Zoning Appeals",
+    "examTip": "Variance ≠ rezoning. Area variance = dimension relief; use variance = different use allowed. Hardship must be unique to the property, not self-inflicted."
+  },
+  {
+    "id": "fc_pa_08",
+    "section": "Programming & Analysis",
+    "front": "Net vs. Gross Area",
+    "back": "Net area = usable square footage for the intended function (excludes walls, corridors, mechanical rooms). Gross area = total built area including all structure and service spaces. Net-to-gross ratio: typically 60–80%.",
+    "codeRef": "BOMA / AIA Document D101",
+    "examTip": "Programming uses net area for space needs. Gross area includes everything. The efficiency ratio (net/gross) shows how much area is 'lost' to structure and services."
+  },
+  {
+    "id": "fc_pa_09",
+    "section": "Programming & Analysis",
+    "front": "Use & Occupancy Classification",
+    "back": "IBC categorization of buildings by their primary use: Assembly (A), Business (B), Educational (E), Factory (F), High-Hazard (H), Institutional (I), Mercantile (M), Residential (R), Storage (S), Utility (U).",
+    "codeRef": "IBC Chapter 3",
+    "examTip": "Occupancy classification drives construction type, sprinkler requirements, egress, and allowable area. Know the Institutional sub-groups (I-1 through I-4) and Residential (R-1 through R-4)."
+  },
+  {
+    "id": "fc_pa_10",
+    "section": "Programming & Analysis",
+    "front": "Construction Type",
+    "back": "IBC classification based on structural materials and fire resistance: Type I (fire-resistive), Type II (non-combustible), Type III (masonry + wood), Type IV (heavy timber), Type V (wood frame). Each has A (protected) and B (unprotected) sub-types.",
+    "codeRef": "IBC Chapter 6",
+    "examTip": "Type I-A = highest fire resistance (3-hr structural frame). Type V-B = lowest (no required ratings). Construction type determines allowable height, area, and stories."
+  },
+  {
+    "id": "fc_pa_11",
+    "section": "Programming & Analysis",
+    "front": "Egress Components",
+    "back": "Three required components: (1) Exit Access – path from occupant to exit, (2) Exit – protected path to exterior, (3) Exit Discharge – path from exit door to public way.",
+    "codeRef": "IBC §1003–1028",
+    "examTip": "Exit = the protected portion (enclosed stair, horizontal exit). Exit access = unprotected corridor to the exit. Exit discharge = from exit door to street."
+  },
+  {
+    "id": "fc_pa_12",
+    "section": "Programming & Analysis",
+    "front": "Travel Distance to Exit",
+    "back": "Maximum distance an occupant may travel from any point to the nearest exit. Business (B): 200 ft (300 ft sprinklered). Assembly (A): 200 ft (250 ft sprinklered). High-hazard (H-1): 75 ft.",
+    "codeRef": "IBC Table 1017.2",
+    "examTip": "Sprinklers allow ~50 ft more travel distance in most occupancies. High-hazard occupancies have the shortest limits. Memorize common occupancy travel distances."
+  },
+  {
+    "id": "fc_pa_13",
+    "section": "Programming & Analysis",
+    "front": "Dead-End Corridor",
+    "back": "A corridor with only one means of egress at its end, requiring occupants to retrace their path. Limit: max 20 ft in most occupancies. A dangerous egress condition under emergency.",
+    "codeRef": "IBC §1020.4",
+    "examTip": "Dead-end limit: 20 ft most cases. Exception: 50 ft in Group B with sprinklers. Dead ends require occupants to turn back—avoid or minimize in design."
+  },
+  {
+    "id": "fc_pa_14",
+    "section": "Programming & Analysis",
+    "front": "Minimum Number of Exits",
+    "back": "Required exits by occupant load: 1 exit (≤49 occupants), 2 exits (50–499), 3 exits (500–999), 4 exits (≥1,000). Exceptions exist for occupancy type and sprinklers.",
+    "codeRef": "IBC §1006",
+    "examTip": "At 500 occupants, 3 exits are required. At 1,000 occupants, 4 exits. These thresholds are frequently tested. Single-exit buildings are highly restricted."
+  },
+  {
+    "id": "fc_pa_15",
+    "section": "Programming & Analysis",
+    "front": "Setback",
+    "back": "Minimum required distance between a building and the property line (front, rear, or side). Established by local zoning codes to protect light, air, and fire separation between buildings.",
+    "codeRef": "Local Zoning Resolution",
+    "examTip": "Setbacks define the buildable area. Combined with FAR and height limits, they define the 'zoning envelope'—the maximum building volume permitted."
+  },
+  {
+    "id": "fc_pa_16",
+    "section": "Programming & Analysis",
+    "front": "Environmental Impact Assessment (EIA)",
+    "back": "Analysis of a proposed project's potential effects on the natural environment. Required for major federal projects under NEPA. Full study = Environmental Impact Statement (EIS); screening = Environmental Assessment (EA).",
+    "codeRef": "NEPA (National Environmental Policy Act)",
+    "examTip": "NEPA applies to federally funded or permitted projects. An EIS is the full document; an EA is a shorter screening. Finding of No Significant Impact (FONSI) can end the process at the EA stage."
+  },
+  {
+    "id": "fc_pa_17",
+    "section": "Programming & Analysis",
+    "front": "Sun Path / Solar Analysis",
+    "back": "Study of the sun's movement across the sky at a specific latitude throughout the year. Key angles: altitude (height above horizon) and azimuth (compass direction). Used for daylighting and shading design.",
+    "codeRef": "ASHRAE 90.1 / LEED EAc",
+    "examTip": "In the Northern Hemisphere, south-facing windows get the most sun year-round and are easiest to shade with horizontal overhangs. East/west facades are hardest to shade."
+  },
+  {
+    "id": "fc_pa_18",
+    "section": "Programming & Analysis",
+    "front": "Adjacency Matrix",
+    "back": "Programming tool that diagrams relationships between spaces by indicating which spaces need to be adjacent, which can be near, and which should be separated. Used to develop bubble diagrams.",
+    "codeRef": "NCARB Programming Guidelines",
+    "examTip": "An adjacency matrix is a grid where rows/columns are spaces and cells indicate relationship strength. High adjacency = operational efficiency."
+  },
+  {
+    "id": "fc_pa_19",
+    "section": "Programming & Analysis",
+    "front": "Space Program",
+    "back": "A document listing all required spaces, their net areas, adjacency requirements, and special conditions. The primary output of the programming phase; it defines the architectural problem before design begins.",
+    "codeRef": "NCARB Programming Guidelines",
+    "examTip": "Programming = WHAT. Design = HOW. The space program is the owner-approved baseline. Changes after programming approval should be documented as scope changes."
+  },
+  {
+    "id": "fc_pa_20",
+    "section": "Programming & Analysis",
+    "front": "Post-Occupancy Evaluation (POE)",
+    "back": "Systematic study of a building's performance after occupancy to assess how well it meets users' needs. Gathers data on occupant satisfaction, energy use, and functional effectiveness.",
+    "codeRef": "AIA B101 Additional Services",
+    "examTip": "POE = feedback loop for design quality. Not a basic service under AIA B101. It closes the loop between programming goals and actual building performance."
+  },
+  {
+    "id": "fc_pa_21",
+    "section": "Programming & Analysis",
+    "front": "LEED — Site Selection Credits",
+    "back": "LEED credits encouraging development on previously developed land, near transit, or in dense urban areas to reduce sprawl, automobile dependency, and environmental impact.",
+    "codeRef": "LEED v4 Sustainable Sites",
+    "examTip": "LEED rewards: brownfield remediation, transit access (1/4 mile of bus, 1/2 mile of rail), and avoiding sensitive habitats (wetlands, prime farmland, floodplains)."
+  },
+  {
+    "id": "fc_pa_22",
+    "section": "Programming & Analysis",
+    "front": "Bubble Diagram",
+    "back": "Schematic diagram showing spatial relationships between program areas as abstract circles. Size represents relative area; lines represent adjacency requirements. Precedes floor plan layouts.",
+    "codeRef": "NCARB Programming Guidelines",
+    "examTip": "Bubble diagrams test conceptual organization (zoning), not architectural form. They respond directly to the adjacency matrix. The diagram should reflect programmatic relationships, not final geometry."
+  },
+  {
+    "id": "fc_pa_23",
+    "section": "Programming & Analysis",
+    "front": "Stacking Diagram",
+    "back": "Multi-story programming diagram showing how program elements are distributed across floors. Used to organize vertical adjacencies and evaluate how mechanical, structure, and program interact floor by floor.",
+    "codeRef": "NCARB Programming Guidelines",
+    "examTip": "Heavy floor loads (storage, equipment) go to lower floors. High-ceiling spaces (assembly) may be on grade or upper levels. Stacking affects structural design."
+  },
+  {
+    "id": "fc_pa_24",
+    "section": "Programming & Analysis",
+    "front": "ADA Ramp Requirements",
+    "back": "Ramp running slope: max 1:12 (8.33%). Width: min 36 inches clear. Max rise per run: 30 inches. Landings required at top, bottom, and each direction change. Edge protection required.",
+    "codeRef": "ADA Standards §405 / IBC §1012",
+    "examTip": "1:12 = max slope = 8.33%. A 30-inch rise requires a 30-foot long ramp minimum. Handrails required on both sides for ramps with rise over 6 inches."
+  },
+  {
+    "id": "fc_pa_25",
+    "section": "Programming & Analysis",
+    "front": "ADA Parking — Accessible Spaces",
+    "back": "Required accessible spaces: 1 per 1–25 total spaces. Van-accessible space: 8-foot-wide space + 8-foot-wide access aisle (or 11-foot-wide space + 5-foot aisle). Must be on accessible route to entrance.",
+    "codeRef": "ADA Standards §208 / IBC §1106",
+    "examTip": "1 in 6 accessible spaces must be van-accessible. Access aisles must be marked 'NO PARKING.' The accessible route from parking to building entrance must comply with slope/width requirements."
+  },
+  {
+    "id": "fc_ppd_01",
+    "section": "Project Planning & Design",
+    "front": "Dead Load",
+    "back": "Permanent, static weight of all structural elements and fixed building components (floors, walls, roofs, ceilings, finishes, fixed mechanical equipment). Does not change over the building's life.",
+    "codeRef": "ASCE 7 §3",
+    "examTip": "Dead loads are predictable and permanent. Typical concrete floor: ~150 psf. Steel deck with concrete topping: ~50–80 psf. Dead load determines baseline structural member sizing."
+  },
+  {
+    "id": "fc_ppd_02",
+    "section": "Project Planning & Design",
+    "front": "Live Load",
+    "back": "Variable loads from building occupancy: people, furniture, movable equipment. Office: 50 psf; Residential: 40 psf; Assembly (fixed seats): 60 psf; Assembly (moveable): 100 psf; Storage: 125+ psf.",
+    "codeRef": "ASCE 7 §4 / IBC Table 1607.1",
+    "examTip": "Live loads are use-dependent. Assembly and storage occupancies have the highest live loads. The ARE tests whether you know which occupancies have higher vs. lower loads."
+  },
+  {
+    "id": "fc_ppd_03",
+    "section": "Project Planning & Design",
+    "front": "Shear Wall",
+    "back": "Vertical structural element resisting lateral forces (wind, seismic) through in-plane shear. Acts as a vertical cantilevered beam. Works with diaphragms to transfer lateral loads to the foundation.",
+    "codeRef": "ASCE 7 §12 / IBC Chapter 16",
+    "examTip": "Shear walls must be continuous from roof to foundation. Their location limits floor plan flexibility. Concrete or CMU cores are common; wood sheathing in light frame construction."
+  },
+  {
+    "id": "fc_ppd_04",
+    "section": "Project Planning & Design",
+    "front": "Moment Frame",
+    "back": "Structural system where beams and columns resist lateral forces through rigid connections that allow bending but no rotation at joints. Provides lateral stability without shear walls—open floor plans possible.",
+    "codeRef": "AISC / ASCE 7 §12.2",
+    "examTip": "Moment frames allow open floor plans with no shear walls. More flexible but more expensive than braced frames. Deep beams handle large moments. Used in steel high-rise construction."
+  },
+  {
+    "id": "fc_ppd_05",
+    "section": "Project Planning & Design",
+    "front": "R-Value",
+    "back": "Measure of thermal resistance of a material or assembly. R = 1/U = thickness ÷ thermal conductivity. Higher R = better insulation. R-values add when layers are stacked in series.",
+    "codeRef": "ASHRAE 90.1 / IBC §1301",
+    "examTip": "R-value measures resistance; U-factor measures heat transfer rate (U = 1/R). R-values add in series; U-values do not. ASHRAE 90.1 sets minimum R-values by climate zone."
+  },
+  {
+    "id": "fc_ppd_06",
+    "section": "Project Planning & Design",
+    "front": "Thermal Bridging",
+    "back": "Heat loss through highly conductive materials (metal studs, structural connections) that bypass the insulation layer. Reduces the effective R-value of the assembly significantly—up to 40–50% for metal stud walls.",
+    "codeRef": "ASHRAE 90.1 / NFRC",
+    "examTip": "Metal studs can reduce wall assembly R-value by 40–50% due to thermal bridging. Solutions: continuous exterior insulation, thermal breaks at connections."
+  },
+  {
+    "id": "fc_ppd_07",
+    "section": "Project Planning & Design",
+    "front": "Vapor Retarder",
+    "back": "Material limiting vapor diffusion through building assemblies to prevent condensation within the wall. Class I (foil/polyethylene) most restrictive; Class II (kraft paper) moderate; Class III (latex paint) least restrictive.",
+    "codeRef": "IBC §1405.3 / ASHRAE 90.1",
+    "examTip": "Place vapor retarder on the warm-in-winter side of insulation (interior in cold climates). In hot-humid climates, placement reverses. Wrong placement = interstitial condensation."
+  },
+  {
+    "id": "fc_ppd_08",
+    "section": "Project Planning & Design",
+    "front": "Moment Connection vs. Pin Connection",
+    "back": "Moment (rigid) connection transfers bending forces between members. Pin connection transfers only shear and axial forces, allowing rotation at the joint. Moment connections are more expensive.",
+    "codeRef": "AISC Steel Construction Manual",
+    "examTip": "Pin = hinged = no moment transfer. Moment = rigid = transfers bending. A beam with two pin supports is statically determinate; a fixed-end beam is indeterminate."
+  },
+  {
+    "id": "fc_ppd_09",
+    "section": "Project Planning & Design",
+    "front": "Seismic Design Category (SDC)",
+    "back": "IBC classification (A through F) determining seismic design requirements based on site acceleration values and occupancy category. Higher SDC = more stringent structural requirements.",
+    "codeRef": "ASCE 7 §11.6 / IBC §1613",
+    "examTip": "SDC A = least seismic risk. SDC F = most stringent. Essential facilities (hospitals) in high-hazard areas are bumped up one category. SDC determines which structural systems are permitted."
+  },
+  {
+    "id": "fc_ppd_10",
+    "section": "Project Planning & Design",
+    "front": "Wind Load",
+    "back": "Lateral and uplift forces exerted by wind on building exterior surfaces. Determined by design wind speed, exposure category (terrain), occupancy, and building geometry.",
+    "codeRef": "ASCE 7 Chapter 26–31",
+    "examTip": "Wind loads act as pressure on windward face and suction on leeward face. Uplift on flat roofs is significant. Corner regions experience highest pressures (components and cladding)."
+  },
+  {
+    "id": "fc_ppd_11",
+    "section": "Project Planning & Design",
+    "front": "Beam Deflection Limits",
+    "back": "Allowable beam deflection under live load: L/360 (prevents cracking in brittle finishes below). Under total load: L/240. Deflection increases with span⁴ and decreases with depth³.",
+    "codeRef": "IBC Table 1604.3 / AISC",
+    "examTip": "Doubling the span increases deflection 16×. Doubling the depth reduces deflection 8×. L/360 = live load limit. Long spans require deep or pre-cambered members."
+  },
+  {
+    "id": "fc_ppd_12",
+    "section": "Project Planning & Design",
+    "front": "Post-Tensioned Concrete",
+    "back": "Concrete system where high-strength steel tendons are tensioned after curing, placing the concrete in compression. Allows longer spans and thinner slabs than conventional reinforced concrete.",
+    "codeRef": "ACI 318",
+    "examTip": "Post-tensioning reduces slab thickness and allows longer spans. Common in parking structures and multi-story residential. Tendon locations must coordinate with MEP penetrations."
+  },
+  {
+    "id": "fc_ppd_13",
+    "section": "Project Planning & Design",
+    "front": "Space Frame (Space Truss)",
+    "back": "Three-dimensional structural system of interconnected linear members forming a rigid, lightweight structure. Distributes loads in multiple directions. Used for large-span column-free roofs.",
+    "codeRef": "AISC / ASCE 7",
+    "examTip": "Space frames work in two directions (unlike standard trusses). Efficient for large column-free spans. Challenge: complex connection details and MEP coordination."
+  },
+  {
+    "id": "fc_ppd_14",
+    "section": "Project Planning & Design",
+    "front": "HVAC — VAV (Variable Air Volume)",
+    "back": "Multi-zone HVAC system that varies the volume of conditioned air delivered to each zone based on demand. A single air handling unit (AHU) serves multiple VAV boxes, each controlling one zone.",
+    "codeRef": "ASHRAE 62.1 / ASHRAE 90.1",
+    "examTip": "VAV is the most common multi-zone system for large office buildings. It's energy-efficient because it reduces air volume (and fan energy) when zones need less cooling."
+  },
+  {
+    "id": "fc_ppd_15",
+    "section": "Project Planning & Design",
+    "front": "Thermal Comfort",
+    "back": "Condition of mind expressing satisfaction with the thermal environment. Influenced by six factors: air temperature, radiant temperature, humidity, air velocity, metabolic rate, and clothing. Standard: ASHRAE 55.",
+    "codeRef": "ASHRAE Standard 55",
+    "examTip": "Six factors = 4 environmental + 2 personal. ASHRAE 55 defines acceptable comfort range. PMV/PPD model predicts satisfaction. Radiant temperature often matters more than air temperature."
+  },
+  {
+    "id": "fc_ppd_16",
+    "section": "Project Planning & Design",
+    "front": "Indoor Air Quality (IAQ)",
+    "back": "Quality of air within buildings relative to health and comfort. Governed by ASHRAE 62.1, which sets minimum ventilation rates by occupancy. Key pollutants: CO₂, VOCs, radon, particulates, biological contaminants.",
+    "codeRef": "ASHRAE Standard 62.1",
+    "examTip": "ASHRAE 62.1 sets minimum ventilation rates. CO₂ above 1,000 ppm signals inadequate fresh air. LEED EQ credits reward improved IAQ beyond minimums."
+  },
+  {
+    "id": "fc_ppd_17",
+    "section": "Project Planning & Design",
+    "front": "Passive Solar Design",
+    "back": "Design strategies using building form, orientation, and materials to collect, store, and distribute solar heat without mechanical systems. Strategies: direct gain (glazing), indirect gain (Trombe wall), isolated gain (sunspace).",
+    "codeRef": "ASHRAE 90.1 / LEED",
+    "examTip": "South-facing glazing maximizes winter solar gain. Thermal mass (concrete, masonry) stores heat during day, releases at night. Overhangs shade summer sun while allowing winter sun."
+  },
+  {
+    "id": "fc_ppd_18",
+    "section": "Project Planning & Design",
+    "front": "Stormwater Management",
+    "back": "Design strategies controlling quantity and quality of stormwater runoff. Techniques: bioswales, rain gardens, green roofs, permeable paving, detention ponds, cisterns.",
+    "codeRef": "IBC §1805 / LEED SS Credits",
+    "examTip": "LEED rewards reducing runoff quantity and improving quality (removing pollutants). Green roofs retain 50–90% of rainfall. Permeable paving reduces runoff but requires maintenance."
+  },
+  {
+    "id": "fc_ppd_19",
+    "section": "Project Planning & Design",
+    "front": "Universal Design",
+    "back": "Design philosophy creating environments usable by all people—regardless of age, ability, or size—without adaptation or specialized design. Goes beyond ADA minimum requirements.",
+    "codeRef": "ADA Standards / Visitability Guidelines",
+    "examTip": "7 Principles: equitable use, flexibility, simple & intuitive, perceptible information, tolerance for error, low physical effort, size & space for approach & use."
+  },
+  {
+    "id": "fc_ppd_20",
+    "section": "Project Planning & Design",
+    "front": "Daylighting — Daylight Factor",
+    "back": "Ratio of interior illuminance to exterior illuminance under overcast sky conditions, expressed as a percentage. Daylight factor of 2% = adequate for most tasks; 5%+ for high-visual-demand spaces.",
+    "codeRef": "IES Lighting Handbook / LEED EQ",
+    "examTip": "Daylight factor measures how much daylight penetrates the interior. Deeper rooms require higher windows or light shelves. LEED credits reward 75%+ of regularly occupied spaces achieving 300 lux."
+  },
+  {
+    "id": "fc_ppd_21",
+    "section": "Project Planning & Design",
+    "front": "Acoustic — STC Rating",
+    "back": "Sound Transmission Class (STC): single-number rating of a wall, floor, or ceiling assembly's ability to reduce airborne sound. Higher STC = better sound isolation. Hotel room partitions: STC 50.",
+    "codeRef": "ASTM E90 / IBC §1207",
+    "examTip": "STC 50 = hotel/residential standard. Recording studios: STC 60+. Mass (heavy walls) and decoupling (double stud, resilient channels) both improve STC. Flanking paths destroy STC performance."
+  },
+  {
+    "id": "fc_ppd_22",
+    "section": "Project Planning & Design",
+    "front": "Acoustic — Reverberation Time (RT60)",
+    "back": "Time in seconds for sound to decay 60 dB after the source stops. Short RT = dry acoustics (speech clarity). Long RT = reverberant (music). Controlled by absorptive surface materials.",
+    "codeRef": "ANSI S12.60 / LEED EQ",
+    "examTip": "Conference rooms: RT60 < 0.5 sec. Concert halls: RT60 1.5–2.5 sec. Adding absorptive material (carpet, acoustic tile, upholstery) reduces RT60. Hard parallel surfaces increase it."
+  },
+  {
+    "id": "fc_ppd_23",
+    "section": "Project Planning & Design",
+    "front": "Waterproofing vs. Dampproofing",
+    "back": "Waterproofing resists hydrostatic pressure—required when water can stand against a surface (below-grade walls with water table). Dampproofing only resists soil moisture without hydrostatic pressure.",
+    "codeRef": "IBC §1805 / ASTM Standards",
+    "examTip": "Hydrostatic pressure present = waterproofing required. No groundwater pressure = dampproofing may suffice. Habitable below-grade spaces always require waterproofing."
+  },
+  {
+    "id": "fc_ppd_24",
+    "section": "Project Planning & Design",
+    "front": "Green Roof",
+    "back": "Roof covered with vegetation and growing medium over a waterproofing membrane. Extensive: shallow soil (2–6 in), sedums. Intensive: deep soil (6+ in), varied plants, higher structural loads (80–150+ psf).",
+    "codeRef": "ASTM E2397 / LEED SS Credits",
+    "examTip": "Extensive green roofs add ~10–25 psf to roof loads. Both types reduce stormwater runoff and urban heat island effect. Root-resistant membrane is critical."
+  },
+  {
+    "id": "fc_ppd_25",
+    "section": "Project Planning & Design",
+    "front": "Expansion Joint",
+    "back": "Gap in a structure allowing differential movement between building sections due to thermal expansion, settlement, or seismic forces. Must be sized for expected movement and detailed to be weather-tight.",
+    "codeRef": "ACI 318 / AISC",
+    "examTip": "Expansion joints separate two independent structural systems. Joint width is determined by thermal movement calculations. Never cross an expansion joint with continuous structure."
+  },
+  {
+    "id": "fc_ppd_26",
+    "section": "Project Planning & Design",
+    "front": "Curtain Wall System",
+    "back": "Non-load-bearing exterior cladding system that hangs from the building structure. Transfers wind and gravity loads to the structure at floor anchors. Types: stick (field assembled) and unitized (factory assembled panels).",
+    "codeRef": "AAMA / ASTM E283/E330/E331",
+    "examTip": "Curtain walls are non-structural. The key design issues are water infiltration, thermal performance, differential movement accommodation, and fire stop at each floor line."
+  },
+  {
+    "id": "fc_ppd_27",
+    "section": "Project Planning & Design",
+    "front": "Rainscreen Principle",
+    "back": "Wall cladding strategy using an outer rain screen (cladding) separated from the air/moisture barrier by a drained, back-ventilated cavity. Pressure equalization minimizes water infiltration.",
+    "codeRef": "ASHRAE 90.1 / Building Envelope Standards",
+    "examTip": "Rainscreen = outer cladding + drained cavity + inner air barrier. The cavity equalizes air pressure, dramatically reducing water infiltration driving force. Used with brick, metal panel, terracotta."
+  },
+  {
+    "id": "fc_ppd_28",
+    "section": "Project Planning & Design",
+    "front": "Life Safety — Fire Separation",
+    "back": "Fire-rated barriers (walls, floors) between different occupancies, construction types, or to protect means of egress. Rating depends on occupancy separation type and construction type.",
+    "codeRef": "IBC Chapter 7",
+    "examTip": "Non-separated mixed occupancies: apply the most restrictive requirements throughout. Separated mixed occupancies: fire walls allow each section to stand alone. Know 1-hr vs. 2-hr separation requirements."
+  },
+  {
+    "id": "fc_ppd_29",
+    "section": "Project Planning & Design",
+    "front": "NFPA 13 — Sprinkler Systems",
+    "back": "Standard for the installation of automatic fire sprinkler systems. Defines sprinkler types, spacing, coverage, and pipe sizing. Required by IBC for buildings above certain height, area, or occupancy thresholds.",
+    "codeRef": "NFPA 13 / IBC §903",
+    "examTip": "NFPA 13 = full sprinkler standard (commercial). NFPA 13R = residential (up to 4 stories). NFPA 13D = one- and two-family. Sprinklers significantly relax egress and construction type requirements."
+  },
+  {
+    "id": "fc_ppd_30",
+    "section": "Project Planning & Design",
+    "front": "Structural — Tributary Area",
+    "back": "The area of floor or roof that contributes load to a specific structural member. A column at the intersection of two 20-foot bays has a tributary area of 20' × 20' = 400 sf.",
+    "codeRef": "ASCE 7 / AISC",
+    "examTip": "Tributary area determines the load a member must carry. For columns: tributary area × total load (dead + live) = column load. Interior columns carry more load than perimeter columns."
+  },
+  {
+    "id": "fc_pdd_01",
+    "section": "Project Docs & Delivery",
+    "front": "MasterFormat — Key Divisions",
+    "back": "Standard organizational system for construction specifications. Division 00: Procurement. Division 01: General Requirements. Division 03: Concrete. Division 05: Metals. Division 07: Thermal & Moisture. Division 08: Openings. Division 26: Electrical.",
+    "codeRef": "CSI MasterFormat 2016",
+    "examTip": "Know: 00 (Procurement), 01 (Gen Req), 03 (Concrete), 04 (Masonry), 05 (Metals), 06 (Wood), 07 (Thermal/Moisture), 08 (Openings), 09 (Finishes), 22 (Plumbing), 23 (HVAC), 26 (Electrical)."
+  },
+  {
+    "id": "fc_pdd_02",
+    "section": "Project Docs & Delivery",
+    "front": "Prescriptive vs. Performance Specification",
+    "back": "Prescriptive: specifies exact materials, methods, and products (limits contractor choice). Performance: specifies the required result/outcome (contractor chooses means). Most specs combine both.",
+    "codeRef": "CSI MasterFormat / AIA Document A201",
+    "examTip": "Prescriptive = what to use. Performance = what it must do. Performance specs give contractors flexibility but require testing/verification. Proprietary specs name specific products."
+  },
+  {
+    "id": "fc_pdd_03",
+    "section": "Project Docs & Delivery",
+    "front": "Addendum vs. Bulletin",
+    "back": "Addendum: issued before bid opening to modify bidding documents. Bulletin: issued during construction to transmit information (RFI responses, sketch clarifications). Only Change Orders/CCDs modify the contract.",
+    "codeRef": "AIA Document G710 / A701",
+    "examTip": "Addendum = before bids. Bulletin = during construction, informational only. A sketch via bulletin does NOT change the contract price—that requires a Change Order."
+  },
+  {
+    "id": "fc_pdd_04",
+    "section": "Project Docs & Delivery",
+    "front": "Shop Drawings",
+    "back": "Drawings prepared by the contractor or subcontractor showing how a specific product will be fabricated and installed. Architect reviews for conformance with design intent—not for engineering accuracy.",
+    "codeRef": "AIA A201 §3.12",
+    "examTip": "Architect's review of shop drawings does NOT approve engineering. The contractor remains responsible for dimensions, quantities, and means. Architect checks design conformance only."
+  },
+  {
+    "id": "fc_pdd_05",
+    "section": "Project Docs & Delivery",
+    "front": "Construction Documents (CDs)",
+    "back": "Complete set of drawings and specifications describing the design in sufficient detail for contractors to bid and build. Legally become part of the contract between owner and contractor.",
+    "codeRef": "AIA B101 §3.4",
+    "examTip": "CDs are a legal document—they define what the contractor must build. When conflicts exist between drawings and specs, generally specs govern (unless stated otherwise in the contract)."
+  },
+  {
+    "id": "fc_pdd_06",
+    "section": "Project Docs & Delivery",
+    "front": "Three-Part Specification Format",
+    "back": "CSI standard format for each spec section: Part 1 – General (scope, submittals, warranties), Part 2 – Products (materials, fabrication standards), Part 3 – Execution (installation, field quality control).",
+    "codeRef": "CSI MasterFormat",
+    "examTip": "Every spec section follows 1-2-3. Part 1 = what you submit and warrant. Part 2 = what you supply. Part 3 = how you install it. The ARE tests which part a requirement belongs to."
+  },
+  {
+    "id": "fc_pdd_07",
+    "section": "Project Docs & Delivery",
+    "front": "As-Built Drawings (Record Drawings)",
+    "back": "Revised drawings showing actual construction as built, including field changes, routing adjustments, and deviations from original CDs. The contractor's responsibility under AIA A201. Owner's reference for future renovations.",
+    "codeRef": "AIA A201 §3.11",
+    "examTip": "As-builts are the contractor's responsibility—the architect is not required to verify them. Critical for future maintenance and often required by owners and code officials."
+  },
+  {
+    "id": "fc_pdd_08",
+    "section": "Project Docs & Delivery",
+    "front": "Product Data",
+    "back": "Manufacturer's printed literature, catalog sheets, and technical data submitted by the contractor to document compliance with specification requirements. Part of the submittal process.",
+    "codeRef": "AIA A201 §3.12.2",
+    "examTip": "Product data = manufacturer literature. Distinguish from shop drawings (contractor-prepared fabrication drawings) and samples (physical material specimens). All three are submittals."
+  },
+  {
+    "id": "fc_pdd_09",
+    "section": "Project Docs & Delivery",
+    "front": "Drawing Coordination — Keyed Details",
+    "back": "Details referenced from plans or elevations by a key (circle with number/letter) indicating the detail number and sheet where the large-scale drawing can be found. Ensures coordination between drawing scales.",
+    "codeRef": "AIA Document Standards",
+    "examTip": "Keys connect small-scale drawings to large-scale details. Missing or inconsistent keys create coordination errors during bidding or construction."
+  },
+  {
+    "id": "fc_pdd_10",
+    "section": "Project Docs & Delivery",
+    "front": "Substitution Request",
+    "back": "A formal request from the contractor to use a product different from the one specified. Must demonstrate equivalence. Typically allowed only during bidding (with prior approval) unless a specified product is unavailable.",
+    "codeRef": "AIA A201 §3.4.2 / CSI MasterFormat Div 01",
+    "examTip": "Substitutions require architect approval. 'Equal or better' must be proven—not assumed. Proprietary specs restrict substitutions most severely."
+  },
+  {
+    "id": "fc_pdd_11",
+    "section": "Project Docs & Delivery",
+    "front": "Building Information Modeling (BIM)",
+    "back": "Digital representation of a building's physical and functional characteristics. Enables clash detection, quantity takeoff, scheduling (4D BIM), and cost estimation (5D BIM). Level of Development (LOD) 100–500.",
+    "codeRef": "AIA Document E203",
+    "examTip": "BIM is a process, not just software. LOD 300 is required for most coordination. Government projects often mandate BIM (GSA BIM requirements). Clash detection prevents costly field conflicts."
+  },
+  {
+    "id": "fc_pdd_12",
+    "section": "Project Docs & Delivery",
+    "front": "Fire-Rated Assemblies — UL Listings",
+    "back": "Fire resistance ratings for wall, floor, and ceiling assemblies tested and listed by UL (Underwriters Laboratories). Architect specifies a UL Design number; contractor must build the assembly exactly as listed.",
+    "codeRef": "IBC §703 / UL Fire Resistance Directory",
+    "examTip": "UL listings are prescriptive—any deviation voids the rating. The architect selects the UL Design; the contractor is responsible for building it correctly. No substitutions without re-testing."
+  },
+  {
+    "id": "fc_pdd_13",
+    "section": "Project Docs & Delivery",
+    "front": "Schematic Design (SD) Phase",
+    "back": "First design phase where the architect establishes the project's scale, form, and relationship of spaces. Deliverables: preliminary drawings, outline specs, and a preliminary cost estimate. Owner approves before proceeding to DD.",
+    "codeRef": "AIA B101 §3.2",
+    "examTip": "SD = concept. Approximately 15–35% design development. Cost estimates at SD have ±20–30% accuracy. Major design changes after SD approval can be costly."
+  },
+  {
+    "id": "fc_pdd_14",
+    "section": "Project Docs & Delivery",
+    "front": "Design Development (DD) Phase",
+    "back": "Second design phase where the architect refines SD, finalizes systems and materials, and coordinates structural, mechanical, and other consultant work. Deliverables: more detailed drawings and updated cost estimate.",
+    "codeRef": "AIA B101 §3.3",
+    "examTip": "DD = resolution phase. Major systems (structural grid, MEP routing) are fixed. Cost estimate accuracy improves to ±10–15%. Owner approves DD before proceeding to CDs."
+  },
+  {
+    "id": "fc_pdd_15",
+    "section": "Project Docs & Delivery",
+    "front": "Door Schedule",
+    "back": "Tabular drawing or specification listing all doors by number with their size, material, hardware set, frame type, fire rating, and special requirements. Coordinates with door plan symbols and hardware specs.",
+    "codeRef": "AIA Document Standards",
+    "examTip": "Door schedules must be coordinated with hardware specs (hardware sets), fire ratings, and ADA requirements. A fire-rated door requires a rated frame and hardware to maintain the assembly rating."
+  },
+  {
+    "id": "fc_ce_01",
+    "section": "Construction & Evaluation",
+    "front": "Certificate of Occupancy (CO)",
+    "back": "Document issued by the local building department authorizing legal use of a completed building. Issued after final inspections confirm compliance with approved plans and applicable codes.",
+    "codeRef": "IBC §111",
+    "examTip": "No CO = no legal occupancy. The building official issues the CO—not the architect. A Temporary CO (TCO) allows partial occupancy before full completion."
+  },
+  {
+    "id": "fc_ce_02",
+    "section": "Construction & Evaluation",
+    "front": "Special Inspection",
+    "back": "Inspection of high-risk construction elements (concrete, masonry, high-strength bolting, welding, soils) required by the IBC and performed by an approved Special Inspector.",
+    "codeRef": "IBC §1705 / ACI 318",
+    "examTip": "Special inspections are required for structural elements where failure risk is high. The owner (not contractor) typically hires the special inspector. A Statement of Special Inspections is submitted with the permit."
+  },
+  {
+    "id": "fc_ce_03",
+    "section": "Construction & Evaluation",
+    "front": "Construction Observation",
+    "back": "Periodic site visits by the architect during construction to observe work for general conformance with the contract documents. NOT continuous inspection. Architect reports findings in a Field Report.",
+    "codeRef": "AIA B101 §3.6 / A201 §4.2",
+    "examTip": "Observation ≠ supervision. The architect is not responsible for the contractor's means, methods, or construction safety. The contractor is solely responsible for construction quality."
+  },
+  {
+    "id": "fc_ce_04",
+    "section": "Construction & Evaluation",
+    "front": "Field Report / Site Visit Report",
+    "back": "Written record prepared by the architect after each site visit documenting observations, work in place, weather conditions, issues, and questions. Provides a legal record of the architect's observations.",
+    "codeRef": "AIA G711",
+    "examTip": "Field reports are the architect's legal record. Document what you saw—not what you assumed. Never certify what you didn't observe. Use the AIA G711 form."
+  },
+  {
+    "id": "fc_ce_05",
+    "section": "Construction & Evaluation",
+    "front": "Nonconforming Work",
+    "back": "Work that does not conform to the requirements of the contract documents. The architect can require the contractor to remove and replace nonconforming work, even if it is covered or completed.",
+    "codeRef": "AIA A201 §12",
+    "examTip": "Architect can reject nonconforming work at any time. Covering work before inspection does not excuse it. The architect can require uncovering and remediation at the contractor's expense."
+  },
+  {
+    "id": "fc_ce_06",
+    "section": "Construction & Evaluation",
+    "front": "Substantial vs. Final Completion",
+    "back": "Substantial completion: work sufficiently complete for intended use. Triggers warranty period and retainage. Final completion: all punch list items resolved, all submittals received. Triggers final payment.",
+    "codeRef": "AIA A201 §9.8 / §9.10",
+    "examTip": "Substantial completion triggers: warranty start, retainage reduction, and lien filing deadline. Final completion triggers: final payment and architect's final certificate."
+  },
+  {
+    "id": "fc_ce_07",
+    "section": "Construction & Evaluation",
+    "front": "Mechanic's Lien",
+    "back": "Legal claim against a property filed by an unpaid contractor, subcontractor, or supplier. Encumbers the property title until the debt is paid or the lien is bonded off. Must be filed within strict deadlines.",
+    "codeRef": "State Lien Laws",
+    "examTip": "Lien rights must be perfected within strict deadlines (varies by state). Substantial completion starts the lien clock. Lien waivers are exchanged with payments to clear title."
+  },
+  {
+    "id": "fc_ce_08",
+    "section": "Construction & Evaluation",
+    "front": "Testing and Balancing (TAB)",
+    "back": "Process of testing, adjusting, and balancing HVAC systems at project completion to verify airflow, temperatures, and system performance meet specifications. Performed by a certified TAB contractor.",
+    "codeRef": "ASHRAE Standard 202 / SMACNA",
+    "examTip": "TAB = HVAC systems meet design airflow specs. Commissioning (Cx) goes further: verifying all building systems work together as intended by the Owner's Project Requirements (OPR)."
+  },
+  {
+    "id": "fc_ce_09",
+    "section": "Construction & Evaluation",
+    "front": "Water Infiltration Testing",
+    "back": "Testing of windows, curtain walls, and building envelope to verify resistance to water penetration under specified pressure and water application. ASTM E1105 = field test standard.",
+    "codeRef": "ASTM E1105 / AAMA 501.2",
+    "examTip": "Water infiltration tests apply water and pressure simultaneously. Failed units must be repaired and re-tested. Critical for curtain walls, storefront, and roofing assemblies."
+  },
+  {
+    "id": "fc_ce_10",
+    "section": "Construction & Evaluation",
+    "front": "Concrete Testing — Slump Test",
+    "back": "Field test measuring the consistency (workability) of fresh concrete by measuring how much a cone of concrete slumps when the mold is removed. Higher slump = more water = lower strength. ASTM C143.",
+    "codeRef": "ASTM C143 / ACI 318",
+    "examTip": "Slump test is quick but only measures consistency, not strength. Concrete compressive strength is measured by cylinder compression tests at 7 and 28 days (ASTM C39)."
+  },
+  {
+    "id": "fc_ce_11",
+    "section": "Construction & Evaluation",
+    "front": "Concrete Cylinder Break Test",
+    "back": "Compressive strength test on 4\"×8\" or 6\"×12\" concrete cylinders taken at the pour. Tested at 7 days and 28 days. 28-day strength is the design strength (f'c). ASTM C39.",
+    "codeRef": "ASTM C39 / ACI 318",
+    "examTip": "f'c = specified 28-day compressive strength. Typical: 3,000–5,000 psi for structural concrete. If 3 consecutive sets average below f'c, the structural engineer must evaluate."
+  },
+  {
+    "id": "fc_ce_12",
+    "section": "Construction & Evaluation",
+    "front": "Commissioning (Cx)",
+    "back": "Systematic quality assurance process verifying that all building systems are planned, designed, installed, tested, operated, and maintained to meet the owner's project requirements (OPR).",
+    "codeRef": "ASHRAE Standard 202 / LEED EAp1",
+    "examTip": "LEED requires fundamental commissioning for all certified projects. The Commissioning Authority (CxA) is independent from the design team. Enhanced commissioning adds post-occupancy verification."
+  },
+  {
+    "id": "fc_ce_13",
+    "section": "Construction & Evaluation",
+    "front": "Allowance",
+    "back": "A specified sum included in the contract for items whose exact cost cannot be determined at bid time (e.g., owner-selected tile, lighting fixtures). If actual cost differs, the contract sum is adjusted accordingly.",
+    "codeRef": "AIA A201 §3.8",
+    "examTip": "Allowances are owner reserves for uncertain items. If spent under = credit to owner. If spent over = additional cost. Allowances should not be used to avoid specifying products."
+  },
+  {
+    "id": "fc_ce_14",
+    "section": "Construction & Evaluation",
+    "front": "Unit Price",
+    "back": "A specified price per unit of work (per cubic yard of excavation, per linear foot of pipe) used when quantities are uncertain at bid time. Quantities are measured in the field; payment is per actual units.",
+    "codeRef": "AIA A201 §7.3.4",
+    "examTip": "Unit prices are used when scope quantity is unknown. Common for earthwork, sitework, and underground utilities. Eliminates the need to negotiate Change Orders for quantity variations."
+  },
+  {
+    "id": "fc_ce_15",
+    "section": "Construction & Evaluation",
+    "front": "Contractor's Daily Log",
+    "back": "Record kept by the contractor documenting daily work activities, workers on site, equipment, weather conditions, and notable events. Used to support claims for time extensions or disruption costs.",
+    "codeRef": "AIA A201 §3.3.1",
+    "examTip": "The contractor's daily log is their evidence for schedule claims. The architect keeps a separate site visit log (Field Report). Both are discoverable in dispute resolution."
+  },
+  {
+    "id": "fc_nyc_01",
+    "section": "NYC Building Codes",
+    "front": "NYC Construction Classification",
+    "back": "NYC Building Code classifies buildings by construction type: Class I (non-combustible, concrete/steel), Class II (protected combustible), Class III (unprotected combustible). Class I required for high-rises.",
+    "codeRef": "NYC Building Code Chapter 6",
+    "examTip": "NYC uses its own classification system alongside IBC types. Class I = IBC Type I or II. Know the NYC-specific names for exams that test NYC knowledge."
+  },
+  {
+    "id": "fc_nyc_02",
+    "section": "NYC Building Codes",
+    "front": "NYC Special Inspection",
+    "back": "NYC requires Special Inspections for structural work including concrete, masonry, high-strength bolting, and welding. The Special Inspector must be approved by the NYC DOB.",
+    "codeRef": "NYC Building Code §1705",
+    "examTip": "In NYC, the Special Inspector reports to the owner—not the contractor. A Statement of Special Inspections must accompany the permit application."
+  },
+  {
+    "id": "fc_nyc_03",
+    "section": "NYC Building Codes",
+    "front": "NYC Zoning Resolution (ZR)",
+    "back": "Primary legal document governing land use and development in NYC. Establishes use districts, FAR limits, bulk regulations, parking requirements, and special purpose districts.",
+    "codeRef": "NYC Zoning Resolution",
+    "examTip": "ZR is separate from the NYC Building Code. Use the ZR for FAR, setbacks, and use regulations. Use the Building Code for construction standards. Both apply to any NYC project."
+  },
+  {
+    "id": "fc_nyc_04",
+    "section": "NYC Building Codes",
+    "front": "NYC Department of Buildings (DOB)",
+    "back": "NYC agency responsible for reviewing building permit applications, conducting inspections, and enforcing the NYC Building Code and Zoning Resolution. Architects file plans with the DOB.",
+    "codeRef": "NYC Building Code §27-105",
+    "examTip": "DOB approves permits, performs inspections, and issues Certificates of Occupancy. Professional Certification (Pro-Cert) allows licensed professionals to self-certify code compliance for DOB."
+  },
+  {
+    "id": "fc_nyc_05",
+    "section": "NYC Building Codes",
+    "front": "NYC Landmarks Preservation Commission (LPC)",
+    "back": "NYC agency designating and regulating individual landmarks, interior landmarks, scenic landmarks, and historic districts. All exterior work on designated buildings requires LPC approval before DOB permits.",
+    "codeRef": "NYC Admin Code §25-301",
+    "examTip": "LPC approval comes before DOB filing. A Certificate of Appropriateness (CofA) is the LPC approval document. Even minor changes (window replacement, signage) require LPC review in historic districts."
+  },
+  {
+    "id": "fc_nyc_06",
+    "section": "NYC Building Codes",
+    "front": "NYC High-Rise Fire Safety",
+    "back": "NYC buildings over 75 feet require sprinklers throughout, a Fire Safety Plan, a Fire Safety Director, and stair pressurization. Local Law 5/1973 added retroactive sprinkler requirements for existing high-rises.",
+    "codeRef": "NYC Building Code Chapter 9 / Local Law 5",
+    "examTip": "75 feet = NYC high-rise threshold. All new high-rises must be fully sprinklered. Local Law 5 applies to existing office buildings over 100 ft. NYC requirements are often stricter than IBC."
+  },
+  {
+    "id": "fc_nyc_07",
+    "section": "NYC Building Codes",
+    "front": "NYC Local Law 97",
+    "back": "NYC climate law (2019) requiring large buildings (>25,000 sf) to reduce carbon emissions or face annual fines. Emission limits become stricter in 2030. Applies to building operations, not just energy code compliance.",
+    "codeRef": "NYC Local Law 97 of 2019",
+    "examTip": "LL97 is separate from NYCECC. It mandates actual operational carbon reductions—not just design compliance. Buildings failing to meet limits pay $268 per metric ton of CO₂ over the cap."
+  },
+  {
+    "id": "fc_nyc_08",
+    "section": "NYC Building Codes",
+    "front": "NYC Accessibility — Local Law 58",
+    "back": "NYC law requiring accessibility improvements when alterations trigger accessibility upgrades. NYC follows both ADA and NYC Building Code Chapter 11 (which may be stricter). Alterations trigger upgrades to the 'path of travel.'",
+    "codeRef": "NYC Building Code Chapter 11 / ADA",
+    "examTip": "In NYC, both ADA (federal) and NYC Building Code accessibility requirements apply. Alterations trigger accessibility upgrades to the path of travel up to 20% of construction cost."
+  }
+]

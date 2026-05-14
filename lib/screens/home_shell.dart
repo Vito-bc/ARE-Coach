@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'coach_screen.dart';
 import 'dashboard_screen.dart';
+import 'flashcards_screen.dart';
 import 'profile_screen.dart';
 import 'package:architectula_education_app/screens/tests_screen.dart';
 
@@ -41,6 +42,7 @@ class _HomeShellState extends State<HomeShell> {
     final screens = [
       DashboardScreen(firebaseReady: widget.firebaseReady),
       TestsScreen(firebaseReady: widget.firebaseReady),
+      const FlashcardsScreen(),
       const CoachScreen(),
       ProfileScreen(firebaseReady: widget.firebaseReady),
     ];
@@ -71,6 +73,11 @@ class _HomeShellState extends State<HomeShell> {
               icon: Icon(Icons.layers_outlined),
               selectedIcon: Icon(Icons.layers_rounded),
               label: 'Tests',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.style_outlined),
+              selectedIcon: Icon(Icons.style_rounded),
+              label: 'Cards',
             ),
             NavigationDestination(
               icon: Icon(Icons.chat_bubble_outline_rounded),
