@@ -1,18 +1,27 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import '../core/providers.dart';
 import '../core/readiness.dart';
+import '../core/theme/app_theme.dart';
 import '../core/ui/app_chrome.dart';
+import '../models/flashcard.dart';
+import '../services/flashcard_repository.dart';
 import '../services/progress_repository.dart';
 import 'attempt_history_screen.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key, required this.firebaseReady});
 
   final bool firebaseReady;
 
+  @override
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   static const _emptyMetrics = DashboardMetrics(
     readinessPercent: 0,
     attemptsCount: 0,
@@ -20,11 +29,69 @@ class DashboardScreen extends ConsumerWidget {
     sectionTrends: [],
   );
 
+  int _streak = 0;
+  List<_DivisionProgress> _divisionProgress = [];
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final uid = firebaseReady ? FirebaseAuth.instance.currentUser?.uid : null;
+  void initState() {
+    super.initState();
+    _loadStreak();
+    _loadFlashcardProgress();
+  }
+
+  Future<void> _loadStreak() async {
+    final box = await Hive.openBox('settings');
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final lastDate = box.get('lastStudyDate') as String?;
+    final stored = box.get('studyStreak', defaultValue: 0) as int;
+
+    int streak;
+    if (lastDate == null) {
+      streak = 1;
+    } else if (lastDate == today) {
+      streak = stored;
+    } else {
+      final last = DateTime.tryParse(lastDate);
+      final diff = last != null ? DateTime.now().difference(last).inDays : 999;
+      streak = diff == 1 ? stored + 1 : 1;
+    }
+
+    await box.put('studyStreak', streak);
+    await box.put('lastStudyDate', today);
+    if (mounted) setState(() => _streak = streak);
+  }
+
+  Future<void> _loadFlashcardProgress() async {
+    final repo = FlashcardRepository();
+    final cards = await repo.loadAll();
+    final statuses = await repo.allStatuses();
+
+    const divs = [
+      ('PcM', 'Practice Management'),
+      ('PjM', 'Project Management'),
+      ('PA', 'Programming & Analysis'),
+      ('PPD', 'Project Planning & Design'),
+      ('PDD', 'Project Docs & Delivery'),
+      ('CE', 'Construction & Evaluation'),
+      ('NYC', 'NYC Building Codes'),
+    ];
+
+    final progress = divs.map((d) {
+      final sectionCards = cards.where((c) => c.section == d.$2).toList();
+      final mastered =
+          sectionCards.where((c) => statuses[c.id] == CardStatus.mastered).length;
+      return _DivisionProgress(abbr: d.$1, mastered: mastered, total: sectionCards.length);
+    }).toList();
+
+    if (mounted) setState(() => _divisionProgress = progress);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid =
+        widget.firebaseReady ? FirebaseAuth.instance.currentUser?.uid : null;
     final metricsAsync = ref.watch(
-      dashboardMetricsProvider((uid: uid, firebaseReady: firebaseReady)),
+      dashboardMetricsProvider((uid: uid, firebaseReady: widget.firebaseReady)),
     );
 
     final tt = Theme.of(context).textTheme;
@@ -69,148 +136,317 @@ class DashboardScreen extends ConsumerWidget {
                         _ErrorBanner(
                           onRetry: () => ref.invalidate(dashboardMetricsProvider),
                         ),
-                      Expanded(child: CustomScrollView(
-                    slivers: [
-                      // Large title header
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Home', style: tt.displayLarge),
-                              const SizedBox(height: 4),
-                              Text(
-                                firebaseReady ? 'NYC ARE Prep' : 'Demo mode',
-                                style: tt.bodyMedium,
+                      Expanded(
+                        child: CustomScrollView(
+                          slivers: [
+                            // Header with streak chip
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text('Home', style: tt.displayLarge),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            widget.firebaseReady
+                                                ? 'NYC ARE Prep'
+                                                : 'Demo mode',
+                                            style: tt.bodyMedium,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (_streak > 0) _StreakChip(streak: _streak),
+                                  ],
+                                ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
+                            ),
 
-                      // Readiness card
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                          child: _ReadinessCard(
-                            percent: metrics.readinessPercent,
-                            attempts: metrics.attemptsCount,
-                            isDark: isDark,
-                            accent: accent,
-                            tt: tt,
-                          ),
-                        ),
-                      ),
+                            // Readiness card
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                                child: _ReadinessCard(
+                                  percent: metrics.readinessPercent,
+                                  attempts: metrics.attemptsCount,
+                                  isDark: isDark,
+                                  accent: accent,
+                                  tt: tt,
+                                ),
+                              ),
+                            ),
 
-                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                            const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-                      // Weak sections
-                      if (metrics.weakSections.isNotEmpty) ...[
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                            child: AppSection(
-                              title: 'Focus Areas',
-                              trailing: TextButton(
-                                onPressed: () => Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => AttemptHistoryScreen(
-                                      firebaseReady: firebaseReady,
+                            // Weak sections
+                            if (metrics.weakSections.isNotEmpty) ...[
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                                  child: AppSection(
+                                    title: 'Focus Areas',
+                                    trailing: TextButton(
+                                      onPressed: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => AttemptHistoryScreen(
+                                            firebaseReady: widget.firebaseReady,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text('See All'),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        ...metrics.weakSections.asMap().entries.map(
+                                          (e) => _WeakRow(
+                                            section: e.value.section,
+                                            accuracy: e.value.accuracy,
+                                            showDivider:
+                                                e.key < metrics.weakSections.length - 1,
+                                            isDark: isDark,
+                                            accent: accent,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
-                                child: const Text('See All'),
                               ),
-                              child: Column(
-                                children: [
-                                  ...metrics.weakSections.asMap().entries.map(
-                                    (e) => _WeakRow(
-                                      section: e.value.section,
-                                      accuracy: e.value.accuracy,
-                                      showDivider: e.key <
-                                          metrics.weakSections.length - 1,
-                                      isDark: isDark,
-                                      accent: accent,
+                              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                            ],
+
+                            // Section trends
+                            if (metrics.sectionTrends.isNotEmpty) ...[
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                                  child: AppSection(
+                                    title: 'Section Trends',
+                                    child: Column(
+                                      children: [
+                                        ...metrics.sectionTrends.asMap().entries.map(
+                                          (e) => _TrendRow(
+                                            metric: e.value,
+                                            showDivider:
+                                                e.key < metrics.sectionTrends.length - 1,
+                                            isDark: isDark,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
-                            ),
-                          ),
-                        ),
-                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                      ],
+                              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                            ],
 
-                      // Section trends
-                      if (metrics.sectionTrends.isNotEmpty) ...[
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                            child: AppSection(
-                              title: 'Section Trends',
-                              child: Column(
-                                children: [
-                                  ...metrics.sectionTrends.asMap().entries.map(
-                                    (e) => _TrendRow(
-                                      metric: e.value,
-                                      showDivider: e.key <
-                                          metrics.sectionTrends.length - 1,
-                                      isDark: isDark,
+                            // Empty state
+                            if (metrics.weakSections.isEmpty &&
+                                metrics.sectionTrends.isEmpty)
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                                  child: AppGlassCard(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Column(
+                                      children: [
+                                        Icon(
+                                          Icons.quiz_outlined,
+                                          size: 40,
+                                          color: accent.withValues(alpha: 0.6),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'Take your first test',
+                                          style: tt.titleSmall,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Complete a practice session to unlock your readiness analytics.',
+                                          style: tt.bodyMedium,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
-                            ),
-                          ),
-                        ),
-                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                      ],
 
-                      // Empty state
-                      if (metrics.weakSections.isEmpty &&
-                          metrics.sectionTrends.isEmpty)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                            child: AppGlassCard(
-                              padding: const EdgeInsets.all(24),
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.quiz_outlined,
-                                    size: 40,
-                                    color: accent.withValues(alpha: 0.6),
+                            // Flashcard progress
+                            if (_divisionProgress.isNotEmpty) ...[
+                              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                                  child: AppSection(
+                                    title: 'Flashcard Progress',
+                                    child: Column(
+                                      children: _divisionProgress
+                                          .asMap()
+                                          .entries
+                                          .map(
+                                            (e) => _FlashcardDivisionRow(
+                                              progress: e.value,
+                                              showDivider:
+                                                  e.key < _divisionProgress.length - 1,
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
                                   ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'Take your first test',
-                                    style: tt.titleSmall,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Complete a practice session to unlock your readiness analytics.',
-                                    style: tt.bodyMedium,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
+                                ),
                               ),
-                            ),
-                          ),
-                        ),
+                            ],
 
-                      const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                          ],
+                        ),
+                      ),
                     ],
-                  )),
-                ],
-              ),
+                  ),
           ),
         ],
       ),
     );
   }
 }
+
+// ── Data class ────────────────────────────────────────────────────────────────
+
+class _DivisionProgress {
+  const _DivisionProgress({
+    required this.abbr,
+    required this.mastered,
+    required this.total,
+  });
+
+  final String abbr;
+  final int mastered;
+  final int total;
+
+  double get ratio => total == 0 ? 0.0 : mastered / total;
+}
+
+// ── Streak chip ───────────────────────────────────────────────────────────────
+
+class _StreakChip extends StatelessWidget {
+  const _StreakChip({required this.streak});
+
+  final int streak;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = streak >= 3 ? AppTheme.yellow : AppTheme.textSecondary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 0.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.local_fire_department_rounded, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            '$streak day${streak == 1 ? '' : 's'}',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Flashcard division row ────────────────────────────────────────────────────
+
+class _FlashcardDivisionRow extends StatelessWidget {
+  const _FlashcardDivisionRow({
+    required this.progress,
+    required this.showDivider,
+  });
+
+  final _DivisionProgress progress;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDone = progress.mastered == progress.total && progress.total > 0;
+    final hasStarted = progress.mastered > 0;
+    final barColor = isDone
+        ? AppTheme.success
+        : hasStarted
+            ? AppTheme.yellow
+            : AppTheme.textSecondary;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.yellow.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      progress.abbr,
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.yellow,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${progress.mastered} / ${progress.total}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: barColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: progress.ratio,
+                  minHeight: 3,
+                  backgroundColor: AppTheme.separator,
+                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (showDivider)
+          const Divider(
+            height: 0,
+            indent: 16,
+            color: AppTheme.separator,
+            thickness: 0.5,
+          ),
+      ],
+    );
+  }
+}
+
+// ── Error banner ──────────────────────────────────────────────────────────────
 
 class _ErrorBanner extends StatelessWidget {
   const _ErrorBanner({required this.onRetry});
@@ -249,6 +485,8 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
+// ── Readiness card ────────────────────────────────────────────────────────────
+
 class _ReadinessCard extends StatelessWidget {
   const _ReadinessCard({
     required this.percent,
@@ -275,7 +513,6 @@ class _ReadinessCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              // Circular progress
               SizedBox(
                 width: 80,
                 height: 80,
@@ -331,9 +568,8 @@ class _ReadinessCard extends StatelessWidget {
               value: (percent / 100).clamp(0.0, 1.0),
               minHeight: 6,
               valueColor: AlwaysStoppedAnimation<Color>(accent),
-              backgroundColor: isDark
-                  ? const Color(0xFF3A3A3C)
-                  : const Color(0xFFE5E5EA),
+              backgroundColor:
+                  isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE5E5EA),
             ),
           ),
         ],
@@ -341,6 +577,8 @@ class _ReadinessCard extends StatelessWidget {
     );
   }
 }
+
+// ── Weak section row ──────────────────────────────────────────────────────────
 
 class _WeakRow extends StatelessWidget {
   const _WeakRow({
@@ -375,9 +613,7 @@ class _WeakRow extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Expanded(
-                    child: Text(section, style: tt.bodyLarge),
-                  ),
+                  Expanded(child: Text(section, style: tt.bodyLarge)),
                   Text(
                     '$accuracy%',
                     style: TextStyle(
@@ -395,9 +631,8 @@ class _WeakRow extends StatelessWidget {
                   value: accuracy / 100,
                   minHeight: 4,
                   valueColor: AlwaysStoppedAnimation<Color>(_barColor),
-                  backgroundColor: isDark
-                      ? const Color(0xFF3A3A3C)
-                      : const Color(0xFFE5E5EA),
+                  backgroundColor:
+                      isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE5E5EA),
                 ),
               ),
             ],
@@ -407,15 +642,15 @@ class _WeakRow extends StatelessWidget {
           Divider(
             height: 0,
             indent: 16,
-            color: isDark
-                ? const Color(0xFF38383A)
-                : const Color(0xFFC6C6C8),
+            color: isDark ? const Color(0xFF38383A) : const Color(0xFFC6C6C8),
             thickness: 0.5,
           ),
       ],
     );
   }
 }
+
+// ── Trend row ─────────────────────────────────────────────────────────────────
 
 class _TrendRow extends StatelessWidget {
   const _TrendRow({
@@ -432,9 +667,7 @@ class _TrendRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     final isUp = metric.delta >= 0;
-    final trendColor = isUp
-        ? const Color(0xFF34C759)
-        : const Color(0xFFFF3B30);
+    final trendColor = isUp ? const Color(0xFF34C759) : const Color(0xFFFF3B30);
 
     return Column(
       children: [
@@ -468,9 +701,7 @@ class _TrendRow extends StatelessWidget {
           Divider(
             height: 0,
             indent: 16,
-            color: isDark
-                ? const Color(0xFF38383A)
-                : const Color(0xFFC6C6C8),
+            color: isDark ? const Color(0xFF38383A) : const Color(0xFFC6C6C8),
             thickness: 0.5,
           ),
       ],

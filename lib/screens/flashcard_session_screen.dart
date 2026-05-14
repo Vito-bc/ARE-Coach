@@ -31,22 +31,18 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
   late final AnimationController _flipCtrl;
   late final Animation<double> _flipAnim;
 
-  late List<Flashcard> _queue;
+  List<Flashcard> _queue = [];
   late Map<String, CardStatus> _statuses;
 
   int _index = 0;
   bool _showBack = false;
   bool _done = false;
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
     _statuses = Map.of(widget.initialStatuses);
-    // Put unmastered cards first so session feels productive
-    _queue = [
-      ...widget.cards.where((c) => _statuses[c.id] != CardStatus.mastered),
-      ...widget.cards.where((c) => _statuses[c.id] == CardStatus.mastered),
-    ];
     _flipCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 380),
@@ -54,6 +50,17 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
     _flipAnim = Tween<double>(begin: 0, end: math.pi).animate(
       CurvedAnimation(parent: _flipCtrl, curve: Curves.easeInOut),
     );
+    _initQueue();
+  }
+
+  Future<void> _initQueue() async {
+    final sorted = await _repo.sortedForSession(widget.cards);
+    if (mounted) {
+      setState(() {
+        _queue = sorted;
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -115,7 +122,9 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
           ),
         ],
       ),
-      body: _done ? _Summary(statuses: _statuses, cards: widget.cards) : _Session(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _done ? _Summary(statuses: _statuses, cards: widget.cards) : _Session(
         current: _current,
         index: _index,
         total: _queue.length,

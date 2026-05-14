@@ -37,6 +37,39 @@ class FlashcardRepository {
   Future<void> setStatus(String id, CardStatus status) async {
     final box = await _box();
     await box.put(id, status.name);
+    final tsBox = await Hive.openBox<int>('flashcard_timestamps');
+    await tsBox.put(id, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  Future<List<Flashcard>> sortedForSession(List<Flashcard> cards) async {
+    final statuses = await allStatuses();
+    final tsBox = await Hive.openBox<int>('flashcard_timestamps');
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    final fresh = <Flashcard>[];
+    final learning = <Flashcard>[];
+    final mastered = <Flashcard>[];
+
+    for (final card in cards) {
+      final status = statuses[card.id] ?? CardStatus.fresh;
+      if (status == CardStatus.fresh) {
+        fresh.add(card);
+      } else if (status == CardStatus.learning) {
+        learning.add(card);
+      } else {
+        final lastSeen = tsBox.get(card.id) ?? 0;
+        if ((now - lastSeen) > sevenDaysMs) mastered.add(card);
+      }
+    }
+
+    learning.sort((a, b) {
+      final aTs = tsBox.get(a.id) ?? 0;
+      final bTs = tsBox.get(b.id) ?? 0;
+      return aTs.compareTo(bTs);
+    });
+
+    return [...fresh, ...learning, ...mastered];
   }
 
   Future<Map<String, CardStatus>> allStatuses() async {
