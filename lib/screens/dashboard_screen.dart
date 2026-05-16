@@ -31,12 +31,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   int _streak = 0;
   List<_DivisionProgress> _divisionProgress = [];
+  DateTime? _examDate;
 
   @override
   void initState() {
     super.initState();
     _loadStreak();
     _loadFlashcardProgress();
+    _loadExamDate();
+  }
+
+  Future<void> _loadExamDate() async {
+    final box = await Hive.openBox('settings');
+    final stored = box.get('examDate') as String?;
+    if (stored != null && mounted) {
+      setState(() => _examDate = DateTime.tryParse(stored));
+    }
   }
 
   Future<void> _loadStreak() async {
@@ -299,6 +309,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                           )
                                           .toList(),
                                     ),
+                                  ),
+                                ),
+                              ),
+                            ],
+
+                            // Study plan
+                            if (_examDate != null) ...[
+                              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                                  child: _StudyPlanCard(
+                                    examDate: _examDate!,
+                                    divisionProgress: _divisionProgress,
                                   ),
                                 ),
                               ),
@@ -646,6 +670,172 @@ class _WeakRow extends StatelessWidget {
             thickness: 0.5,
           ),
       ],
+    );
+  }
+}
+
+// ── Study Plan ────────────────────────────────────────────────────────────────
+
+class _StudyPlanCard extends StatelessWidget {
+  const _StudyPlanCard({
+    required this.examDate,
+    required this.divisionProgress,
+  });
+
+  final DateTime examDate;
+  final List<_DivisionProgress> divisionProgress;
+
+  @override
+  Widget build(BuildContext context) {
+    final daysLeft = examDate.difference(DateTime.now()).inDays;
+    final safeDays = daysLeft.clamp(1, 9999);
+    final totalCards = divisionProgress.fold(0, (s, d) => s + d.total);
+    final masteredCards = divisionProgress.fold(0, (s, d) => s + d.mastered);
+    final remainingCards = totalCards - masteredCards;
+    final dailyCards = (remainingCards / safeDays).ceil().clamp(3, 40);
+    final dailyQuestions = (500 / safeDays).ceil().clamp(5, 30);
+    final urgency = daysLeft <= 14
+        ? AppTheme.error
+        : daysLeft <= 30
+            ? AppTheme.warning
+            : AppTheme.success;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final subtitleColor =
+        isDark ? const Color(0xFF8E8E93) : const Color(0xFF6C6C70);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: urgency.withValues(alpha: 0.35), width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.event_rounded, size: 18, color: urgency),
+                const SizedBox(width: 8),
+                Text(
+                  '$daysLeft days until exam',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: urgency,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Keep this pace to be ready',
+              style: TextStyle(fontSize: 12, color: subtitleColor),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "TODAY'S GOAL",
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _GoalChip(
+                  icon: Icons.style_rounded,
+                  value: dailyCards,
+                  label: 'Cards',
+                  color: AppTheme.yellow,
+                ),
+                const SizedBox(width: 10),
+                _GoalChip(
+                  icon: Icons.quiz_rounded,
+                  value: dailyQuestions,
+                  label: 'Questions',
+                  color: AppTheme.blue,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: totalCards == 0 ? 0 : masteredCards / totalCards,
+                minHeight: 6,
+                backgroundColor: AppTheme.separator,
+                valueColor: AlwaysStoppedAnimation<Color>(urgency),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$masteredCards / $totalCards flashcards mastered',
+              style: TextStyle(fontSize: 11, color: subtitleColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GoalChip extends StatelessWidget {
+  const _GoalChip({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final int value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$value',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
