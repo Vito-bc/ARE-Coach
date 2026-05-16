@@ -9,8 +9,8 @@ import '../core/theme/app_theme.dart';
 import '../models/quiz_question.dart';
 import '../services/progress_repository.dart';
 import '_test_result_screen.dart';
-
 import '_test_session_screen.dart';
+import 'mock_exam_result_screen.dart';
 
 class TestsScreen extends ConsumerStatefulWidget {
   const TestsScreen({super.key, required this.firebaseReady});
@@ -20,7 +20,7 @@ class TestsScreen extends ConsumerStatefulWidget {
   ConsumerState<TestsScreen> createState() => _TestsScreenState();
 }
 
-enum TestMode { quick, section, timed }
+enum TestMode { quick, section, timed, mock }
 
 class _TestsScreenState extends ConsumerState<TestsScreen> {
   TestMode _mode = TestMode.quick;
@@ -40,6 +40,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
   bool _saving = false;
   bool _showResult = false;
   int _lastScore = 0;
+  int _lastUsedSec = 0;
 
   static const sections = [
     'All Divisions',
@@ -70,16 +71,22 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
     });
 
     var questions = await ref.read(allQuestionsProvider.future);
-
-    if (_selectedSection != 'All Divisions') {
-      questions = questions
-          .where((q) => q.section == _selectedSection)
-          .toList();
-    }
-
     questions.shuffle();
-    if (questions.length > _questionCount) {
-      questions = questions.take(_questionCount).toList();
+
+    if (_mode == TestMode.mock) {
+      const mockCount = 65;
+      if (questions.length > mockCount) {
+        questions = questions.take(mockCount).toList();
+      }
+    } else {
+      if (_selectedSection != 'All Divisions') {
+        questions = questions
+            .where((q) => q.section == _selectedSection)
+            .toList();
+      }
+      if (questions.length > _questionCount) {
+        questions = questions.take(_questionCount).toList();
+      }
     }
 
     if (!mounted) return;
@@ -96,14 +103,14 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
 
   void _startTimer() {
     _timer?.cancel();
-    if (_mode == TestMode.timed) {
-      _elapsedNotifier.value = _questionCount * 90;
+    if (_mode == TestMode.timed || _mode == TestMode.mock) {
+      final totalSec =
+          _mode == TestMode.mock ? 65 * 120 : _questionCount * 90;
+      _elapsedNotifier.value = totalSec;
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
         _elapsedNotifier.value--;
-        if (_elapsedNotifier.value <= 0) {
-          _onTimerExpired();
-        }
+        if (_elapsedNotifier.value <= 0) _onTimerExpired();
       });
       return;
     }
@@ -187,10 +194,17 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
         .length;
     final score = (correct / _questions.length * 100).round();
 
+    // Compute time actually used (countdown modes store remaining seconds)
+    final elapsed = _elapsedNotifier.value;
+    final usedSec = (_mode == TestMode.timed || _mode == TestMode.mock)
+        ? (_mode == TestMode.mock ? 65 * 120 : _questionCount * 90) - elapsed
+        : elapsed;
+
     setState(() {
       _saving = true;
       _showResult = true;
       _lastScore = score;
+      _lastUsedSec = usedSec;
     });
 
     if (widget.firebaseReady) {
@@ -246,16 +260,26 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
                 : _loading
                 ? const _TestsLoadingView()
                 : _showResult
-                ? TestResultScreen(
-                    questions: _questions,
-                    answers: _answers,
-                    score: _lastScore,
-                    elapsedSec: _elapsedNotifier.value,
-                    mode: _mode,
-                    firebaseReady: widget.firebaseReady,
-                    onNewConfig: _goBackToConfig,
-                    onRetry: _startTest,
-                  )
+                ? _mode == TestMode.mock
+                    ? MockExamResultScreen(
+                        questions: _questions,
+                        answers: _answers,
+                        score: _lastScore,
+                        usedSec: _lastUsedSec,
+                        firebaseReady: widget.firebaseReady,
+                        onNewConfig: _goBackToConfig,
+                        onRetry: _startTest,
+                      )
+                    : TestResultScreen(
+                        questions: _questions,
+                        answers: _answers,
+                        score: _lastScore,
+                        elapsedSec: _lastUsedSec,
+                        mode: _mode,
+                        firebaseReady: widget.firebaseReady,
+                        onNewConfig: _goBackToConfig,
+                        onRetry: _startTest,
+                      )
                 : TestSessionScreen(
                     questions: _questions,
                     answers: _answers,
@@ -355,7 +379,29 @@ class _TestsConfigView extends StatelessWidget {
           'Configure your session',
           style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
+
+        // Mock exam entry
+        _MockExamCard(
+          selected: mode == TestMode.mock,
+          onTap: () => onModeChanged(TestMode.mock),
+        ),
+        const SizedBox(height: 16),
+        const Row(
+          children: [
+            Expanded(child: Divider(color: Color(0xFF374151))),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                'or custom test',
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+              ),
+            ),
+            Expanded(child: Divider(color: Color(0xFF374151))),
+          ],
+        ),
+        const SizedBox(height: 16),
+
         const _SectionHeader('Test Mode'),
         const SizedBox(height: 10),
         Row(
@@ -485,6 +531,11 @@ class _TestsConfigView extends StatelessWidget {
           Text(
             '⏱ ${(questionCount * 1.5).round()} minutes',
             style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+          )
+        else if (mode == TestMode.mock)
+          const Text(
+            '⏱ 130 minutes · All divisions · 65 questions',
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),
         const SizedBox(height: 24),
         const _SectionHeader('Session Type'),
@@ -566,11 +617,12 @@ class _TestsConfigView extends StatelessWidget {
               _SummaryRow(
                 icon: Icons.timer_outlined,
                 label: 'Mode',
-                value: mode == TestMode.quick
-                    ? 'Quick Quiz'
-                    : mode == TestMode.section
-                    ? 'By Division'
-                    : 'Timed Exam',
+                value: switch (mode) {
+                  TestMode.quick => 'Quick Quiz',
+                  TestMode.section => 'By Division',
+                  TestMode.timed => 'Timed Exam',
+                  TestMode.mock => 'Mock Exam',
+                },
               ),
               const Divider(color: Color(0xFF374151), height: 16),
               _SummaryRow(
@@ -588,9 +640,9 @@ class _TestsConfigView extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: onStart,
             icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text(
-              'Start Test',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            label: Text(
+              mode == TestMode.mock ? 'Start Mock Exam' : 'Start Test',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -723,6 +775,92 @@ class _SummaryRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _MockExamCard extends StatelessWidget {
+  const _MockExamCard({required this.selected, required this.onTap});
+
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: selected
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppTheme.yellow.withValues(alpha: 0.18),
+                    AppTheme.yellow.withValues(alpha: 0.06),
+                  ],
+                )
+              : null,
+          color: selected ? null : const Color(0xFF1F2937),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? AppTheme.yellow : const Color(0xFF374151),
+            width: selected ? 1.5 : 0.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected
+                    ? AppTheme.yellow.withValues(alpha: 0.15)
+                    : const Color(0xFF374151),
+              ),
+              child: Icon(
+                Icons.assignment_turned_in_outlined,
+                size: 22,
+                color: selected ? AppTheme.yellow : AppTheme.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mock Exam',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? AppTheme.yellow : Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    '65 questions · 130 min · All divisions',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.arrow_forward_ios_rounded,
+              size: selected ? 20 : 14,
+              color: selected ? AppTheme.yellow : AppTheme.textSecondary,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
