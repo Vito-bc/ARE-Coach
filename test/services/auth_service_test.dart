@@ -1,5 +1,5 @@
 // ignore_for_file: subtype_of_sealed_class
-import 'package:architectula_education_app/services/auth_service.dart';
+import 'package:are_coach/services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';

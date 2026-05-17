@@ -1,0 +1,41 @@
+name: Feature Request
+description: Suggest an improvement or new feature.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests are welcome! The more context you give, the easier it is to evaluate.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      placeholder: "e.g. I can't track my study streak across days."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      placeholder: "Describe what you'd like to see and how it might work."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: "Any workarounds you've tried or other approaches."
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: How important is this to your exam prep?
+      options:
+        - Nice to have
+        - Would significantly improve my study
+        - Blocker — I can't use the app effectively without it
+    validations:
+      required: true

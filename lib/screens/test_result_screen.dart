@@ -4,7 +4,7 @@ import '../core/readiness.dart';
 import '../core/theme/app_theme.dart';
 import '../models/quiz_question.dart';
 import '../widgets/flag_question_sheet.dart';
-import 'package:architectula_education_app/screens/tests_screen.dart';
+import 'tests_screen.dart';
 
 class TestResultScreen extends StatelessWidget {
   const TestResultScreen({
