@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -35,12 +36,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _iapService = IAPService();
   StreamSubscription<PurchaseDetails>? _purchaseSub;
   bool _restoring = false;
+  DateTime? _examDate;
 
   @override
   void initState() {
     super.initState();
     _iapService.initialize();
     _loadReminderPref();
+    _loadExamDate();
     _purchaseSub = _iapService.purchaseUpdates.listen(
       _onPurchaseUpdate,
       onError: (_) {
@@ -52,6 +55,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _loadReminderPref() async {
     final enabled = await NotificationService.isEnabled();
     if (mounted) ref.read(_reminderEnabledProvider.notifier).state = enabled;
+  }
+
+  Future<void> _loadExamDate() async {
+    final box = await Hive.openBox('settings');
+    final stored = box.get('examDate') as String?;
+    if (stored != null && mounted) {
+      setState(() => _examDate = DateTime.tryParse(stored));
+    }
+  }
+
+  Future<void> _pickExamDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _examDate ?? now.add(const Duration(days: 90)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 730)),
+      helpText: 'Select your exam date',
+      confirmText: 'Set Date',
+    );
+    if (picked == null) return;
+    final box = await Hive.openBox('settings');
+    await box.put('examDate', picked.toIso8601String().substring(0, 10));
+    if (mounted) setState(() => _examDate = picked);
+  }
+
+  Future<void> _clearExamDate() async {
+    final box = await Hive.openBox('settings');
+    await box.delete('examDate');
+    if (mounted) setState(() => _examDate = null);
   }
 
   Future<void> _toggleReminder(bool value) async {
@@ -413,6 +446,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             const SizedBox(height: 8),
 
+            // ── Exam date ──────────────────────────────────────────
+            _ExamDateCard(
+              examDate: _examDate,
+              onPick: _pickExamDate,
+              onClear: _clearExamDate,
+            ),
+            const SizedBox(height: 16),
+
             // ── Tools ──────────────────────────────────────────────
             _Card(
               child: _SettingsRow(
@@ -707,5 +748,153 @@ class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Divider(height: 0, color: AppTheme.separator, thickness: 0.5);
+  }
+}
+
+// ── Exam Date Card ────────────────────────────────────────────────────────────
+
+class _ExamDateCard extends StatelessWidget {
+  const _ExamDateCard({
+    required this.examDate,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final DateTime? examDate;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final daysLeft = examDate?.difference(DateTime.now()).inDays;
+
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'EXAM DATE',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (examDate == null)
+            GestureDetector(
+              onTap: onPick,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppTheme.yellow.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.yellow.withValues(alpha: 0.25),
+                    width: 1,
+                  ),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(Icons.event_rounded, color: AppTheme.yellow, size: 24),
+                    SizedBox(height: 6),
+                    Text(
+                      'Set target exam date',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.yellow,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Get a personalized daily study plan',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppTheme.yellow.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.event_rounded,
+                    color: AppTheme.yellow,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _formatDate(examDate!),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        daysLeft != null && daysLeft > 0
+                            ? '$daysLeft ${daysLeft == 1 ? 'day' : 'days'} until exam'
+                            : 'Exam date reached',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: daysLeft != null && daysLeft <= 14
+                              ? AppTheme.warning
+                              : AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: onPick,
+                  icon: const Icon(Icons.edit_rounded, size: 16),
+                  color: AppTheme.textSecondary,
+                  tooltip: 'Change date',
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppTheme.surfaceElevated,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: onClear,
+                  icon: const Icon(Icons.close_rounded, size: 16),
+                  color: AppTheme.textSecondary,
+                  tooltip: 'Clear date',
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppTheme.surfaceElevated,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatDate(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
