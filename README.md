@@ -2,9 +2,11 @@
 
 > A Flutter mobile app for architects preparing for the **NCARB ARE 5.0** exam, with a NYC-specific focus.
 
+[![CI](https://github.com/Vito-bc/ARE-Coach/actions/workflows/flutter-ci.yml/badge.svg)](https://github.com/Vito-bc/ARE-Coach/actions/workflows/flutter-ci.yml)
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth%20%7C%20Crashlytics-FFCA28?logo=firebase&logoColor=black)
+![Version](https://img.shields.io/badge/version-1.3.0-brightgreen)
 ![License](https://img.shields.io/badge/License-Proprietary-red)
 
 ---
@@ -162,8 +164,8 @@ lib/
 │   ├── dashboard_screen.dart         Readiness score, study plan, weak sections, trends
 │   ├── insights_screen.dart          Score trend chart, accuracy by division, flashcard mastery
 │   ├── tests_screen.dart             Quick / Section / Timed / Mock exam configuration
-│   ├── _test_session_screen.dart     Live quiz session with timer
-│   ├── _test_result_screen.dart      Post-quiz result (section mode)
+│   ├── test_session_screen.dart      Live quiz session with timer
+│   ├── test_result_screen.dart       Post-quiz result (section mode)
 │   ├── mock_exam_result_screen.dart  Post-mock verdict + per-division breakdown
 │   ├── flashcards_screen.dart        Flashcard deck browser and stats
 │   ├── flashcard_session_screen.dart Flashcard study session (flip + SM-2 rating)

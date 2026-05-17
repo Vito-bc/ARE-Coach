@@ -1,4 +1,4 @@
-import 'package:architectula_education_app/services/progress_repository.dart';
+import 'package:are_coach/services/progress_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Builds a session map with questionResults for the given section → correctness list.

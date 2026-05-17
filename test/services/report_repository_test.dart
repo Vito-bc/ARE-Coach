@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:architectula_education_app/services/report_repository.dart';
+import 'package:are_coach/services/report_repository.dart';
 
 void main() {
   group('FlagReason', () {

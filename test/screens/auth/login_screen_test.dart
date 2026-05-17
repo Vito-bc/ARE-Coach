@@ -1,5 +1,5 @@
-import 'package:architectula_education_app/screens/auth/login_screen.dart';
-import 'package:architectula_education_app/services/auth_service.dart';
+import 'package:are_coach/screens/auth/login_screen.dart';
+import 'package:are_coach/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

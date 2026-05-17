@@ -1,4 +1,4 @@
-import 'package:architectula_education_app/models/quiz_question.dart';
+import 'package:are_coach/models/quiz_question.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
