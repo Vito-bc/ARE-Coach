@@ -97,8 +97,8 @@ exports.validateReceipt = onRequest(
       if (!receiptData || typeof receiptData !== "string") {
         return sendError(res, 400, "receiptData is required");
       }
-      if (platform !== "ios") {
-        return sendError(res, 400, "Only ios platform is supported");
+      if (platform !== "ios" && platform !== "app_store") {
+        return sendError(res, 400, "Only iOS/App Store platform is supported");
       }
 
       const appleResult = await callAppleVerify(APPLE_PRODUCTION_URL, {

@@ -13,7 +13,7 @@
 
 ## What it does
 
-ARE Coach covers every ARE 5.0 division with 213 exam-quality questions, a 300-card spaced-repetition flashcard deck, a full 65-question mock exam, an AI study coach, and a personalized dashboard that tracks your readiness over time — all with an NYC Building Code overlay for New York candidates.
+ARE Coach covers every ARE 5.0 division with 500 exam-quality questions, a 300-card spaced-repetition flashcard deck, a full 65-question mock exam, an AI study coach, and a personalized dashboard that tracks your readiness over time — all with an NYC Building Code overlay for New York candidates.
 
 ---
 
@@ -29,7 +29,7 @@ ARE Coach covers every ARE 5.0 division with 213 exam-quality questions, a 300-c
 |---|---|
 | Practice tests — Quick Quiz, By Division, Timed Exam | ✅ |
 | **Mock Exam Mode** — 65 Qs, 130-min countdown, per-division score report | ✅ |
-| 213-question NYC bank with explanations & code references | ✅ |
+| 500-question NYC bank with explanations & code references | ✅ |
 | **Flashcards** — 300 cards, spaced repetition (SM-2), session stats | ✅ |
 | **Progress Insights** — score trend chart, accuracy by division, weak spots | ✅ |
 | **Study Plan** — exam countdown + daily card & question targets on Dashboard | ✅ |
@@ -49,41 +49,43 @@ ARE Coach covers every ARE 5.0 division with 213 exam-quality questions, a 300-c
 
 ## Question Bank
 
-**213 questions** — all with 4-option multiple choice, detailed explanations, and citations to publicly available official standards.
+**500 questions** — all with 4-option multiple choice, detailed explanations, and citations to publicly available official standards.
 
 ### By Division
 
 | Division | Questions | ARE 5.0 Exam |
 |---|---|---|
-| Practice Management (PcM) | 50 | ✅ |
-| Project Management (PjM) | 30 | ✅ |
-| Programming & Analysis (PA) | 31 | ✅ |
-| Project Planning & Design (PPD) | 30 | ✅ |
-| Project Docs & Delivery (PDD) | 32 | ✅ |
-| Construction & Evaluation (CE) | 32 | ✅ |
-| NYC Building Codes (bonus) | 8 | NYC-specific |
+| Practice Management (PcM) | 75 | ✅ |
+| Project Management (PjM) | 75 | ✅ |
+| Programming & Analysis (PA) | 75 | ✅ |
+| Project Planning & Design (PPD) | 75 | ✅ |
+| Project Docs & Delivery (PDD) | 75 | ✅ |
+| Construction & Evaluation (CE) | 75 | ✅ |
+| NYC Building Codes (bonus) | 50 | NYC-specific |
 
 ### By Difficulty
 
 | Difficulty | Count |
 |---|---|
-| Easy | 41 |
-| Medium | 110 |
-| Hard | 62 |
+| Easy | 83 |
+| Medium | 289 |
+| Hard | 128 |
 
 ### Code Reference Sources
 
-Every question cites a specific section of an official public standard.
+Every question cites a specific section or public source. Counts below are broad primary-reference buckets.
 
 | Source | Questions | Public URL |
 |---|---|---|
-| **AIA Contract Documents** (A101, A201, B101, C401, etc.) | 99 | [aia.org/contractdocs](https://www.aia.org/resources/64176-contract-documents) |
-| **NCARB ARE 5.0 Guidelines** | 45 | [ncarb.org/ARE](https://www.ncarb.org/pass-the-are/are-5) |
-| **NYC Building Code 2022** | 30 | [nyc.gov/buildings](https://www.nyc.gov/site/buildings/codes/building-code.page) |
-| **IBC 2021** | 20 | [codes.iccsafe.org](https://codes.iccsafe.org/content/IBC2021P1) |
+| **NCARB ARE 5.0 Guidelines** | 237 | [ncarb.org/ARE](https://www.ncarb.org/pass-the-are/are-5) |
+| **AIA Contract Documents** (A101, A201, B101, C401, etc.) | 177 | [aia.org/contractdocs](https://www.aia.org/resources/64176-contract-documents) |
+| **NYC Codes / DOB / Local Laws** | 57 | [nyc.gov/buildings](https://www.nyc.gov/site/buildings/codes/building-code.page) |
+| **IBC 2021** | 9 | [codes.iccsafe.org](https://codes.iccsafe.org/content/IBC2021P1) |
+| **ADA / Accessibility Standards** | 5 | [ada.gov/law-and-regs](https://www.ada.gov/law-and-regs/design-standards/) |
 | **ASHRAE Standards** (90.1, 62.1) | 3 | [ashrae.org/standards](https://www.ashrae.org/technical-resources/bookstore/standards-62-1-62-2) |
-| **ADA Standards for Accessible Design** (2010) | 4 | [ada.gov/law-and-regs](https://www.ada.gov/law-and-regs/design-standards/) |
-| **ASCE 7-22 / ASCE 24** | 1 | [asce.org/publications](https://www.asce.org/publications-and-news/asce-7) |
+| **Engineering / Hazard Standards** (ASCE, ACI, FEMA) | 3 | [asce.org/publications](https://www.asce.org/publications-and-news/asce-7) |
+| **CSI / Specifications** | 3 | [csinet.org](https://www.csiresources.org/) |
+| **Other public standards** | 6 | Varies by reference |
 
 <details>
 <summary>Sample references by division</summary>
@@ -164,13 +166,8 @@ lib/
 │   ├── dashboard_screen.dart         Readiness score, study plan, weak sections, trends
 │   ├── insights_screen.dart          Score trend chart, accuracy by division, flashcard mastery
 │   ├── tests_screen.dart             Quick / Section / Timed / Mock exam configuration
-<<<<<<< HEAD
-│   ├── _test_session_screen.dart     Live quiz session with timer
-│   ├── _test_result_screen.dart      Post-quiz result (section mode)
-=======
 │   ├── test_session_screen.dart      Live quiz session with timer
 │   ├── test_result_screen.dart       Post-quiz result (section mode)
->>>>>>> bdf72e1d673411092cab3cc4102ad3cd5cc852c7
 │   ├── mock_exam_result_screen.dart  Post-mock verdict + per-division breakdown
 │   ├── flashcards_screen.dart        Flashcard deck browser and stats
 │   ├── flashcard_session_screen.dart Flashcard study session (flip + SM-2 rating)
@@ -190,7 +187,7 @@ lib/
     └── seed_questions.dart           3-question emergency fallback
 assets/
 ├── seeds/
-│   ├── questions_ny.json             213-question bank
+│   ├── questions_ny.json             500-question bank
 │   └── flashcards_ny.json           300-card flashcard deck
 └── images/                          App icons
 ```
@@ -280,4 +277,4 @@ IAP via the `in_app_purchase` Flutter plugin; receipt validation is server-side.
 
 ## Disclaimer
 
-Questions and explanations are AI-assisted study aids. Always verify against official NCARB ARE 5.0 exam content, current AIA contract documents, and the applicable edition of the NYC Building Code. This app is not affiliated with NCARB, AIA, or the City of New York.
+Questions and explanations are AI-assisted study aids. Always verify against official NCARB ARE 5.0 exam content, current AIA contract documents, and the applicable edition of the NYC Building Code. ARE Coach is an independent study tool and is not endorsed by, sponsored by, or affiliated with NCARB, AIA, or the City of New York.
