@@ -5,7 +5,7 @@ import 'coach_screen.dart';
 import 'dashboard_screen.dart';
 import 'flashcards_screen.dart';
 import 'profile_screen.dart';
-import 'package:architectula_education_app/screens/tests_screen.dart';
+import 'tests_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.firebaseReady});

@@ -6,7 +6,7 @@ import '../core/theme/app_theme.dart';
 import '../models/quiz_question.dart';
 import '../widgets/flag_question_sheet.dart';
 import 'coach_screen.dart';
-import 'package:architectula_education_app/screens/tests_screen.dart';
+import 'tests_screen.dart';
 
 class TestSessionScreen extends StatelessWidget {
   const TestSessionScreen({

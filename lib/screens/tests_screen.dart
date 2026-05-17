@@ -8,8 +8,8 @@ import '../core/providers.dart';
 import '../core/theme/app_theme.dart';
 import '../models/quiz_question.dart';
 import '../services/progress_repository.dart';
-import '_test_result_screen.dart';
-import '_test_session_screen.dart';
+import 'test_result_screen.dart';
+import 'test_session_screen.dart';
 import 'mock_exam_result_screen.dart';
 
 class TestsScreen extends ConsumerStatefulWidget {

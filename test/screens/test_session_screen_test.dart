@@ -1,7 +1,7 @@
-import 'package:architectula_education_app/core/theme/app_theme.dart';
-import 'package:architectula_education_app/models/quiz_question.dart';
-import 'package:architectula_education_app/screens/_test_session_screen.dart';
-import 'package:architectula_education_app/screens/tests_screen.dart';
+import 'package:are_coach/core/theme/app_theme.dart';
+import 'package:are_coach/models/quiz_question.dart';
+import 'package:are_coach/screens/test_session_screen.dart';
+import 'package:are_coach/screens/tests_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

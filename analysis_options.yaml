@@ -1,24 +1,32 @@
-# This file configures the analyzer, which statically analyzes Dart code to
-# check for errors, warnings, and lints.
-#
-# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
-# IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
-# invoked from the command line by running `flutter analyze`.
-
-# The following line activates a set of recommended lints for Flutter apps,
-# packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
 linter:
   rules:
+    # Style
     prefer_const_constructors: true
     prefer_const_literals_to_create_immutables: true
-    avoid_unnecessary_containers: true
     require_trailing_commas: true
-    unawaited_futures: true
-    use_string_buffers: true
+    prefer_single_quotes: true
+    sort_child_properties_last: true
+    use_colored_box: true
+    # use_decorated_box: true  # opt-in when doing a widget cleanup pass
+
+    # Safety
     avoid_print: true
+    avoid_unnecessary_containers: true
+    unawaited_futures: true
+    cancel_subscriptions: true
+    close_sinks: true
+    use_string_buffers: true
+
+    # Performance
+    # avoid_redundant_argument_values: true  # too noisy on existing widget code
 
 analyzer:
   errors:
     unawaited_futures: warning
+    avoid_print: warning
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - lib/firebase_options.dart

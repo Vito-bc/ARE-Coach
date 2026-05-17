@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
-import 'package:architectula_education_app/app.dart';
+import 'package:are_coach/app.dart';
 
 void main() {
   setUpAll(() async {
