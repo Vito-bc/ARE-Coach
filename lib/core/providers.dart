@@ -42,6 +42,21 @@ final allQuestionsProvider = FutureProvider<List<QuizQuestion>>((ref) {
   return QuestionRepository().loadFromAsset(limit: 0);
 });
 
+/// Last N attempt scores (oldest first) for the sparkline chart.
+final recentScoresProvider =
+    FutureProvider.family<List<ScorePoint>, DashboardArgs>((ref, args) async {
+  if (!args.firebaseReady || args.uid == null) return [];
+  return ProgressRepository().fetchRecentScores(uid: args.uid!);
+});
+
+/// All section accuracies ordered lowest→highest for the Insights screen.
+final allSectionAccuraciesProvider =
+    FutureProvider.family<List<WeakSectionMetric>, DashboardArgs>(
+        (ref, args) async {
+  if (!args.firebaseReady || args.uid == null) return [];
+  return ProgressRepository().fetchAllSectionAccuracies(uid: args.uid!);
+});
+
 /// Streams the user's role ('free' | 'premium') directly from Firestore.
 /// Auto-updates when validateReceipt writes role: 'premium' server-side.
 final userRoleProvider = StreamProvider.family<String, String?>((ref, uid) {

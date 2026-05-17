@@ -6,6 +6,13 @@ import 'package:flutter/foundation.dart';
 
 import '../models/quiz_question.dart';
 
+class ScorePoint {
+  const ScorePoint({required this.score, required this.date});
+
+  final int score;
+  final DateTime date;
+}
+
 class WeakSectionMetric {
   const WeakSectionMetric({required this.section, required this.accuracy});
 
@@ -344,6 +351,63 @@ class ProgressRepository {
       }
     }
     return map;
+  }
+
+  Future<List<ScorePoint>> fetchRecentScores({
+    required String uid,
+    int limit = 10,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection('attempts')
+          .doc(uid)
+          .collection('sessions')
+          .orderBy('endedAt', descending: true)
+          .limit(limit)
+          .get();
+
+      final points = snapshot.docs.map((doc) {
+        final data = doc.data();
+        final ts = data['endedAt'];
+        DateTime date = DateTime.now();
+        if (ts is Timestamp) date = ts.toDate();
+        return ScorePoint(
+          score: (data['score'] as num?)?.toInt() ?? 0,
+          date: date,
+        );
+      }).toList();
+
+      return points.reversed.toList(); // oldest first for charting
+    } catch (e, stack) {
+      debugPrint('fetchRecentScores failed: $e');
+      unawaited(FirebaseCrashlytics.instance.recordError(e, stack));
+      rethrow;
+    }
+  }
+
+  Future<List<WeakSectionMetric>> fetchAllSectionAccuracies({
+    required String uid,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection('analytics')
+          .doc(uid)
+          .collection('weakTopics')
+          .orderBy('accuracy')
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return WeakSectionMetric(
+          section: data['section']?.toString() ?? doc.id,
+          accuracy: (data['accuracy'] as num?)?.toInt() ?? 0,
+        );
+      }).toList();
+    } catch (e, stack) {
+      debugPrint('fetchAllSectionAccuracies failed: $e');
+      unawaited(FirebaseCrashlytics.instance.recordError(e, stack));
+      rethrow;
+    }
   }
 
   String _normalizeSection(String value) {
