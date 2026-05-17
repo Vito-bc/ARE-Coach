@@ -164,8 +164,13 @@ lib/
 │   ├── dashboard_screen.dart         Readiness score, study plan, weak sections, trends
 │   ├── insights_screen.dart          Score trend chart, accuracy by division, flashcard mastery
 │   ├── tests_screen.dart             Quick / Section / Timed / Mock exam configuration
+<<<<<<< HEAD
+│   ├── _test_session_screen.dart     Live quiz session with timer
+│   ├── _test_result_screen.dart      Post-quiz result (section mode)
+=======
 │   ├── test_session_screen.dart      Live quiz session with timer
 │   ├── test_result_screen.dart       Post-quiz result (section mode)
+>>>>>>> bdf72e1d673411092cab3cc4102ad3cd5cc852c7
 │   ├── mock_exam_result_screen.dart  Post-mock verdict + per-division breakdown
 │   ├── flashcards_screen.dart        Flashcard deck browser and stats
 │   ├── flashcard_session_screen.dart Flashcard study session (flip + SM-2 rating)
