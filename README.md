@@ -255,8 +255,8 @@ See [docs/MONETIZATION_PREP.md](docs/MONETIZATION_PREP.md).
 | Tier | Price | Limits |
 |---|---|---|
 | Free | — | 10 questions/day, 50 AI Coach messages/day |
-| Premium | $7.99/mo | Unlimited questions + priority AI responses |
-| Token top-up | $2.99 | +100 AI Coach messages |
+| Premium | - | Unlimited questions + priority AI responses |
+| Token top-up | - | +100 AI Coach messages |
 
 IAP via the `in_app_purchase` Flutter plugin; receipt validation is server-side.
 
