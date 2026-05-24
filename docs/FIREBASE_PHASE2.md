@@ -40,6 +40,9 @@ Option B (extension/script later):
 ## 5) Runtime behavior in app
 - If Firebase is configured and available:
   - App signs user in anonymously.
-  - Tests screen loads from Firestore `questions` where `state == NY`.
+  - Attempts, analytics, reports, coach chats, and user metadata sync to Firestore.
 - If Firebase is missing/unavailable:
-  - App falls back to local seed questions.
+  - App still runs from the bundled local question and flashcard assets.
+
+Note: the current Tests screen uses the bundled JSON question bank through `allQuestionsProvider`.
+`QuestionRepository.loadNyQuestions()` still supports Firestore-first loading for future import workflows.

@@ -8,6 +8,8 @@ class NotificationService {
   static const _channelName = 'Daily Study Reminder';
   static const _notifId = 1;
   static const _hivePrefKey = 'dailyReminderEnabled';
+  static const _hiveHourKey = 'dailyReminderHour';
+  static const _hiveMinuteKey = 'dailyReminderMinute';
 
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
@@ -37,6 +39,15 @@ class NotificationService {
   static Future<bool> isEnabled() async {
     final box = await Hive.openBox('settings');
     return box.get(_hivePrefKey, defaultValue: false) as bool;
+  }
+
+  /// Returns the last saved reminder time (defaults to 09:00).
+  static Future<({int hour, int minute})> savedTime() async {
+    final box = await Hive.openBox('settings');
+    return (
+      hour: box.get(_hiveHourKey, defaultValue: 9) as int,
+      minute: box.get(_hiveMinuteKey, defaultValue: 0) as int,
+    );
   }
 
   /// Request OS permission (iOS asks a dialog; Android 13+ does too).
@@ -112,6 +123,8 @@ class NotificationService {
 
     final box = await Hive.openBox('settings');
     await box.put(_hivePrefKey, true);
+    await box.put(_hiveHourKey, hour);
+    await box.put(_hiveMinuteKey, minute);
   }
 
   /// Cancel the daily reminder and persist the preference.

@@ -3,7 +3,9 @@
 ## High-level
 ```
 Flutter App (UI + State)
-  -> Firebase Auth (anonymous now, social/email later)
+  -> Firebase Auth (anonymous, email/password, Apple)
+  -> Bundled JSON assets (500 questions, 300 flashcards)
+  -> Hive (flashcard progress, reminder/exam-date preferences)
   -> Firestore (questions, attempts, analytics, usage)
   -> Cloud Functions (askCoach, quota enforcement, billing hooks)
   -> AI Provider API (Gemini via server-side key)
@@ -11,8 +13,8 @@ Flutter App (UI + State)
 
 ## Client Layers
 - `screens/`: presentation and user flows
-- `services/`: data/network access (`question_repository`, `progress_repository`, `coach_service`)
-- `models/`: domain objects (`quiz_question`, chat models)
+- `services/`: data/network access (`question_repository`, `flashcard_repository`, `progress_repository`, `coach_service`)
+- `models/`: domain objects (`quiz_question`, `flashcard`, chat models)
 - `core/`: theme and shared UI chrome
 
 ## Data Model (Firestore)
@@ -22,17 +24,20 @@ Flutter App (UI + State)
 - `analytics/{uid}/weakTopics/{topicId}`
 - `coach_chats/{uid}/threads/{threadId}/messages/{messageId}`
 - `usage/{uid}/daily/{yyyy_mm_dd}`
+- `usage/{uid}/minute/{yyyyMMdd_HHmm}`
 - `subscriptions/{uid}`
+- `reports/{reportId}`
 
 ## Runtime Flow
-1. App boots, initializes Firebase and signs in user anonymously.
-2. Test screen loads NYC questions from Firestore (fallback: local seed data).
+1. App boots, initializes Hive, notifications, Firebase, App Check, and auth state.
+2. Test screen loads the bundled NYC question bank through `allQuestionsProvider`.
 3. Completed test writes attempt + weak-topic analytics.
 4. Dashboard computes readiness and trends from attempts.
-5. Coach calls Cloud Function with Firebase ID token.
-6. Cloud Function enforces daily limits and calls AI provider.
+5. Flashcards load from bundled JSON and store spaced-repetition progress in Hive.
+6. Coach calls Cloud Function with Firebase ID token and App Check token.
+7. Cloud Function enforces daily/per-minute limits and calls AI provider.
 
 ## Deployment Units
 - Flutter app (mobile/web)
 - Firebase Firestore rules/indexes
-- Cloud Functions (Node.js 20)
+- Cloud Functions (Node.js 22)

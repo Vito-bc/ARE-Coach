@@ -214,7 +214,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
           uid: uid,
           questions: _questions,
           answersByQuestionId: _answers,
-          timeSpentSec: _elapsedNotifier.value,
+          timeSpentSec: usedSec,
           mode: _mode.name,
         );
         ref.invalidate(dashboardMetricsProvider);

@@ -20,6 +20,9 @@ import 'paywall_screen.dart';
 // ── Providers ────────────────────────────────────────────────────────────────
 
 final _reminderEnabledProvider = StateProvider<bool>((ref) => false);
+final _reminderTimeProvider = StateProvider<TimeOfDay>(
+  (ref) => const TimeOfDay(hour: 9, minute: 0),
+);
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
@@ -54,7 +57,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _loadReminderPref() async {
     final enabled = await NotificationService.isEnabled();
-    if (mounted) ref.read(_reminderEnabledProvider.notifier).state = enabled;
+    final saved = await NotificationService.savedTime();
+    if (mounted) {
+      ref.read(_reminderEnabledProvider.notifier).state = enabled;
+      ref.read(_reminderTimeProvider.notifier).state =
+          TimeOfDay(hour: saved.hour, minute: saved.minute);
+    }
   }
 
   Future<void> _loadExamDate() async {
@@ -91,11 +99,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (value) {
       final granted = await NotificationService.requestPermission();
       if (!granted) return;
-      await NotificationService.scheduleDailyReminder(hour: 9, minute: 0);
+      final time = ref.read(_reminderTimeProvider);
+      await NotificationService.scheduleDailyReminder(
+        hour: time.hour,
+        minute: time.minute,
+      );
     } else {
       await NotificationService.cancel();
     }
     ref.read(_reminderEnabledProvider.notifier).state = value;
+  }
+
+  Future<void> _pickReminderTime() async {
+    final current = ref.read(_reminderTimeProvider);
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: current,
+      helpText: 'REMINDER TIME',
+    );
+    if (picked == null || !mounted) return;
+    ref.read(_reminderTimeProvider.notifier).state = picked;
+    if (ref.read(_reminderEnabledProvider)) {
+      await NotificationService.scheduleDailyReminder(
+        hour: picked.hour,
+        minute: picked.minute,
+      );
+    }
   }
 
   Future<void> _signOut() async {
@@ -155,6 +184,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final role = ref.watch(userRoleProvider(uid)).valueOrNull ?? 'free';
     final isPremium = role == 'premium';
     final reminderEnabled = ref.watch(_reminderEnabledProvider);
+    final reminderTime = ref.watch(_reminderTimeProvider);
 
     final user = widget.firebaseReady ? FirebaseAuth.instance.currentUser : null;
     final email = user?.email ?? (widget.firebaseReady ? 'Anonymous' : 'Demo mode');
@@ -486,7 +516,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   if (!kIsWeb)
                     _ReminderRow(
                       enabled: reminderEnabled,
+                      time: reminderTime,
                       onChanged: _toggleReminder,
+                      onTimeTap: _pickReminderTime,
                     ),
                   if (kIsWeb)
                     const _SettingsRow(
@@ -711,9 +743,23 @@ class _SettingsRow extends StatelessWidget {
 }
 
 class _ReminderRow extends StatelessWidget {
-  const _ReminderRow({required this.enabled, required this.onChanged});
+  const _ReminderRow({
+    required this.enabled,
+    required this.time,
+    required this.onChanged,
+    required this.onTimeTap,
+  });
   final bool enabled;
+  final TimeOfDay time;
   final ValueChanged<bool> onChanged;
+  final VoidCallback onTimeTap;
+
+  String _fmt(TimeOfDay t) {
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    final period = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$h:$m $period';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -730,6 +776,30 @@ class _ReminderRow extends StatelessWidget {
               style: TextStyle(fontSize: 15, color: AppTheme.textPrimary),
             ),
           ),
+          if (enabled)
+            GestureDetector(
+              onTap: onTimeTap,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppTheme.yellow.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppTheme.yellow.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Text(
+                  _fmt(time),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.yellow,
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(width: 8),
           Switch(
             value: enabled,
             onChanged: onChanged,
