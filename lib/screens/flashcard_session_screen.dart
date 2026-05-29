@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/study_streak.dart';
 import '../core/theme/app_theme.dart';
 import '../models/flashcard.dart';
 import '../services/flashcard_repository.dart';
@@ -94,6 +95,7 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
         _index++;
       });
     } else {
+      await StudyStreak.recordToday();
       widget.onComplete(_statuses);
       setState(() => _done = true);
     }

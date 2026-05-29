@@ -90,7 +90,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               scoresAsync.when(
                 data: (scores) => _ScoreTrendCard(scores: scores),
                 loading: () => const _LoadingCard(),
-                error: (_, __) => const _ErrorCard(),
+                error: (_, __) => _ErrorCard(
+                  onRetry: () => ref.invalidate(recentScoresProvider(args)),
+                ),
               ),
 
               const SizedBox(height: 28),
@@ -101,7 +103,9 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
               accuraciesAsync.when(
                 data: (list) => _AccuracyCard(accuracies: list),
                 loading: () => const _LoadingCard(),
-                error: (_, __) => const _ErrorCard(),
+                error: (_, __) => _ErrorCard(
+                  onRetry: () => ref.invalidate(allSectionAccuraciesProvider(args)),
+                ),
               ),
 
               const SizedBox(height: 28),
@@ -736,22 +740,41 @@ class _LoadingCard extends StatelessWidget {
 }
 
 class _ErrorCard extends StatelessWidget {
-  const _ErrorCard();
+  const _ErrorCard({this.onRetry});
+
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.separator, width: 0.5),
       ),
-      child: const Center(
-        child: Text(
-          'Could not load data',
-          style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-        ),
+      child: Row(
+        children: [
+          const Icon(Icons.wifi_off_rounded, size: 16, color: AppTheme.textSecondary),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Could not load data',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            ),
+          ),
+          if (onRetry != null)
+            TextButton(
+              onPressed: onRetry,
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.yellow,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Retry', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+        ],
       ),
     );
   }
