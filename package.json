@@ -1,6 +1,6 @@
 {
-  "name": "architectula_education_app",
-  "version": "1.0.0",
+  "name": "are-coach",
+  "version": "1.3.0",
   "description": "NYC-first ARE preparation app with AI coach, voice interaction, test workflows, and readiness tracking.",
   "main": "index.js",
   "directories": {
