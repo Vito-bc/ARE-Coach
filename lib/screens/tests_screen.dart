@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
+import '../core/study_streak.dart';
 import '../core/theme/app_theme.dart';
 import '../models/quiz_question.dart';
 import '../services/progress_repository.dart';
@@ -64,6 +65,36 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
     'NYC Building Codes': Icons.location_city_outlined,
   };
 
+  /// Proportional distribution matching real NCARB division question weights.
+  /// Total: 65 questions across all 7 sections.
+  static const _mockDistribution = {
+    'Practice Management': 8,
+    'Project Management': 9,
+    'Programming & Analysis': 9,
+    'Project Planning & Design': 11,
+    'Project Docs & Delivery': 11,
+    'Construction & Evaluation': 11,
+    'NYC Building Codes': 6,
+  };
+
+  List<QuizQuestion> _buildMockExam(List<QuizQuestion> all) {
+    final bySection = <String, List<QuizQuestion>>{};
+    for (final q in all) {
+      bySection.putIfAbsent(q.section, () => []).add(q);
+    }
+    for (final list in bySection.values) {
+      list.shuffle();
+    }
+
+    final result = <QuizQuestion>[];
+    for (final entry in _mockDistribution.entries) {
+      final pool = bySection[entry.key] ?? [];
+      result.addAll(pool.take(entry.value));
+    }
+    result.shuffle();
+    return result;
+  }
+
   Future<void> _startTest() async {
     setState(() {
       _loading = true;
@@ -74,10 +105,7 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
     questions.shuffle();
 
     if (_mode == TestMode.mock) {
-      const mockCount = 65;
-      if (questions.length > mockCount) {
-        questions = questions.take(mockCount).toList();
-      }
+      questions = _buildMockExam(questions);
     } else {
       if (_selectedSection != 'All Divisions') {
         questions = questions
@@ -220,6 +248,8 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
         ref.invalidate(dashboardMetricsProvider);
       }
     }
+
+    await StudyStreak.recordToday();
 
     if (mounted) {
       setState(() => _saving = false);

@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import '../core/providers.dart';
 import '../core/readiness.dart';
+import '../core/study_streak.dart';
 import '../core/theme/app_theme.dart';
 import '../core/ui/app_chrome.dart';
 import '../models/flashcard.dart';
@@ -51,24 +52,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _loadStreak() async {
-    final box = await Hive.openBox('settings');
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-    final lastDate = box.get('lastStudyDate') as String?;
-    final stored = box.get('studyStreak', defaultValue: 0) as int;
-
-    int streak;
-    if (lastDate == null) {
-      streak = 1;
-    } else if (lastDate == today) {
-      streak = stored;
-    } else {
-      final last = DateTime.tryParse(lastDate);
-      final diff = last != null ? DateTime.now().difference(last).inDays : 999;
-      streak = diff == 1 ? stored + 1 : 1;
-    }
-
-    await box.put('studyStreak', streak);
-    await box.put('lastStudyDate', today);
+    final streak = await StudyStreak.read();
     if (mounted) setState(() => _streak = streak);
   }
 
@@ -188,6 +172,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   isDark: isDark,
                                   accent: accent,
                                   tt: tt,
+                                  isDemo: !widget.firebaseReady,
                                 ),
                               ),
                             ),
@@ -529,6 +514,7 @@ class _ReadinessCard extends StatelessWidget {
     required this.isDark,
     required this.accent,
     required this.tt,
+    this.isDemo = false,
   });
 
   final int percent;
@@ -536,6 +522,7 @@ class _ReadinessCard extends StatelessWidget {
   final bool isDark;
   final Color accent;
   final TextTheme tt;
+  final bool isDemo;
 
   @override
   Widget build(BuildContext context) {
@@ -544,7 +531,30 @@ class _ReadinessCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Readiness Score', style: tt.titleSmall),
+          Row(
+            children: [
+              Text('Readiness Score', style: tt.titleSmall),
+              if (isDemo) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.textSecondary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'SAMPLE',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
           const SizedBox(height: 16),
           Row(
             children: [
