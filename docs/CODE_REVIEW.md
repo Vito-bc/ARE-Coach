@@ -357,7 +357,7 @@ Button is labeled "Sign In" but actually does the same as "Start Free" — pushe
 
 **[P2] `QuestionRepository.loadFromAsset` shuffles every time it's called** (`question_repository.dart:60-69`). The provider caches the list, so today this only runs once — but anyone who calls the repository directly (which `TestsScreen` does for filtering) will reshuffle on each call. Consider returning an immutable list and shuffling at the call site.
 
-**[P2] `tests_screen.dart:80` shuffles the full list, then takes N.** For a 213-question bank this is fine, but if the bank grows you're shuffling everything to keep 5–60. `Random` + index pick or a Fisher-Yates of only first N is cheaper.
+**[P2] `tests_screen.dart:80` shuffles the full list, then takes N.** With a 1,100-question bank, shuffling everything just to keep 5–60 is wasteful. `Random` + index pick or a Fisher-Yates of only first N is cheaper.
 
 **[P2] `progress_repository.saveAttempt` writes a single sessions doc with the entire `questionResults` array inline** (`progress_repository.dart:159-168`). For a 60-question timed exam, that's ~60 maps in one doc. Firestore docs are capped at 1 MB; you're nowhere near it, but it makes querying by question (e.g., "what's my history on q42?") impossible. Once you have analytics needs beyond "weak sections", split into a `questionAttempts` subcollection.
 

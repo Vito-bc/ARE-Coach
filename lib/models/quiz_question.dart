@@ -8,6 +8,8 @@ class QuizQuestion {
     required this.explanation,
     required this.codeReference,
     required this.examWeight,
+    this.topic,
+    this.difficulty,
   });
 
   final String id;
@@ -17,6 +19,18 @@ class QuizQuestion {
   final String correctOption;
   final String explanation;
   final String codeReference;
+
+  /// NCARB-aligned sub-topic within the division (e.g. "Egress & Life Safety").
+  /// Null for legacy questions that pre-date topic tagging.
+  final String? topic;
+
+  /// Difficulty tier: 'easy', 'medium', or 'hard'.
+  final String? difficulty;
+
+  /// Relative topic priority for study selection and analytics.
+  ///
+  /// Not a point value; not an NCARB scoring percentage.
+  /// Scale 1-20: higher = more exam-critical / high-yield / code-risk topic.
   final int examWeight;
 
   factory QuizQuestion.fromMap(String id, Map<String, dynamic> data) {
@@ -32,6 +46,8 @@ class QuizQuestion {
       explanation: data['explanation']?.toString() ?? '',
       codeReference: data['codeReference']?.toString() ?? '',
       examWeight: (data['examWeight'] as num?)?.toInt() ?? 0,
+      topic: data['topic']?.toString(),
+      difficulty: data['difficulty']?.toString(),
     );
   }
 
@@ -44,7 +60,8 @@ class QuizQuestion {
       'explanation': explanation,
       'codeReference': codeReference,
       'examWeight': examWeight,
-      'difficulty': 'medium',
+      if (topic != null) 'topic': topic,
+      'difficulty': difficulty ?? 'medium',
       'state': state,
       'createdAt': DateTime.now().toUtc().toIso8601String(),
     };
