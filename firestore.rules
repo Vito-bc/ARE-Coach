@@ -84,7 +84,17 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll(['uid', 'questionId', 'questionText', 'reason', 'status', 'createdAt'])
         && request.resource.data.keys().hasOnly(['uid', 'questionId', 'questionText', 'reason', 'comment', 'status', 'createdAt'])
         && request.resource.data.status == 'pending'
-        && request.resource.data.reason in ['incorrect_answer', 'outdated', 'unclear_wording', 'other'];
+        && request.resource.data.reason in ['incorrect_answer', 'outdated', 'unclear_wording', 'other']
+        // Type + size validation: admins read these in moderation, so cap
+        // string lengths to block oversized-payload abuse and storage bloat.
+        && request.resource.data.questionId is string
+        && request.resource.data.questionId.size() <= 100
+        && request.resource.data.questionText is string
+        && request.resource.data.questionText.size() <= 2000
+        && (request.resource.data.comment == null
+            || (request.resource.data.comment is string
+                && request.resource.data.comment.size() <= 1000))
+        && request.resource.data.createdAt is timestamp;
       allow read, update, delete: if isAdmin();
     }
   }
