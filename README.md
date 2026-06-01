@@ -1,6 +1,6 @@
 # ARE Coach — NYC ARE 5.0 Exam Prep
 
-> Flutter mobile app for architects preparing for **NCARB ARE 5.0** — 500 questions, 300 flashcards, mock exam, AI coach, and progress analytics with an NYC Building Code focus.
+> Flutter mobile app for architects preparing for **NCARB ARE 5.0** — 1,100 questions, 300 flashcards, mock exam, AI coach, and progress analytics with an NYC Building Code focus.
 
 [![CI](https://github.com/Vito-bc/ARE-Coach/actions/workflows/flutter-ci.yml/badge.svg)](https://github.com/Vito-bc/ARE-Coach/actions/workflows/flutter-ci.yml)
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
@@ -22,7 +22,7 @@
 
 | Feature | Status |
 |---|---|
-| **500-question bank** — 6 ARE divisions + NYC codes, with explanations & references | ✅ |
+| **1,100-question bank** — 6 ARE divisions + NYC codes, with explanations & NCARB topic tags | ✅ |
 | **Mock Exam Mode** — 65 Qs, 130-min countdown, per-division score report | ✅ |
 | Practice tests — Quick Quiz, By Division, Timed session | ✅ |
 | **Flashcards** — 300 cards, SM-2 spaced repetition, exam tips | ✅ |
@@ -44,41 +44,48 @@
 
 ## Question Bank
 
-**500 questions** — 4-option MCQ, detailed explanations, and citations to official public standards.
+**1,100 questions** — 4-option MCQ, detailed explanations, citations to official standards, and NCARB-aligned topic tags for sub-division analytics.
 
 ### By Division
 
 | Division | Code | Questions |
 |---|---|---|
-| Practice Management | PcM | 75 |
-| Project Management | PjM | 75 |
-| Programming & Analysis | PA | 75 |
-| Project Planning & Design | PPD | 75 |
-| Project Docs & Delivery | PDD | 75 |
-| Construction & Evaluation | CE | 75 |
-| NYC Building Codes | NYC | 50 |
-| **Total** | | **500** |
+| Practice Management | PcM | 161 |
+| Project Management | PjM | 165 |
+| Programming & Analysis | PA | 165 |
+| Project Planning & Design | PPD | 165 |
+| Project Docs & Delivery | PDD | 165 |
+| Construction & Evaluation | CE | 165 |
+| NYC Building Codes | NYC | 114 |
+| **Total** | | **1,100** |
 
 ### By Difficulty
 
 | Level | Count | Share |
 |---|---|---|
-| Easy | 83 | 17% |
-| Medium | 289 | 58% |
-| Hard | 128 | 25% |
+| Easy | 248 | 23% |
+| Medium | 538 | 49% |
+| Hard | 314 | 29% |
+
+### examWeight
+
+`examWeight` is a 1-20 relative topic-priority score used as metadata for future weighted study selection, mock-exam balancing, and weak-area analytics. It is not a point value, not a scoring percentage, and not an NCARB-published weight. Higher values mean the question covers a more exam-critical, high-yield, or code/contract-risk-heavy concept.
 
 ### Reference Sources
 
+Many questions cite more than one source, so the counts below overlap and sum to more than 1,100.
+
 | Source | Qs | Link |
 |---|---|---|
-| NCARB ARE 5.0 Guidelines | 237 | [ncarb.org/ARE](https://www.ncarb.org/pass-the-are/are-5) |
-| AIA Contract Documents (A101, A201, B101, C401…) | 177 | [aia.org](https://www.aia.org/resources/64176-contract-documents) |
-| NYC Building Code / DOB / Local Laws | 57 | [nyc.gov/buildings](https://www.nyc.gov/site/buildings/codes/building-code.page) |
-| IBC 2021 | 9 | [codes.iccsafe.org](https://codes.iccsafe.org/content/IBC2021P1) |
-| ADA Standards for Accessible Design 2010 | 5 | [ada.gov](https://www.ada.gov/law-and-regs/design-standards/) |
-| ASHRAE 90.1 / 62.1 | 3 | [ashrae.org](https://www.ashrae.org/technical-resources/bookstore/standards-62-1-62-2) |
-| ASCE 7-22 / ACI / FEMA | 3 | [asce.org](https://www.asce.org/publications-and-news/asce-7) |
-| CSI / Specifications | 3 | [csinet.org](https://www.csiresources.org/) |
+| NCARB ARE 5.0 Guidelines | 859 | [ncarb.org/ARE](https://www.ncarb.org/pass-the-are/are-5) |
+| AIA Contract Documents (A101, A201, B101, C401…) | 394 | [aia.org](https://www.aia.org/resources/64176-contract-documents) |
+| NYC Building Code / DOB / Zoning / Local Laws | 147 | [nyc.gov/buildings](https://www.nyc.gov/site/buildings/codes/building-code.page) |
+| IBC (2021; NYC-amended 2015) | 98 | [codes.iccsafe.org](https://codes.iccsafe.org/content/IBC2021P1) |
+| ASHRAE 90.1 / 62.1 / 55 | 61 | [ashrae.org](https://www.ashrae.org/technical-resources/bookstore/standards-62-1-62-2) |
+| CSI MasterFormat / Specifications | 48 | [csiresources.org](https://www.csiresources.org/) |
+| ASCE 7-22 / ACI / FEMA | 36 | [asce.org](https://www.asce.org/publications-and-news/asce-7) |
+| ADA Standards for Accessible Design 2010 | 18 | [ada.gov](https://www.ada.gov/law-and-regs/design-standards/) |
+| NFPA 13 / 70 / 110 | 9 | [nfpa.org](https://www.nfpa.org/codes-and-standards) |
 
 <details>
 <summary>Sample questions by division</summary>
@@ -192,7 +199,7 @@ are_coach/
 │       └── seed_questions.dart           3-question emergency fallback
 ├── assets/
 │   ├── seeds/
-│   │   ├── questions_ny.json             500-question bank
+│   │   ├── questions_ny.json             1,100-question bank
 │   │   └── flashcards_ny.json           300-card flashcard deck
 │   └── images/                          App icons
 ├── functions/                           Firebase Cloud Functions (AI Coach, quota)
@@ -221,7 +228,7 @@ are_coach/
 
 ### Run in offline / demo mode
 
-No Firebase project required. The app loads the bundled 500-question JSON bank.
+No Firebase project required. The app loads the bundled 1,100-question JSON bank.
 
 ```bash
 flutter pub get
