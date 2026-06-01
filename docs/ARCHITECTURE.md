@@ -4,7 +4,7 @@
 ```
 Flutter App (UI + State)
   -> Firebase Auth (anonymous, email/password, Apple)
-  -> Bundled JSON assets (500 questions, 300 flashcards)
+  -> Bundled JSON assets (1,100 questions, 300 flashcards)
   -> Hive (flashcard progress, reminder/exam-date preferences)
   -> Firestore (questions, attempts, analytics, usage)
   -> Cloud Functions (askCoach, quota enforcement, billing hooks)
