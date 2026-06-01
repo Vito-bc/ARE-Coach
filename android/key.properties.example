@@ -1,0 +1,11 @@
+# Template for android/key.properties — copy this file to `key.properties`
+# and fill in your real values. NEVER commit key.properties or the keystore;
+# both are git-ignored. Losing the keystore means you can never update the
+# published app, so back it up somewhere safe (password manager / secure vault).
+
+storePassword=YOUR_KEYSTORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=upload
+# Path is resolved relative to android/app/ — place the keystore there,
+# or use an absolute path outside the repo.
+storeFile=upload-keystore.jks
