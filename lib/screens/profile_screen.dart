@@ -13,6 +13,7 @@ import '../core/readiness.dart';
 import 'ncarb_calculator_screen.dart';
 import '../core/theme/app_theme.dart';
 import '../core/ui/app_chrome.dart';
+import '../services/auth_service.dart';
 import '../services/iap_service.dart';
 import '../services/notification_service.dart';
 import 'paywall_screen.dart';
@@ -37,8 +38,10 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _iapService = IAPService();
+  final _authService = AuthService();
   StreamSubscription<PurchaseDetails>? _purchaseSub;
   bool _restoring = false;
+  bool _deleting = false;
   DateTime? _examDate;
 
   @override
@@ -129,6 +132,60 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _signOut() async {
     await FirebaseAuth.instance.signOut();
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text(
+          'Delete account?',
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
+        content: const Text(
+          'This permanently deletes your account and all your data — '
+          'study progress, attempts, analytics, and AI coach history. '
+          'This cannot be undone.\n\n'
+          'If you have an active subscription, cancel it separately in your '
+          'App Store or Google Play account settings.',
+          style: TextStyle(color: AppTheme.textSecondary, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    await _deleteAccount();
+  }
+
+  Future<void> _deleteAccount() async {
+    if (_deleting) return;
+    setState(() => _deleting = true);
+    try {
+      await _authService.deleteAccount();
+      // Success: the auth-state listener at the app root returns the user to
+      // the sign-in screen, so no explicit navigation is needed here.
+    } catch (e) {
+      if (mounted) {
+        setState(() => _deleting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not delete account. Please try again.'),
+          ),
+        );
+      }
+    }
   }
 
   void _openPaywall() {
@@ -577,13 +634,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             // ── Sign out ───────────────────────────────────────────
             if (widget.firebaseReady)
               OutlinedButton.icon(
-                onPressed: _signOut,
+                onPressed: _deleting ? null : _signOut,
                 icon: const Icon(Icons.logout_rounded, size: 18),
                 label: const Text('Sign Out'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppTheme.error,
                   side: BorderSide(
                     color: AppTheme.error.withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+
+            // ── Delete account (App Store Guideline 5.1.1(v)) ──────
+            if (widget.firebaseReady)
+              Center(
+                child: TextButton.icon(
+                  onPressed: _deleting ? null : _confirmDeleteAccount,
+                  icon: _deleting
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.delete_outline_rounded, size: 16),
+                  label: Text(_deleting ? 'Deleting…' : 'Delete Account'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.textSecondary,
+                    textStyle: const TextStyle(fontSize: 13),
                   ),
                 ),
               ),

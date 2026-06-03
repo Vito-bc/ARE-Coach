@@ -6,7 +6,8 @@
       "request": "launch",
       "type": "dart",
       "args": [
-        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app"
+        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app",
+        "--dart-define=DELETE_ACCOUNT_URL=https://deleteaccount-izodv6upya-uc.a.run.app"
       ]
     },
     {
@@ -14,7 +15,8 @@
       "request": "launch",
       "type": "dart",
       "args": [
-        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app"
+        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app",
+        "--dart-define=DELETE_ACCOUNT_URL=https://deleteaccount-izodv6upya-uc.a.run.app"
       ]
     },
     {
@@ -23,7 +25,8 @@
       "type": "dart",
       "flutterMode": "profile",
       "args": [
-        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app"
+        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app",
+        "--dart-define=DELETE_ACCOUNT_URL=https://deleteaccount-izodv6upya-uc.a.run.app"
       ]
     }
   ]
