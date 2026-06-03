@@ -3,8 +3,10 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 typedef AppleCredentialRequest =
@@ -16,13 +18,25 @@ class AuthService {
     FirebaseAuth? auth,
     FirebaseFirestore? firestore,
     @visibleForTesting AppleCredentialRequest? appleCredentialRequest,
+    @visibleForTesting http.Client? httpClient,
+    @visibleForTesting String? deleteAccountUrlOverride,
   }) : _providedAuth = auth,
        _providedFirestore = firestore,
-       _appleCredentialRequest = appleCredentialRequest;
+       _appleCredentialRequest = appleCredentialRequest,
+       _httpClient = httpClient,
+       _deleteAccountUrlOverride = deleteAccountUrlOverride;
 
   final FirebaseAuth? _providedAuth;
   final FirebaseFirestore? _providedFirestore;
   final AppleCredentialRequest? _appleCredentialRequest;
+  final http.Client? _httpClient;
+  final String? _deleteAccountUrlOverride;
+
+  http.Client get _http => _httpClient ?? http.Client();
+
+  String get _deleteAccountUrl =>
+      _deleteAccountUrlOverride ??
+      const String.fromEnvironment('DELETE_ACCOUNT_URL');
 
   FirebaseAuth get _auth => _providedAuth ?? FirebaseAuth.instance;
   FirebaseFirestore get _firestore =>
@@ -131,6 +145,51 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    await _auth.signOut();
+  }
+
+  /// Permanently deletes the signed-in user's account and all associated data.
+  ///
+  /// Calls the `deleteAccount` Cloud Function, which removes the user's
+  /// Firestore data (which the security rules forbid the client from deleting
+  /// directly) and the Firebase Auth user using admin privileges. On success
+  /// the local session is cleared. Required by App Store Guideline 5.1.1(v).
+  ///
+  /// If no `DELETE_ACCOUNT_URL` is configured (e.g. local/dev), it falls back
+  /// to a client-side auth-only deletion, which may throw
+  /// `requires-recent-login` and does not remove server data.
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw StateError('No signed-in user to delete.');
+    }
+
+    final endpoint = _deleteAccountUrl;
+    if (endpoint.isEmpty) {
+      // Dev/local fallback: delete the auth user only (no server data wipe).
+      await user.delete();
+      return;
+    }
+
+    // Force-refresh the ID token so the server receives a fresh credential.
+    final idToken = await user.getIdToken(true);
+    String? appCheckToken;
+    try {
+      appCheckToken = await FirebaseAppCheck.instance.getToken();
+    } catch (_) {}
+
+    final headers = <String, String>{'Content-Type': 'application/json'};
+    if (idToken != null) headers['Authorization'] = 'Bearer $idToken';
+    if (appCheckToken != null) headers['X-Firebase-AppCheck'] = appCheckToken;
+
+    final response = await _http.post(Uri.parse(endpoint), headers: headers);
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Account deletion failed (${response.statusCode}). Please try again.',
+      );
+    }
+
+    // The server deleted the auth user; clear any local session state.
     await _auth.signOut();
   }
 

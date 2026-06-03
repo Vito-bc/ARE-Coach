@@ -167,6 +167,73 @@ exports.validateReceipt = onRequest(
   }
 );
 
+exports.deleteAccount = onRequest(
+  {
+    region: "us-central1",
+    cors: true,
+    timeoutSeconds: 120,
+    memory: "256MiB",
+    maxInstances: 5,
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      return sendError(res, 405, "Method not allowed");
+    }
+
+    try {
+      // The account to delete is always the authenticated caller's own uid,
+      // derived from a verified, fresh ID token — a user can never delete
+      // another account. App Check confirms the request is from the real app.
+      const uid = await verifyBearerToken(req);
+      await verifyAppCheck(req);
+
+      // 1. Delete every per-user document tree (doc + all nested subcollections).
+      //    recursiveDelete is a no-op on a path that doesn't exist, so this is
+      //    safe even for users with partial data.
+      const userTrees = [
+        db.collection("users").doc(uid),
+        db.collection("subscriptions").doc(uid),
+        db.collection("attempts").doc(uid),
+        db.collection("analytics").doc(uid),
+        db.collection("coach_chats").doc(uid),
+        db.collection("usage").doc(uid),
+      ];
+      for (const ref of userTrees) {
+        await db.recursiveDelete(ref);
+      }
+
+      // 2. Delete the user's question reports (stored flat with a uid field).
+      await deleteReportsByUid(uid);
+
+      // 3. Delete the Firebase Auth user last, once their data is gone.
+      await admin.auth().deleteUser(uid);
+
+      logger.info("account_deleted", { uid });
+      return res.status(200).json({ deleted: true });
+    } catch (err) {
+      logger.error("deleteAccount failed", err);
+      if (err instanceof HttpsError) {
+        return sendError(res, mapHttpsErrorStatus(err.code), err.message);
+      }
+      return sendError(res, err.statusCode || 500, err.message || "Internal error");
+    }
+  }
+);
+
+async function deleteReportsByUid(uid) {
+  const snap = await db.collection("reports").where("uid", "==", uid).get();
+  if (snap.empty) return;
+  const docs = snap.docs;
+  // Commit in chunks of 500 to respect the Firestore batch limit.
+  for (let i = 0; i < docs.length; i += 500) {
+    const batch = db.batch();
+    for (const d of docs.slice(i, i + 500)) {
+      batch.delete(d.ref);
+    }
+    await batch.commit();
+  }
+}
+
 async function callAppleVerify(url, payload) {
   const response = await fetch(url, {
     method: "POST",

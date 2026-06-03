@@ -3,10 +3,13 @@ import 'package:are_coach/services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class MockFirebaseAuth extends Mock implements FirebaseAuth {}
+
+class MockHttpClient extends Mock implements http.Client {}
 
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 
@@ -55,6 +58,7 @@ void main() {
     registerFallbackValue(SetOptions(merge: true));
     registerFallbackValue(<String, dynamic>{});
     registerFallbackValue(FakeAuthCredential());
+    registerFallbackValue(Uri.parse('https://example.com'));
   });
 
   setUp(() {
@@ -340,6 +344,87 @@ void main() {
       await sut.signOut();
 
       verify(() => mockAuth.signOut()).called(1);
+    });
+  });
+
+  group('deleteAccount', () {
+    late MockHttpClient mockHttp;
+    const endpoint = 'https://example.com/deleteAccount';
+
+    setUp(() {
+      mockHttp = MockHttpClient();
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(() => mockUser.getIdToken(true)).thenAnswer((_) async => 'fresh-token');
+      when(() => mockUser.delete()).thenAnswer((_) async {});
+      when(() => mockAuth.signOut()).thenAnswer((_) async {});
+    });
+
+    test('throws when no user is signed in', () async {
+      when(() => mockAuth.currentUser).thenReturn(null);
+      sut = AuthService(
+        auth: mockAuth,
+        firestore: mockFirestore,
+        httpClient: mockHttp,
+        deleteAccountUrlOverride: endpoint,
+      );
+
+      expect(() => sut.deleteAccount(), throwsA(isA<StateError>()));
+    });
+
+    test('posts a bearer token to the endpoint then signs out on 200', () async {
+      when(
+        () => mockHttp.post(any(), headers: any(named: 'headers')),
+      ).thenAnswer((_) async => http.Response('{"deleted":true}', 200));
+
+      sut = AuthService(
+        auth: mockAuth,
+        firestore: mockFirestore,
+        httpClient: mockHttp,
+        deleteAccountUrlOverride: endpoint,
+      );
+
+      await sut.deleteAccount();
+
+      final captured = verify(
+        () => mockHttp.post(
+          captureAny(),
+          headers: captureAny(named: 'headers'),
+        ),
+      ).captured;
+      expect((captured[0] as Uri).toString(), endpoint);
+      final headers = captured[1] as Map<String, String>;
+      expect(headers['Authorization'], 'Bearer fresh-token');
+      verify(() => mockAuth.signOut()).called(1);
+    });
+
+    test('throws and does not sign out when the server returns non-200', () async {
+      when(
+        () => mockHttp.post(any(), headers: any(named: 'headers')),
+      ).thenAnswer((_) async => http.Response('{"error":"x"}', 500));
+
+      sut = AuthService(
+        auth: mockAuth,
+        firestore: mockFirestore,
+        httpClient: mockHttp,
+        deleteAccountUrlOverride: endpoint,
+      );
+
+      await expectLater(sut.deleteAccount(), throwsA(isA<Exception>()));
+      verifyNever(() => mockAuth.signOut());
+    });
+
+    test('falls back to client-side user.delete when no endpoint configured', () async {
+      sut = AuthService(
+        auth: mockAuth,
+        firestore: mockFirestore,
+        httpClient: mockHttp,
+        deleteAccountUrlOverride: '',
+      );
+
+      await sut.deleteAccount();
+
+      verify(() => mockUser.delete()).called(1);
+      verifyNever(() => mockHttp.post(any(), headers: any(named: 'headers')));
     });
   });
 
