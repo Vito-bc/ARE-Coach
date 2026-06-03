@@ -1,0 +1,103 @@
+name: Release Build
+
+# Produces installable release artifacts so you don't need a local Android SDK
+# or a Mac. Run manually from the Actions tab (workflow_dispatch) or by pushing
+# a version tag like v1.3.0.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+# Non-secret build-time URLs. Override via repo Variables (Settings → Secrets
+# and variables → Actions → Variables) if your deployed function URLs differ.
+env:
+  VALIDATE_RECEIPT_URL: ${{ vars.VALIDATE_RECEIPT_URL || 'https://validatereceipt-izodv6upya-uc.a.run.app' }}
+  DELETE_ACCOUNT_URL: ${{ vars.DELETE_ACCOUNT_URL || 'https://deleteaccount-izodv6upya-uc.a.run.app' }}
+
+jobs:
+  android:
+    name: Android App Bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Writes the upload keystore + key.properties only when the signing
+      # secrets are present. Without them the build still runs but produces a
+      # DEBUG-signed bundle (good for pipeline testing, NOT for the Play Store).
+      - name: Configure signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+            {
+              echo "storePassword=$ANDROID_STORE_PASSWORD"
+              echo "keyPassword=$ANDROID_KEY_PASSWORD"
+              echo "keyAlias=${ANDROID_KEY_ALIAS:-upload}"
+              echo "storeFile=upload-keystore.jks"
+            } > android/key.properties
+            echo "Release signing configured."
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — building DEBUG-signed (not uploadable to Play)."
+          fi
+
+      - name: Build app bundle
+        run: >
+          flutter build appbundle
+          --dart-define=VALIDATE_RECEIPT_URL=$VALIDATE_RECEIPT_URL
+          --dart-define=DELETE_ACCOUNT_URL=$DELETE_ACCOUNT_URL
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+  ios:
+    name: iOS build check (no codesign)
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Validates that iOS compiles in CI. A fully signed, uploadable .ipa
+      # additionally needs Apple signing assets (distribution certificate,
+      # provisioning profile, App Store Connect API key) wired as secrets —
+      # set those up separately when you're ready to ship iOS from CI.
+      - name: Build iOS (no codesign)
+        run: >
+          flutter build ios --no-codesign
+          --dart-define=VALIDATE_RECEIPT_URL=$VALIDATE_RECEIPT_URL
+          --dart-define=DELETE_ACCOUNT_URL=$DELETE_ACCOUNT_URL
