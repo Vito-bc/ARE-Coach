@@ -14,5 +14,11 @@
   "dependencies": {
     "firebase-admin": "^13.7.0",
     "firebase-functions": "^7.2.5"
+  },
+  "comment-overrides": "Patch-level overrides for transitive web-facing CVEs in the express request-parsing chain pulled in by firebase-functions. Same-major patches, safe. The remaining moderate advisories are internal GCP-SDK deps (uuid/gaxios/google-gax) that only 'fix' via a firebase-admin major downgrade — left until Google bumps them upstream.",
+  "overrides": {
+    "express": "4.22.2",
+    "body-parser": "1.20.5",
+    "qs": "6.15.2"
   }
 }
