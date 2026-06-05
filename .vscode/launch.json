@@ -7,7 +7,7 @@
       "type": "dart",
       "args": [
         "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app",
-        "--dart-define=DELETE_ACCOUNT_URL=https://deleteaccount-izodv6upya-uc.a.run.app"
+        "--dart-define=DELETE_ACCOUNT_URL=https://us-central1-architect-study-app.cloudfunctions.net/deleteAccount"
       ]
     },
     {
@@ -16,7 +16,7 @@
       "type": "dart",
       "args": [
         "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app",
-        "--dart-define=DELETE_ACCOUNT_URL=https://deleteaccount-izodv6upya-uc.a.run.app"
+        "--dart-define=DELETE_ACCOUNT_URL=https://us-central1-architect-study-app.cloudfunctions.net/deleteAccount"
       ]
     },
     {
@@ -26,7 +26,7 @@
       "flutterMode": "profile",
       "args": [
         "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app",
-        "--dart-define=DELETE_ACCOUNT_URL=https://deleteaccount-izodv6upya-uc.a.run.app"
+        "--dart-define=DELETE_ACCOUNT_URL=https://us-central1-architect-study-app.cloudfunctions.net/deleteAccount"
       ]
     }
   ]
