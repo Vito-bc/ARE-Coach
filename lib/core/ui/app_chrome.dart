@@ -1,6 +1,51 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'app_spacing.dart';
+import 'app_tappable.dart';
+
+/// The canonical content card: surface fill, hairline border, rounded corners.
+///
+/// Replaces the older [AppGlassCard], the per-screen `_Card`s, and raw
+/// decorated `Container`s. Pass [onTap] to make the whole card tappable with
+/// built-in press feedback. Pass [accentBorder] to highlight it.
+class AppCard extends StatelessWidget {
+  const AppCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(AppSpacing.lg),
+    this.onTap,
+    this.accentBorder,
+    this.borderWidth,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final VoidCallback? onTap;
+
+  /// When set, draws the card border in this colour (e.g. an accent highlight).
+  final Color? accentBorder;
+  final double? borderWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: accentBorder ?? AppTheme.separator,
+          width: borderWidth ?? (accentBorder != null ? 1 : 0.5),
+        ),
+      ),
+      child: child,
+    );
+    if (onTap == null) return card;
+    return AppTappable(onTap: onTap, child: card);
+  }
+}
 
 /// Dark surface card — ArchiEd urban night palette.
 class AppGlassCard extends StatelessWidget {

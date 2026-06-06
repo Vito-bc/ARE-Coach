@@ -11,7 +11,8 @@ class AppTheme {
   static const Color white = Color(0xFFFFFFFF);
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFF8B9CB6);
-  static const Color separator = Color(0xFF21262D);
+  static const Color separator = Color(0xFF21262D);   // hairline divider
+  static const Color border = Color(0xFF374151);      // stronger control border
   static const Color success = Color(0xFF22C55E);
   static const Color error = Color(0xFFEF4444);
   static const Color warning = Color(0xFFF59E0B);
