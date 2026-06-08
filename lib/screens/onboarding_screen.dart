@@ -7,9 +7,14 @@ import '../core/theme/app_theme.dart';
 import 'home_shell.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({super.key, this.onDone});
 
   static const routeName = '/onboarding';
+
+  /// Called when the user finishes onboarding. When provided, the screen
+  /// delegates "what comes next" to the caller (the app shell decides whether
+  /// to show Login or Home). When null it falls back to navigating Home.
+  final VoidCallback? onDone;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -26,6 +31,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _finishOnboarding() async {
+    if (widget.onDone != null) {
+      widget.onDone!();
+      return;
+    }
+    // Fallback (no host callback): persist the flag and go straight Home.
     final box = await Hive.openBox('settings');
     await box.put('onboarded', true);
     if (!mounted) return;
