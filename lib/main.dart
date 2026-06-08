@@ -93,6 +93,7 @@ class _ArchiEdBootstrapState extends State<ArchiEdBootstrap> {
 
   Widget _wait() => const MaterialApp(
         debugShowCheckedModeBanner: false,
+        title: 'ARE Coach',
         home: Scaffold(
           backgroundColor: AppTheme.navy,
           body: Center(child: CircularProgressIndicator(color: AppTheme.yellow)),
@@ -107,6 +108,7 @@ class _ArchiEdBootstrapState extends State<ArchiEdBootstrap> {
     if (!_onboarded) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
+        title: 'ARE Coach',
         theme: AppTheme.dark(),
         darkTheme: AppTheme.dark(),
         themeMode: ThemeMode.dark,
@@ -131,6 +133,7 @@ class _ArchiEdBootstrapState extends State<ArchiEdBootstrap> {
         if (snapshot.data == null) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
+            title: 'ARE Coach',
             theme: AppTheme.dark(),
             darkTheme: AppTheme.dark(),
             themeMode: ThemeMode.dark,

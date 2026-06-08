@@ -118,7 +118,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           SafeArea(
             child: Column(
               children: [
-                // ArchiEd top-left
+                // ARE Coach wordmark, top-left
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
                   child: Align(
@@ -137,11 +137,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'ArchiEd',
+                          'ARE Coach',
                           style: TextStyle(
                             fontSize: 40,
                             fontWeight: FontWeight.w900,
-                            letterSpacing: -2,
+                            letterSpacing: -1.5,
                             color: AppTheme.white,
                             height: 1.0,
                           ),

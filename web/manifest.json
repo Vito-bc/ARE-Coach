@@ -1,11 +1,11 @@
 {
-    "name": "architectula_education_app",
-    "short_name": "architectula_education_app",
+    "name": "ARE Coach",
+    "short_name": "ARE Coach",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0D1117",
+    "theme_color": "#0D1117",
+    "description": "ARE Coach — NYC ARE 5.0 exam prep for architects.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

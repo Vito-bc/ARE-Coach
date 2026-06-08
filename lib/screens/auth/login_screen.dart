@@ -251,11 +251,11 @@ class _Branding extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           const Text(
-            'ArchiEd',
+            'ARE Coach',
             style: TextStyle(
-              fontSize: 48,
+              fontSize: 44,
               fontWeight: FontWeight.w900,
-              letterSpacing: -2,
+              letterSpacing: -1.5,
               color: AppTheme.white,
               height: 1.0,
             ),

@@ -16,7 +16,7 @@ class _ArchiEdAppState extends State<ArchiEdApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'ArchiEd',
+      title: 'ARE Coach',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
       darkTheme: AppTheme.dark(),
