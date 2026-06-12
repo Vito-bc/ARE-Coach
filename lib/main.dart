@@ -14,7 +14,7 @@ import 'core/theme/app_theme.dart';
 import 'services/notification_service.dart';
 import 'firebase_options.dart';
 import 'screens/auth/login_screen.dart';
-import 'services/auth_service.dart';
+import 'screens/onboarding_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,64 +66,81 @@ class ArchiEdBootstrap extends StatefulWidget {
 }
 
 class _ArchiEdBootstrapState extends State<ArchiEdBootstrap> {
-  bool _initializing = true;
-  bool _guestMode = false;
+  bool _loading = true;
+  bool _onboarded = false;
 
   @override
   void initState() {
     super.initState();
-    _init();
+    _load();
   }
 
-  Future<void> _init() async {
-    if (widget.firebaseReady) {
-      try {
-        final authService = AuthService();
-        await authService.ensureSignedIn();
-      } catch (_) {
-        // If auth is not enabled yet, keep app in demo/fallback mode.
-      }
-    }
+  Future<void> _load() async {
+    final box = await Hive.openBox('settings');
+    final onboarded = box.get('onboarded', defaultValue: false) as bool;
     if (!mounted) return;
-    setState(() => _initializing = false);
+    setState(() {
+      _onboarded = onboarded;
+      _loading = false;
+    });
   }
+
+  Future<void> _completeOnboarding() async {
+    final box = await Hive.openBox('settings');
+    await box.put('onboarded', true);
+    if (mounted) setState(() => _onboarded = true);
+  }
+
+  Widget _wait() => const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'ARE Coach',
+        home: Scaffold(
+          backgroundColor: AppTheme.navy,
+          body: Center(child: CircularProgressIndicator(color: AppTheme.yellow)),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
-    if (_initializing) {
-      return const MaterialApp(
-        home: Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+    if (_loading) return _wait();
+
+    // 1. First launch → onboarding before anything else.
+    if (!_onboarded) {
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'ARE Coach',
+        theme: AppTheme.dark(),
+        darkTheme: AppTheme.dark(),
+        themeMode: ThemeMode.dark,
+        home: OnboardingScreen(onDone: _completeOnboarding),
       );
     }
 
+    // 2. No Firebase configured → run the app in demo mode (no auth).
     if (!widget.firebaseReady) {
       return const ArchiEdApp(firebaseReady: false);
     }
 
+    // 3. Auth gate: signed out → Login; signed in (incl. guest/anonymous) → app.
+    //    Email, Apple, registration and "continue as guest" all change the auth
+    //    state, which this StreamBuilder reacts to. Sign-out returns to Login.
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const MaterialApp(
-            home: Scaffold(body: Center(child: CircularProgressIndicator())),
-          );
+          return _wait();
         }
-        final user = snapshot.data;
-        if (user == null && !_guestMode) {
+        if (snapshot.data == null) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
+            title: 'ARE Coach',
             theme: AppTheme.dark(),
             darkTheme: AppTheme.dark(),
             themeMode: ThemeMode.dark,
-            home: LoginScreen(
-              firebaseReady: widget.firebaseReady,
-              onGuestContinue: () => setState(() => _guestMode = true),
-            ),
+            home: const LoginScreen(firebaseReady: true),
           );
         }
-        return ArchiEdApp(firebaseReady: widget.firebaseReady && user != null);
+        return const ArchiEdApp(firebaseReady: true);
       },
     );
   }
