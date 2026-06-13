@@ -1,14 +1,21 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/providers.dart';
 import '../core/study_streak.dart';
 import '../core/theme/app_theme.dart';
 import '../models/flashcard.dart';
 import '../services/flashcard_repository.dart';
+import '../services/iap_service.dart';
+import 'coach_screen.dart';
+import 'paywall_screen.dart';
 
-class FlashcardSessionScreen extends StatefulWidget {
+class FlashcardSessionScreen extends ConsumerStatefulWidget {
   const FlashcardSessionScreen({
     super.key,
     required this.section,
@@ -23,10 +30,11 @@ class FlashcardSessionScreen extends StatefulWidget {
   final void Function(Map<String, CardStatus> updated) onComplete;
 
   @override
-  State<FlashcardSessionScreen> createState() => _FlashcardSessionScreenState();
+  ConsumerState<FlashcardSessionScreen> createState() =>
+      _FlashcardSessionScreenState();
 }
 
-class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
+class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
     with SingleTickerProviderStateMixin {
   final _repo = FlashcardRepository();
   late final AnimationController _flipCtrl;
@@ -101,6 +109,60 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
     }
   }
 
+  /// Premium: open the AI Coach pre-filled with a "explain this card" prompt.
+  /// Free: a gentle upgrade prompt that leads to the paywall.
+  void _explainWithCoach() {
+    final card = _current;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final role = ref.read(userRoleProvider(uid)).valueOrNull ?? 'free';
+    final isPremium = role == 'premium';
+
+    if (!isPremium) {
+      unawaited(_showCoachUpsell());
+      return;
+    }
+
+    final prompt =
+        'Explain this ARE flashcard in simpler terms, then give one short '
+        'practical example.\n\nTerm: ${card.front}\nDefinition: ${card.back}';
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => CoachScreen(initialMessage: prompt)),
+    );
+  }
+
+  Future<void> _showCoachUpsell() async {
+    final upgrade = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text(
+          'Ask the Coach',
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
+        content: const Text(
+          'Get this card explained in plain language with an example by the AI '
+          'Coach. Available on Premium.',
+          style: TextStyle(color: AppTheme.textSecondary, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Maybe later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Upgrade'),
+          ),
+        ],
+      ),
+    );
+    if (upgrade == true && mounted) {
+      unawaited(Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => PaywallScreen(iapService: IAPService())),
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -134,6 +196,7 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
         showBack: _showBack,
         onFlip: _flip,
         onRate: _rate,
+        onExplain: _explainWithCoach,
       ),
     );
   }
@@ -152,6 +215,7 @@ class _Session extends StatelessWidget {
     required this.showBack,
     required this.onFlip,
     required this.onRate,
+    required this.onExplain,
   });
 
   final Flashcard current;
@@ -161,6 +225,7 @@ class _Session extends StatelessWidget {
   final bool showBack;
   final VoidCallback onFlip;
   final void Function(CardStatus) onRate;
+  final VoidCallback onExplain;
 
   @override
   Widget build(BuildContext context) {
@@ -230,7 +295,19 @@ class _Session extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+
+                // Explain with Coach — only visible after flip
+                AnimatedOpacity(
+                  opacity: showBack ? 1 : 0,
+                  duration: const Duration(milliseconds: 250),
+                  child: IgnorePointer(
+                    ignoring: !showBack,
+                    child: _ExplainButton(onTap: onExplain),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
 
                 // Rating row — only visible after flip
                 AnimatedOpacity(
@@ -248,6 +325,43 @@ class _Session extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ExplainButton extends StatelessWidget {
+  const _ExplainButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        decoration: BoxDecoration(
+          color: AppTheme.blue.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.blue.withValues(alpha: 0.35)),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.auto_awesome_rounded, size: 16, color: AppTheme.blue),
+            SizedBox(width: 8),
+            Text(
+              'Explain with Coach',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.blue,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
