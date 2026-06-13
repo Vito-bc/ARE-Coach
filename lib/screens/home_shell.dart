@@ -40,7 +40,10 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      DashboardScreen(firebaseReady: widget.firebaseReady),
+      DashboardScreen(
+        firebaseReady: widget.firebaseReady,
+        onSelectTab: _setIndex,
+      ),
       TestsScreen(firebaseReady: widget.firebaseReady),
       const FlashcardsScreen(),
       const CoachScreen(),

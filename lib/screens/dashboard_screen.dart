@@ -8,6 +8,7 @@ import '../core/readiness.dart';
 import '../core/study_streak.dart';
 import '../core/theme/app_theme.dart';
 import '../core/ui/app_chrome.dart';
+import '../core/ui/app_tappable.dart';
 import '../models/flashcard.dart';
 import '../services/flashcard_repository.dart';
 import '../services/progress_repository.dart';
@@ -15,9 +16,17 @@ import 'attempt_history_screen.dart';
 import 'insights_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
-  const DashboardScreen({super.key, required this.firebaseReady});
+  const DashboardScreen({
+    super.key,
+    required this.firebaseReady,
+    this.onSelectTab,
+  });
 
   final bool firebaseReady;
+
+  /// Lets the dashboard switch the bottom-nav tab (e.g. a "Start practice"
+  /// CTA jumps to Tests, division tiles jump to Cards).
+  final void Function(int index)? onSelectTab;
 
   @override
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
@@ -81,6 +90,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (mounted) setState(() => _divisionProgress = progress);
   }
 
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid =
@@ -113,10 +129,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
+                  // Stronger scrim so the hero reads as a subtle top accent
+                  // and the data below sits on near-solid navy for legibility.
+                  stops: const [0.0, 0.28, 0.5],
                   colors: [
-                    Colors.black.withValues(alpha: 0.42),
-                    const Color(0xFF0D1117).withValues(alpha: 0.72),
-                    const Color(0xFF0D1117).withValues(alpha: 0.94),
+                    Colors.black.withValues(alpha: 0.35),
+                    const Color(0xFF0D1117).withValues(alpha: 0.88),
+                    const Color(0xFF0D1117),
                   ],
                 ),
               ),
@@ -145,11 +164,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text('Home', style: tt.displayLarge),
+                                          Text(_greeting(), style: tt.displayLarge),
                                           const SizedBox(height: 4),
                                           Text(
                                             widget.firebaseReady
-                                                ? 'NYC ARE Prep'
+                                                ? 'Ready to study?'
                                                 : 'Demo mode',
                                             style: tt.bodyMedium,
                                           ),
@@ -173,6 +192,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   accent: accent,
                                   tt: tt,
                                   isDemo: !widget.firebaseReady,
+                                ),
+                              ),
+                            ),
+
+                            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                            // Primary CTA — jump straight into practice
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                                child: _StartPracticeCard(
+                                  onTap: () => widget.onSelectTab?.call(1),
                                 ),
                               ),
                             ),
@@ -284,27 +315,48 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 ),
                               ),
 
-                            // Flashcard progress
+                            // Flashcard progress — tappable division grid
                             if (_divisionProgress.isNotEmpty) ...[
                               const SliverToBoxAdapter(child: SizedBox(height: 24)),
                               SliverToBoxAdapter(
                                 child: Padding(
                                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                                  child: AppSection(
-                                    title: 'Flashcard Progress',
-                                    child: Column(
-                                      children: _divisionProgress
-                                          .asMap()
-                                          .entries
-                                          .map(
-                                            (e) => _FlashcardDivisionRow(
-                                              progress: e.value,
-                                              showDivider:
-                                                  e.key < _divisionProgress.length - 1,
-                                            ),
-                                          )
-                                          .toList(),
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Padding(
+                                        padding: EdgeInsets.fromLTRB(4, 0, 4, 10),
+                                        child: Text(
+                                          'FLASHCARD PROGRESS',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 0.3,
+                                            color: AppTheme.textSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                      LayoutBuilder(
+                                        builder: (context, c) {
+                                          const gap = 10.0;
+                                          final w = (c.maxWidth - gap) / 2;
+                                          return Wrap(
+                                            spacing: gap,
+                                            runSpacing: gap,
+                                            children: _divisionProgress
+                                                .map(
+                                                  (p) => _DivisionTile(
+                                                    progress: p,
+                                                    width: w,
+                                                    onTap: () =>
+                                                        widget.onSelectTab?.call(2),
+                                                  ),
+                                                )
+                                                .toList(),
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -387,81 +439,144 @@ class _StreakChip extends StatelessWidget {
 
 // ── Flashcard division row ────────────────────────────────────────────────────
 
-class _FlashcardDivisionRow extends StatelessWidget {
-  const _FlashcardDivisionRow({
+class _StartPracticeCard extends StatelessWidget {
+  const _StartPracticeCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      onTap: onTap,
+      accentBorder: AppTheme.yellow.withValues(alpha: 0.35),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppTheme.yellow.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.bolt_rounded, color: AppTheme.yellow, size: 24),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Start a practice test',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Quick quiz, by division, or full mock exam',
+                  style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppTheme.yellow),
+        ],
+      ),
+    );
+  }
+}
+
+class _DivisionTile extends StatelessWidget {
+  const _DivisionTile({
     required this.progress,
-    required this.showDivider,
+    required this.width,
+    required this.onTap,
   });
 
   final _DivisionProgress progress;
-  final bool showDivider;
+  final double width;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final isDone = progress.mastered == progress.total && progress.total > 0;
     final hasStarted = progress.mastered > 0;
-    final barColor = isDone
+    final color = isDone
         ? AppTheme.success
         : hasStarted
             ? AppTheme.yellow
             : AppTheme.textSecondary;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppTheme.yellow.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      progress.abbr,
-                      style: const TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.yellow,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${progress.mastered} / ${progress.total}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: barColor,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: progress.ratio,
-                  minHeight: 3,
-                  backgroundColor: AppTheme.separator,
-                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
-                ),
-              ),
-            ],
+    return AppTappable(
+      onTap: onTap,
+      child: Container(
+        width: width,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDone
+                ? AppTheme.success.withValues(alpha: 0.3)
+                : AppTheme.separator,
+            width: isDone ? 1 : 0.5,
           ),
         ),
-        if (showDivider)
-          const Divider(
-            height: 0,
-            indent: 16,
-            color: AppTheme.separator,
-            thickness: 0.5,
-          ),
-      ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.yellow.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    progress.abbr,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.yellow,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (isDone)
+                  const Icon(Icons.check_circle_rounded,
+                      size: 14, color: AppTheme.success),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '${progress.mastered} / ${progress.total}',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 2),
+            const Text(
+              'cards mastered',
+              style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progress.ratio,
+                minHeight: 3,
+                backgroundColor: AppTheme.separator,
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -605,17 +720,6 @@ class _ReadinessCard extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: (percent / 100).clamp(0.0, 1.0),
-              minHeight: 6,
-              valueColor: AlwaysStoppedAnimation<Color>(accent),
-              backgroundColor:
-                  isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE5E5EA),
-            ),
           ),
         ],
       ),
