@@ -79,7 +79,19 @@ class AuthService {
       password: password,
     );
     if (credential.user != null) await _ensureUserRecord(credential.user!);
+    await _sendVerificationIfNeeded(credential.user);
     return credential.user;
+  }
+
+  /// Sends a verification email for a freshly created email/password account.
+  /// Non-fatal — the user can resend it later from the Profile screen.
+  Future<void> _sendVerificationIfNeeded(User? user) async {
+    if (user == null || user.emailVerified) return;
+    try {
+      await user.sendEmailVerification();
+    } catch (_) {
+      // Ignore: verification is best-effort and retryable from Profile.
+    }
   }
 
   Future<User?> signInWithApple() async {
@@ -129,6 +141,7 @@ class AuthService {
         emailCredential,
       );
       if (result.user != null) await _ensureUserRecord(result.user!);
+      await _sendVerificationIfNeeded(result.user);
       return result.user;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'credential-already-in-use' ||
@@ -146,6 +159,29 @@ class AuthService {
 
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  /// Whether the signed-in user authenticated with email/password.
+  bool get isPasswordUser =>
+      _auth.currentUser?.providerData
+          .any((p) => p.providerId == 'password') ??
+      false;
+
+  /// Whether the signed-in user's email address has been verified.
+  bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
+
+  /// True when an email/password user still needs to verify their address —
+  /// drives the "verify email" prompt on the Profile screen.
+  bool get needsEmailVerification => isPasswordUser && !isEmailVerified;
+
+  /// (Re)sends the verification email to the current user.
+  Future<void> sendEmailVerification() async {
+    await _auth.currentUser?.sendEmailVerification();
+  }
+
+  /// Refreshes the cached user so [isEmailVerified] reflects the latest state.
+  Future<void> reloadUser() async {
+    await _auth.currentUser?.reload();
   }
 
   /// Permanently deletes the signed-in user's account and all associated data.

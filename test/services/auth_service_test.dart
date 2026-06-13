@@ -72,6 +72,8 @@ void main() {
     when(() => mockUser.uid).thenReturn('test-uid');
     when(() => mockUser.email).thenReturn('test@example.com');
     when(() => mockUser.displayName).thenReturn(null);
+    when(() => mockUser.emailVerified).thenReturn(false);
+    when(() => mockUser.sendEmailVerification()).thenAnswer((_) async {});
 
     _stubFirestore(mockFirestore, mockCollection, mockDoc, mockSnapshot);
 
@@ -253,6 +255,39 @@ void main() {
       );
 
       expect(result, equals(mockUser));
+    });
+
+    test('sends a verification email after creating the account', () async {
+      final mockCredential = MockUserCredential();
+      when(() => mockAuth.currentUser).thenReturn(null);
+      when(
+        () => mockAuth.createUserWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockCredential.user).thenReturn(mockUser);
+
+      await sut.registerWithEmail('new@example.com', 'password123');
+
+      verify(() => mockUser.sendEmailVerification()).called(1);
+    });
+
+    test('does not send verification when the email is already verified', () async {
+      final mockCredential = MockUserCredential();
+      when(() => mockUser.emailVerified).thenReturn(true);
+      when(() => mockAuth.currentUser).thenReturn(null);
+      when(
+        () => mockAuth.createUserWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockCredential.user).thenReturn(mockUser);
+
+      await sut.registerWithEmail('new@example.com', 'password123');
+
+      verifyNever(() => mockUser.sendEmailVerification());
     });
 
     test('links anonymous account when user is anonymous', () async {
