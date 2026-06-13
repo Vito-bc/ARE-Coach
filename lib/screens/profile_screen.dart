@@ -42,6 +42,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   StreamSubscription<PurchaseDetails>? _purchaseSub;
   bool _restoring = false;
   bool _deleting = false;
+  bool _verificationSending = false;
   DateTime? _examDate;
 
   @override
@@ -50,12 +51,46 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _iapService.initialize();
     _loadReminderPref();
     _loadExamDate();
+    _refreshEmailStatus();
     _purchaseSub = _iapService.purchaseUpdates.listen(
       _onPurchaseUpdate,
       onError: (_) {
         if (mounted) setState(() => _restoring = false);
       },
     );
+  }
+
+  /// Pulls the latest verification state so the "verify email" prompt hides
+  /// once the user has confirmed (possibly on another device).
+  Future<void> _refreshEmailStatus() async {
+    if (!widget.firebaseReady) return;
+    try {
+      await _authService.reloadUser();
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _resendVerification() async {
+    if (_verificationSending) return;
+    setState(() => _verificationSending = true);
+    try {
+      await _authService.sendEmailVerification();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verification email sent — check your inbox.'),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not send right now. Try again later.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _verificationSending = false);
+    }
   }
 
   Future<void> _loadReminderPref() async {
@@ -318,6 +353,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 16),
+
+            // ── Verify email prompt (email/password users only) ────
+            if (widget.firebaseReady && _authService.needsEmailVerification) ...[
+              _Card(
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.mark_email_unread_outlined,
+                      size: 20,
+                      color: AppTheme.warning,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Verify your email',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Check your inbox to confirm your address.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _verificationSending ? null : _resendVerification,
+                      child: Text(_verificationSending ? 'Sending…' : 'Resend'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // ── Readiness stats ────────────────────────────────────
             _Card(

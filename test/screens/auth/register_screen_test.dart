@@ -98,7 +98,27 @@ void main() {
       await tester.pump();
 
       expect(
-        find.textContaining('6 characters', findRichText: true),
+        find.textContaining('Use at least 8', findRichText: true),
+        findsAtLeast(1),
+      );
+    });
+
+    testWidgets('shows error when password lacks a letter and number', (tester) async {
+      await tester.pumpWidget(_buildSubject(mockAuthService));
+
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), 'test@example.com');
+      // 8+ chars but letters only → must fail the letter+number rule.
+      await tester.enterText(fields.at(1), 'abcdefgh');
+      if (fields.evaluate().length >= 3) {
+        await tester.enterText(fields.at(2), 'abcdefgh');
+      }
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Create Account'));
+      await tester.pump();
+
+      expect(
+        find.textContaining('Include at least', findRichText: true),
         findsAtLeast(1),
       );
     });

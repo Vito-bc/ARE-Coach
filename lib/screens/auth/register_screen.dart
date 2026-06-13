@@ -61,7 +61,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       case 'email-already-in-use':
         return 'An account with this email already exists.';
       case 'weak-password':
-        return 'Password must be at least 6 characters.';
+        return 'Password is too weak. Use at least 8 characters with a letter and a number.';
       case 'invalid-email':
         return 'Please enter a valid email address.';
       case 'network-request-failed':
@@ -177,11 +177,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             if (v == null || v.isEmpty) {
                                               return 'Please enter a password.';
                                             }
-                                            if (v.length < 6) {
-                                              return 'Password must be at least 6 characters.';
+                                            if (v.length < 8) {
+                                              return 'Use at least 8 characters.';
+                                            }
+                                            if (!RegExp(r'[A-Za-z]').hasMatch(v) ||
+                                                !RegExp(r'\d').hasMatch(v)) {
+                                              return 'Include at least one letter and one number.';
                                             }
                                             return null;
                                           },
+                                        ),
+                                        const Padding(
+                                          padding: EdgeInsets.only(
+                                              top: 6, left: 4),
+                                          child: Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: Text(
+                                              'At least 8 characters, with a letter and a number.',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF94A3B8),
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                         const SizedBox(height: 14),
                                         TextFormField(
