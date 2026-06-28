@@ -97,6 +97,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return 'Good evening';
   }
 
+  /// Merges the two overlapping accuracy views (weakest-3 + per-section trends)
+  /// into a single list, worst-first, so "what to focus on" surfaces at the top
+  /// without showing the same divisions twice.
+  List<_SectionPerf> _buildSectionPerf(DashboardMetrics m) {
+    final List<_SectionPerf> list;
+    if (m.sectionTrends.isNotEmpty) {
+      list = m.sectionTrends
+          .map((t) => _SectionPerf(t.section, t.currentAccuracy, t.delta))
+          .toList();
+    } else {
+      list = m.weakSections
+          .map((w) => _SectionPerf(w.section, w.accuracy, null))
+          .toList();
+    }
+    list.sort((a, b) => a.accuracy.compareTo(b.accuracy));
+    return list;
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid =
@@ -111,6 +129,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final loading = metricsAsync.isLoading;
     final hasError = metricsAsync.hasError;
     final metrics = metricsAsync.valueOrNull ?? _emptyMetrics;
+    final sectionPerf = _buildSectionPerf(metrics);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D1117),
@@ -210,13 +229,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
                             const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-                            // Weak sections
-                            if (metrics.weakSections.isNotEmpty) ...[
+                            // Performance by section — one consolidated view
+                            // (worst-first), replacing the old duplicated
+                            // "Focus Areas" + "Section Trends" lists.
+                            if (sectionPerf.isNotEmpty) ...[
                               SliverToBoxAdapter(
                                 child: Padding(
                                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                                   child: AppSection(
-                                    title: 'Focus Areas',
+                                    title: 'Performance by Section',
                                     trailing: TextButton(
                                       onPressed: () => Navigator.of(context).push(
                                         MaterialPageRoute(
@@ -229,41 +250,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     ),
                                     child: Column(
                                       children: [
-                                        ...metrics.weakSections.asMap().entries.map(
-                                          (e) => _WeakRow(
-                                            section: e.value.section,
-                                            accuracy: e.value.accuracy,
+                                        for (var i = 0;
+                                            i < sectionPerf.length;
+                                            i++)
+                                          _SectionRow(
+                                            perf: sectionPerf[i],
                                             showDivider:
-                                                e.key < metrics.weakSections.length - 1,
-                                            isDark: isDark,
-                                            accent: accent,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                            ],
-
-                            // Section trends
-                            if (metrics.sectionTrends.isNotEmpty) ...[
-                              SliverToBoxAdapter(
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                                  child: AppSection(
-                                    title: 'Section Trends',
-                                    child: Column(
-                                      children: [
-                                        ...metrics.sectionTrends.asMap().entries.map(
-                                          (e) => _TrendRow(
-                                            metric: e.value,
-                                            showDivider:
-                                                e.key < metrics.sectionTrends.length - 1,
+                                                i < sectionPerf.length - 1,
                                             isDark: isDark,
                                           ),
-                                        ),
                                       ],
                                     ),
                                   ),
@@ -283,8 +278,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ],
 
                             // Empty state
-                            if (metrics.weakSections.isEmpty &&
-                                metrics.sectionTrends.isEmpty)
+                            if (sectionPerf.isEmpty)
                               SliverToBoxAdapter(
                                 child: Padding(
                                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
@@ -727,32 +721,52 @@ class _ReadinessCard extends StatelessWidget {
   }
 }
 
-// ── Weak section row ──────────────────────────────────────────────────────────
+// ── Performance-by-section row ───────────────────────────────────────────────
 
-class _WeakRow extends StatelessWidget {
-  const _WeakRow({
-    required this.section,
-    required this.accuracy,
-    required this.showDivider,
-    required this.isDark,
-    required this.accent,
-  });
+/// Unified per-section accuracy entry. [delta] is null when there is no trend
+/// data (e.g. only the weakest-sections fallback was available).
+class _SectionPerf {
+  const _SectionPerf(this.section, this.accuracy, this.delta);
 
   final String section;
   final int accuracy;
+  final int? delta;
+}
+
+class _SectionRow extends StatelessWidget {
+  const _SectionRow({
+    required this.perf,
+    required this.showDivider,
+    required this.isDark,
+  });
+
+  final _SectionPerf perf;
   final bool showDivider;
   final bool isDark;
-  final Color accent;
 
-  Color get _barColor {
-    if (accuracy < 40) return const Color(0xFFFF3B30);
-    if (accuracy < 60) return const Color(0xFFFF9F0A);
+  Color get _accColor {
+    // 0% means "not enough signal yet" — keep it calm/neutral rather than
+    // alarming red so a fresh dashboard doesn't read as failure.
+    if (perf.accuracy == 0) return AppTheme.textSecondary;
+    if (perf.accuracy < 40) return const Color(0xFFFF3B30);
+    if (perf.accuracy < 60) return const Color(0xFFFF9F0A);
     return const Color(0xFF34C759);
   }
 
   @override
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
+    final delta = perf.delta;
+    // No movement yet → neutral dash, not a green "↑ +0" that falsely implies
+    // improvement.
+    final noChange = delta == null || delta == 0;
+    final isUp = (delta ?? 0) > 0;
+    final trendColor = noChange
+        ? AppTheme.textSecondary
+        : isUp
+            ? const Color(0xFF34C759)
+            : const Color(0xFFFF3B30);
+
     return Column(
       children: [
         Padding(
@@ -762,24 +776,51 @@ class _WeakRow extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Expanded(child: Text(section, style: tt.bodyLarge)),
+                  Expanded(child: Text(perf.section, style: tt.bodyLarge)),
                   Text(
-                    '$accuracy%',
+                    '${perf.accuracy}%',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: _barColor,
+                      color: _accColor,
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  if (noChange)
+                    const Text(
+                      '—',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary,
+                      ),
+                    )
+                  else ...[
+                    Icon(
+                      isUp
+                          ? Icons.arrow_upward_rounded
+                          : Icons.arrow_downward_rounded,
+                      size: 16,
+                      color: trendColor,
+                    ),
+                    Text(
+                      isUp ? '+$delta' : '$delta',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: trendColor,
+                      ),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
-                  value: accuracy / 100,
+                  value: perf.accuracy / 100,
                   minHeight: 4,
-                  valueColor: AlwaysStoppedAnimation<Color>(_barColor),
+                  valueColor: AlwaysStoppedAnimation<Color>(_accColor),
                   backgroundColor:
                       isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE5E5EA),
                 ),
@@ -1016,61 +1057,3 @@ class _GoalChip extends StatelessWidget {
   }
 }
 
-// ── Trend row ─────────────────────────────────────────────────────────────────
-
-class _TrendRow extends StatelessWidget {
-  const _TrendRow({
-    required this.metric,
-    required this.showDivider,
-    required this.isDark,
-  });
-
-  final SectionTrendMetric metric;
-  final bool showDivider;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
-    final isUp = metric.delta >= 0;
-    final trendColor = isUp ? const Color(0xFF34C759) : const Color(0xFFFF3B30);
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          child: Row(
-            children: [
-              Expanded(child: Text(metric.section, style: tt.bodyLarge)),
-              Text(
-                '${metric.currentAccuracy}%',
-                style: tt.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(width: 6),
-              Icon(
-                isUp ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                size: 18,
-                color: trendColor,
-              ),
-              Text(
-                isUp ? '+${metric.delta}' : '${metric.delta}',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: trendColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (showDivider)
-          Divider(
-            height: 0,
-            indent: 16,
-            color: isDark ? const Color(0xFF38383A) : const Color(0xFFC6C6C8),
-            thickness: 0.5,
-          ),
-      ],
-    );
-  }
-}
