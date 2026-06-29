@@ -279,8 +279,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final reminderTime = ref.watch(_reminderTimeProvider);
 
     final user = widget.firebaseReady ? FirebaseAuth.instance.currentUser : null;
+    final isGuest = user?.isAnonymous ?? false;
     final email = user?.email ?? (widget.firebaseReady ? 'Anonymous' : 'Demo mode');
-    final initials = _initials(email);
+    final displayName = isGuest ? 'Guest' : email;
+    final initials = isGuest ? 'G' : _initials(email);
     final tt = Theme.of(context).textTheme;
 
     final metrics = metricsAsync.valueOrNull;
@@ -325,7 +327,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          email,
+                          displayName,
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -335,13 +337,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          isPremium ? 'Premium' : 'Free plan',
+                          isGuest
+                              ? 'Sign in to save your progress'
+                              : isPremium
+                                  ? 'Premium'
+                                  : 'Free plan',
                           style: TextStyle(
                             fontSize: 13,
-                            color: isPremium
+                            color: isPremium && !isGuest
                                 ? AppTheme.yellow
                                 : AppTheme.textSecondary,
-                            fontWeight: isPremium
+                            fontWeight: isPremium && !isGuest
                                 ? FontWeight.w600
                                 : FontWeight.normal,
                           ),
@@ -710,8 +716,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             const SizedBox(height: 24),
 
-            // ── Sign out ───────────────────────────────────────────
-            if (widget.firebaseReady)
+            // ── Guest: invite to sign in (signing out of the anonymous
+            //     session returns them to the login screen) ────────────
+            if (widget.firebaseReady && isGuest)
+              FilledButton.icon(
+                onPressed: _signOut,
+                icon: const Icon(Icons.login_rounded, size: 18),
+                label: const Text('Sign In'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.yellow,
+                  foregroundColor: AppTheme.navy,
+                  minimumSize: const Size.fromHeight(50),
+                  textStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              )
+
+            // ── Signed-in account: sign out + delete ───────────────
+            else if (widget.firebaseReady) ...[
               OutlinedButton.icon(
                 onPressed: _deleting ? null : _signOut,
                 icon: const Icon(Icons.logout_rounded, size: 18),
@@ -724,8 +751,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
 
-            // ── Delete account (App Store Guideline 5.1.1(v)) ──────
-            if (widget.firebaseReady)
+              // Delete account (App Store Guideline 5.1.1(v))
               Center(
                 child: TextButton.icon(
                   onPressed: _deleting ? null : _confirmDeleteAccount,
@@ -743,6 +769,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
               ),
+            ],
 
             const SizedBox(height: 12),
             const Text(
