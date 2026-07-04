@@ -1,0 +1,17 @@
+# Question-bank audit tool — pinned deps.
+# STEP 0 (schema/validate) needs ONLY pydantic. The rest are used later:
+#   anthropic         -> the 5 LLM graders (STEP 1+)
+#   sentence-transformers, numpy -> duplicate / near-duplicate check
+#   pandas            -> CSV/JSON report building
+#   python-dotenv     -> load ANTHROPIC_API_KEY from .env
+#   tenacity, tqdm    -> retries + progress bars for the paid run
+#
+# Versions are conservative, known-good pins; bump as needed.
+pydantic==2.9.2
+python-dotenv==1.0.1
+anthropic==0.39.0
+pandas==2.2.3
+numpy==1.26.4
+sentence-transformers==3.3.1
+tenacity==9.0.0
+tqdm==4.67.1
