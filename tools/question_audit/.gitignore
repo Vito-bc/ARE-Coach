@@ -1,0 +1,22 @@
+# Secrets — never commit
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated reports (keep the folder, ignore contents)
+reports/*
+!reports/.gitkeep
+
+# Local grader cache
+.cache/
+
+# Local backups of the question bank (safety copies, not for git)
+backups/
+
+# Source PDFs a user drops in — may be copyrighted; keep the .md sample only
+corpus/*.pdf
+
