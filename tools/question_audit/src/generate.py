@@ -146,6 +146,7 @@ def main() -> None:
     ap.add_argument("--model", default="claude-opus-4-8")
     ap.add_argument("--grounded", action="store_true", help="RAG: ground each question in a corpus chunk")
     ap.add_argument("--repair-attempts", type=int, default=1, help="repair weak distractors (0 = off)")
+    ap.add_argument("--seed", type=int, default=config.RANDOM_SEED)
     args = ap.parse_args()
 
     load_env()
@@ -153,13 +154,17 @@ def main() -> None:
 
     corpus_chunks = []
     if args.grounded:
+        import random as _random
+
         from src.corpus import load_chunks
 
-        corpus_chunks = load_chunks()
+        # Keep substantive chunks (skip short front-matter/TOC), shuffle for variety.
+        corpus_chunks = [c for c in load_chunks() if len(c.text) > 400]
+        _random.Random(args.seed).shuffle(corpus_chunks)
         if not corpus_chunks:
             print("Corpus is empty — add sources to corpus/ or drop --grounded.")
             return
-        print(f"RAG mode: grounding on {len(corpus_chunks)} corpus chunks.")
+        print(f"RAG mode: grounding on {len(corpus_chunks)} substantive corpus chunks.")
 
     import numpy as np
     from sentence_transformers import SentenceTransformer

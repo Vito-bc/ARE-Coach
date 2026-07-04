@@ -61,7 +61,7 @@ def load_chunks(min_len: int = 80, max_len: int = 1200) -> list[Chunk]:
     for path in sorted(CORPUS_DIR.glob("**/*")):
         if not path.is_file() or path.suffix.lower() not in (".md", ".txt", ".pdf"):
             continue
-        if path.name.lower() == "readme.md":
+        if path.name.lower() in ("readme.md", "sources.md"):
             continue
 
         heading, buf, sections = path.stem, [], []
