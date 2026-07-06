@@ -177,6 +177,16 @@ def main() -> None:
     accepted_emb: list = []
     total = Usage()
 
+    # Incremental save: each finalized record is appended to a .jsonl immediately,
+    # so a mid-run network drop doesn't lose the batch's progress.
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    jsonl = (config.REPORTS_DIR / "generated_candidates.jsonl").open("w", encoding="utf-8")
+
+    def _emit(rec: dict) -> None:
+        records.append(rec)
+        jsonl.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        jsonl.flush()
+
     print(f"Generating {args.n} candidates with {args.model}, gating each ...")
     for i in range(args.n):
         grounded_on = None
@@ -209,8 +219,8 @@ def main() -> None:
             q = Question(id=f"gen_{i}", state="NY", **gen.model_dump())
         except Exception as e:
             print(f"  [{i + 1}/{args.n}] {section}: REJECT malformed ({e})")
-            records.append({"id": f"gen_{i}", "section": section, "accepted": False,
-                            "reject_reasons": ["malformed"], "error": str(e)})
+            _emit({"id": f"gen_{i}", "section": section, "accepted": False,
+                   "reject_reasons": ["malformed"], "error": str(e)})
             continue
 
         verdicts = {}
@@ -247,7 +257,7 @@ def main() -> None:
                 if ok:
                     break
 
-        records.append(
+        _emit(
             {
                 "id": q.id, "section": section, "difficulty": q.difficulty,
                 "question": q.question, "options": q.options, "correctOption": q.correctOption,
@@ -263,8 +273,8 @@ def main() -> None:
         status = ("ACCEPT (repaired)" if repaired else "ACCEPT") if ok else "REJECT " + ",".join(reasons)
         print(f"  [{i + 1}/{args.n}] {section}: {status}")
 
+    jsonl.close()
     accepted = [r for r in records if r.get("accepted")]
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORTS_DIR / "generated_candidates.json").write_text(
         json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8"
     )
