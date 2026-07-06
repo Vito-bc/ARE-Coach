@@ -4,12 +4,13 @@ Every source is from an **official / authoritative publisher**, fetched 2026-07-
 verified to be a valid PDF (`%PDF` header) that ingests into readable, section-numbered
 text. PDFs are git-ignored (kept local for grounding only — not redistributed).
 
-## Collected & verified ✅ — 17 PDFs, 1,535 chunks
+## Collected & verified ✅ — 18 PDFs, 1,655 chunks
 
 | Source | Publisher | Grounds |
 |---|---|---|
 | `ncarb_are5_handbook.pdf` | **NCARB** (ncarb.org) | ARE 5.0 content-area map + exam logistics |
 | `ada_2010_standards_official.pdf` | **US DOJ** (ada.gov, public domain) | 2010 ADA Standards for Accessible Design |
+| `nyc_zoning_handbook_2025.pdf` | **NYC DCP** (nyc.gov) | Zoning concepts for Programming & Analysis (FAR, use groups, bulk, yards) |
 | **NYC Building Code chapters** (all **NYC DOB**, nyc.gov) | | |
 | `nyc_bc_ch03_occupancy.pdf` | NYC DOB | Use & Occupancy Classification |
 | `nyc_bc_ch05_height_area.pdf` | NYC DOB | General Building Heights & Areas |
@@ -28,7 +29,9 @@ text. PDFs are git-ignored (kept local for grounding only — not redistributed)
 | `nyc_bc_ch33_constr_safety.pdf` | NYC DOB | Safeguards During Construction/Demolition |
 
 Easy future adds (public): NYC Energy Conservation Code (sustainability), NYC Fire Code (FDNY),
-NYC Zoning Resolution (PA — bigger/different structure), federal OSHA 1926 (CE construction safety).
+federal OSHA 1926 (CE construction safety).
+Evaluated & excluded: the full NYC Zoning Resolution PDF (3,475 pages of legalese) — it would
+dominate the corpus and slow every run; the concept-focused Zoning Handbook is the better PA source.
 
 ## How to add more NYC chapters
 nyc.gov 403s bots, so use a browser-UA `curl`. Exact filenames use a **zero-padded** chapter
