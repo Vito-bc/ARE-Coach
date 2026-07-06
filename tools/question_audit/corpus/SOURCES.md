@@ -4,21 +4,31 @@ Every source is from an **official / authoritative publisher**, fetched 2026-07-
 verified to be a valid PDF (`%PDF` header) that ingests into readable, section-numbered
 text. PDFs are git-ignored (kept local for grounding only — not redistributed).
 
-## Collected & verified ✅ — 11 PDFs, 1,282 chunks
+## Collected & verified ✅ — 17 PDFs, 1,535 chunks
 
-| File | Publisher | Chunks | Grounds |
-|---|---|---|---|
-| `ncarb_are5_handbook.pdf` | **NCARB** (ncarb.org) | 144 | ARE 5.0 content-area map + exam logistics |
-| `ada_2010_standards_official.pdf` | **US DOJ** (ada.gov, public domain) | 322 | 2010 ADA Standards for Accessible Design |
-| `nyc_bc_ch03_occupancy.pdf` | **NYC DOB** (nyc.gov) | 34 | Use & Occupancy Classification |
-| `nyc_bc_ch05_height_area.pdf` | **NYC DOB** | 44 | General Building Heights & Areas |
-| `nyc_bc_ch06_construction_type.pdf` | **NYC DOB** | 7 | Types of Construction |
-| `nyc_bc_ch07_fire_resistance.pdf` | **NYC DOB** | 163 | Fire & Smoke Protection |
-| `nyc_bc_ch09_fire_protection.pdf` | **NYC DOB** | 85 | Fire Protection Systems |
-| `nyc_bc_ch10_egress.pdf` | **NYC DOB** | 120 | Means of Egress |
-| `nyc_bc_ch11_accessibility.pdf` | **NYC DOB** | 65 | Accessibility |
-| `nyc_bc_ch17_special_inspections.pdf` | **NYC DOB** | 104 | Special Inspections & Tests |
-| `nyc_bc_ch33_constr_safety.pdf` | **NYC DOB** | 194 | Safeguards During Construction/Demolition |
+| Source | Publisher | Grounds |
+|---|---|---|
+| `ncarb_are5_handbook.pdf` | **NCARB** (ncarb.org) | ARE 5.0 content-area map + exam logistics |
+| `ada_2010_standards_official.pdf` | **US DOJ** (ada.gov, public domain) | 2010 ADA Standards for Accessible Design |
+| **NYC Building Code chapters** (all **NYC DOB**, nyc.gov) | | |
+| `nyc_bc_ch03_occupancy.pdf` | NYC DOB | Use & Occupancy Classification |
+| `nyc_bc_ch05_height_area.pdf` | NYC DOB | General Building Heights & Areas |
+| `nyc_bc_ch06_construction_type.pdf` | NYC DOB | Types of Construction |
+| `nyc_bc_ch07_fire_resistance.pdf` | NYC DOB | Fire & Smoke Protection |
+| `nyc_bc_ch08_interior_finishes.pdf` | NYC DOB | Interior Finishes |
+| `nyc_bc_ch09_fire_protection.pdf` | NYC DOB | Fire Protection Systems |
+| `nyc_bc_ch10_egress.pdf` | NYC DOB | Means of Egress |
+| `nyc_bc_ch11_accessibility.pdf` | NYC DOB | Accessibility |
+| `nyc_bc_ch12_interior_environment.pdf` | NYC DOB | Light, Ventilation, Sound |
+| `nyc_bc_ch14_exterior_walls.pdf` | NYC DOB | Exterior Walls |
+| `nyc_bc_ch16_structural_design.pdf` | NYC DOB | Structural Design |
+| `nyc_bc_ch17_special_inspections.pdf` | NYC DOB | Special Inspections & Tests |
+| `nyc_bc_ch18_soils_foundations.pdf` | NYC DOB | Soils & Foundations |
+| `nyc_bc_ch30_elevators.pdf` | NYC DOB | Elevators & Conveying Systems |
+| `nyc_bc_ch33_constr_safety.pdf` | NYC DOB | Safeguards During Construction/Demolition |
+
+Easy future adds (public): NYC Energy Conservation Code (sustainability), NYC Fire Code (FDNY),
+NYC Zoning Resolution (PA — bigger/different structure), federal OSHA 1926 (CE construction safety).
 
 ## How to add more NYC chapters
 nyc.gov 403s bots, so use a browser-UA `curl`. Exact filenames use a **zero-padded** chapter
