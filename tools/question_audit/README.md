@@ -71,10 +71,11 @@ Pipeline: **retrieve source chunk → generate a grounded question → 5-grader 
 distractor-repair → dedup vs bank.** Only strong items survive; a human reviews a sample.
 
 ```bash
-# put source files (.md/.txt/.pdf) in corpus/ first (see corpus/README.md)
-python -m src.corpus --query "accessible route width"      # test retrieval (free)
-python -m src.generate --grounded --n 20                   # RAG-generate + auto-filter
-python -m src.merge_accepted --apply                       # append accepted -> bank (after review)
+# put source files (.md/.txt/.pdf) in corpus/ first (see corpus/README.md, SOURCES.md)
+python -m src.corpus --query "accessible route width"           # test retrieval (free)
+python -m src.generate --grounded --n 40 --repair-attempts 2    # RAG-generate + auto-filter
+python -m src.review_generated                                  # -> generated_review.xlsx (architect approves)
+python -m src.merge_accepted --reviewed --apply                 # append only Approve'd rows -> bank
 ```
 
 The gate is strict (judgment, distractor avg ≥3.3 with no throwaway, consistent, no
