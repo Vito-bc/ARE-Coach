@@ -4,13 +4,18 @@ Every source is from an **official / authoritative publisher**, fetched 2026-07-
 verified to be a valid PDF (`%PDF` header) that ingests into readable, section-numbered
 text. PDFs are git-ignored (kept local for grounding only — not redistributed).
 
-## Collected & verified ✅ — 18 PDFs, 1,655 chunks
+## Collected & verified ✅ — 23 PDFs, 2,769 chunks
 
 | Source | Publisher | Grounds |
 |---|---|---|
 | `ncarb_are5_handbook.pdf` | **NCARB** (ncarb.org) | ARE 5.0 content-area map + exam logistics |
 | `ada_2010_standards_official.pdf` | **US DOJ** (ada.gov, public domain) | 2010 ADA Standards for Accessible Design |
 | `nyc_zoning_handbook_2025.pdf` | **NYC DCP** (nyc.gov) | Zoning concepts for Programming & Analysis (FAR, use groups, bulk, yards) |
+| `gsa_p100_facilities_standards_2024.pdf` | **US GSA** (gsa.gov, public) | Building systems / structural / mechanical / materials / sustainability — public substitute for MEEB & Ching (PPD/PDD) |
+| `leed_v41_bdc_rating_system.pdf` | **USGBC** (usgbc.org, free) | LEED v4.1 BD+C — sustainability credits, energy, water, materials (PPD) |
+| `nyc_energy_code_2020_guide.pdf` | **NYC DOB** (nyc.gov) | 2020 NYC Energy Conservation Code — envelope, mechanical, lighting energy compliance (PPD, sustainability) |
+| `nps_historic_treatment_guidelines_2017.pdf` | **US NPS** (nps.gov, public) | Secretary of the Interior's Standards — treatment of historic properties: preservation & rehabilitation (PPD/PDD historic) |
+| `osha_2202_construction_industry_digest.pdf` | **US OSHA** (osha.gov, public) | Construction Industry Digest — key 29 CFR 1926 jobsite-safety requirements (Construction & Evaluation) |
 | **NYC Building Code chapters** (all **NYC DOB**, nyc.gov) | | |
 | `nyc_bc_ch03_occupancy.pdf` | NYC DOB | Use & Occupancy Classification |
 | `nyc_bc_ch05_height_area.pdf` | NYC DOB | General Building Heights & Areas |
@@ -28,8 +33,9 @@ text. PDFs are git-ignored (kept local for grounding only — not redistributed)
 | `nyc_bc_ch30_elevators.pdf` | NYC DOB | Elevators & Conveying Systems |
 | `nyc_bc_ch33_constr_safety.pdf` | NYC DOB | Safeguards During Construction/Demolition |
 
-Easy future adds (public): NYC Energy Conservation Code (sustainability), NYC Fire Code (FDNY),
-federal OSHA 1926 (CE construction safety).
+Public sources are now essentially exhausted for the ARE content areas. (Full 29 CFR 1926 exists only
+as per-section HTML/dense CFR legalese — the concise OSHA 2202 digest above is the exam-relevant subset,
+and NYC BC Ch.33 already grounds jobsite safety. Only marginal public add left: NYC Fire Code / FDNY.)
 Evaluated & excluded: the full NYC Zoning Resolution PDF (3,475 pages of legalese) — it would
 dominate the corpus and slow every run; the concept-focused Zoning Handbook is the better PA source.
 
@@ -44,5 +50,11 @@ Full list at nyc.gov/site/buildings/codes/2022-construction-codes.page (also fet
   document + section, do not ingest.
 
 ## Still to add (user)
-- Personal study notes — will broaden coverage to PcM / PjM / PA / PDD divisions (the corpus is
-  currently strong on NYC codes + accessibility). Coming next.
+Public sources are now largely exhausted. Remaining gaps are copyrighted and must come from the
+user's own books / study notes:
+- **AIA Contract Documents** (B101, A201, C401, A101, G-series) -> PcM / PjM / PDD / CE. User HAS, uploading.
+- **AHPP** (Architect's Handbook of Professional Practice) -> PcM / PjM. User HAS, uploading.
+- **CSI MasterFormat / spec writing** -> PDD. User HAS, uploading.
+- **MEEB / Ching (Building Construction Illustrated) / Problem Seeking** -> PPD / PDD / PA. User must
+  still find these; GSA P100 + WBDG(public web) partially substitute the systems/materials content.
+- **AIA Code of Ethics** -> PcM. Free at aia.org but the site blocks bot download; user can grab it.
