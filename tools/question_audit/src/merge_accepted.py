@@ -36,10 +36,30 @@ def _gen_ids(existing: set[str]):
         yield f"gen_q{n}"
 
 
+def _approved_ids() -> set[str]:
+    """Read generated_review.xlsx and return the ids marked 'Approve'."""
+    from openpyxl import load_workbook
+
+    path = config.REPORTS_DIR / "generated_review.xlsx"
+    if not path.exists():
+        print(f"No {path.name} — run `python -m src.review_generated` and have the architect fill it.")
+        return set()
+    ws = load_workbook(path, read_only=True).active
+    header = [c.value for c in next(ws.iter_rows(max_row=1))]
+    vcol, icol = header.index("REVIEW: verdict"), header.index("id")
+    approved = set()
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if row[vcol] and str(row[vcol]).strip().lower() == "approve":
+            approved.add(row[icol])
+    return approved
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--input", default="generated_accepted.json")
+    ap.add_argument("--reviewed", action="store_true",
+                    help="merge only rows marked 'Approve' in generated_review.xlsx")
     args = ap.parse_args()
 
     src_path = config.REPORTS_DIR / args.input
@@ -47,6 +67,15 @@ def main() -> None:
     if not accepted:
         print(f"No accepted candidates in {src_path.name}.")
         return
+
+    if args.reviewed:
+        approved = _approved_ids()
+        before = len(accepted)
+        accepted = [r for r in accepted if r.get("id") in approved]
+        print(f"Human review: {len(approved)} marked Approve -> {len(accepted)}/{before} candidates pass.")
+        if not accepted:
+            print("Nothing approved to merge.")
+            return
 
     bank = json.loads(config.QUESTIONS_PATH.read_text(encoding="utf-8-sig"))
     ids = _gen_ids({q["id"] for q in bank})

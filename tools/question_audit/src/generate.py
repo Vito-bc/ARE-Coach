@@ -146,6 +146,7 @@ def main() -> None:
     ap.add_argument("--model", default="claude-opus-4-8")
     ap.add_argument("--grounded", action="store_true", help="RAG: ground each question in a corpus chunk")
     ap.add_argument("--repair-attempts", type=int, default=1, help="repair weak distractors (0 = off)")
+    ap.add_argument("--seed", type=int, default=config.RANDOM_SEED)
     args = ap.parse_args()
 
     load_env()
@@ -153,13 +154,17 @@ def main() -> None:
 
     corpus_chunks = []
     if args.grounded:
+        import random as _random
+
         from src.corpus import load_chunks
 
-        corpus_chunks = load_chunks()
+        # Keep substantive chunks (skip short front-matter/TOC), shuffle for variety.
+        corpus_chunks = [c for c in load_chunks() if len(c.text) > 400]
+        _random.Random(args.seed).shuffle(corpus_chunks)
         if not corpus_chunks:
             print("Corpus is empty — add sources to corpus/ or drop --grounded.")
             return
-        print(f"RAG mode: grounding on {len(corpus_chunks)} corpus chunks.")
+        print(f"RAG mode: grounding on {len(corpus_chunks)} substantive corpus chunks.")
 
     import numpy as np
     from sentence_transformers import SentenceTransformer
@@ -171,6 +176,16 @@ def main() -> None:
     records: list[dict] = []
     accepted_emb: list = []
     total = Usage()
+
+    # Incremental save: each finalized record is appended to a .jsonl immediately,
+    # so a mid-run network drop doesn't lose the batch's progress.
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    jsonl = (config.REPORTS_DIR / "generated_candidates.jsonl").open("w", encoding="utf-8")
+
+    def _emit(rec: dict) -> None:
+        records.append(rec)
+        jsonl.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        jsonl.flush()
 
     print(f"Generating {args.n} candidates with {args.model}, gating each ...")
     for i in range(args.n):
@@ -204,8 +219,8 @@ def main() -> None:
             q = Question(id=f"gen_{i}", state="NY", **gen.model_dump())
         except Exception as e:
             print(f"  [{i + 1}/{args.n}] {section}: REJECT malformed ({e})")
-            records.append({"id": f"gen_{i}", "section": section, "accepted": False,
-                            "reject_reasons": ["malformed"], "error": str(e)})
+            _emit({"id": f"gen_{i}", "section": section, "accepted": False,
+                   "reject_reasons": ["malformed"], "error": str(e)})
             continue
 
         verdicts = {}
@@ -242,7 +257,7 @@ def main() -> None:
                 if ok:
                     break
 
-        records.append(
+        _emit(
             {
                 "id": q.id, "section": section, "difficulty": q.difficulty,
                 "question": q.question, "options": q.options, "correctOption": q.correctOption,
@@ -258,8 +273,8 @@ def main() -> None:
         status = ("ACCEPT (repaired)" if repaired else "ACCEPT") if ok else "REJECT " + ",".join(reasons)
         print(f"  [{i + 1}/{args.n}] {section}: {status}")
 
+    jsonl.close()
     accepted = [r for r in records if r.get("accepted")]
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORTS_DIR / "generated_candidates.json").write_text(
         json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8"
     )
