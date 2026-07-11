@@ -47,3 +47,10 @@ app.*.map.json
 # Local tooling and secrets
 node_modules/
 serviceAccountKey.json
+
+# AI Coach retrieval index — built locally from the RAG corpus by
+# tools/question_audit/src/build_coach_index.py. It contains extracted text from
+# the source documents, and our corpus rule is "grounding only, not
+# redistributed" (same reason corpus/*.pdf is ignored). Firebase uploads
+# everything under functions/ on deploy, so the function still receives it.
+functions/coach_index.json

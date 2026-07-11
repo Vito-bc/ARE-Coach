@@ -52,7 +52,7 @@
   analytics, flashcard progress, and study-streak data.</p>
 
   <p><strong>AI Coach content.</strong> When you use the AI Coach, the text you
-  type is sent to <strong>Google's Gemini API</strong> to generate a response.
+  type is sent to <strong>Anthropic's Claude API</strong> to generate a response.
   Your prompts and the generated answers are stored in your account so your chat
   history persists. If you use voice input, your device's speech-recognition
   service (provided by Apple or Google) converts your speech to text, which is
@@ -97,7 +97,7 @@
   <table>
     <tr><th>Provider</th><th>Purpose</th><th>Data involved</th></tr>
     <tr><td>Google Firebase (Authentication, Cloud Firestore, Crashlytics, App Check)</td><td>Accounts, data storage, crash diagnostics, abuse prevention</td><td>Account ID/email, study data, Coach history, diagnostics</td></tr>
-    <tr><td>Google Gemini API</td><td>Generate AI Coach answers</td><td>The prompt text you send to the Coach</td></tr>
+    <tr><td>Anthropic (Claude API)</td><td>Generate AI Coach answers</td><td>The prompt text you send to the Coach</td></tr>
     <tr><td>Apple</td><td>Sign in with Apple, App Store purchases, on-device speech</td><td>Apple user ID, purchase receipts, voice&#8594;text</td></tr>
     <tr><td>Google Play</td><td>Purchases, on-device speech</td><td>Purchase receipts, voice&#8594;text</td></tr>
   </table>

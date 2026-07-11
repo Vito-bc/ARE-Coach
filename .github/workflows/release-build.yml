@@ -14,6 +14,10 @@ on:
 env:
   VALIDATE_RECEIPT_URL: ${{ vars.VALIDATE_RECEIPT_URL || 'https://validatereceipt-izodv6upya-uc.a.run.app' }}
   DELETE_ACCOUNT_URL: ${{ vars.DELETE_ACCOUNT_URL || 'https://us-central1-architect-study-app.cloudfunctions.net/deleteAccount' }}
+  # Without this the release build shipped with an empty COACH_API_URL and the
+  # AI Coach was dead in production — every question fell through to a canned
+  # answer. Never omit it again.
+  COACH_API_URL: ${{ vars.COACH_API_URL || 'https://us-central1-architect-study-app.cloudfunctions.net/askCoach' }}
 
 jobs:
   android:
@@ -67,6 +71,7 @@ jobs:
           flutter build appbundle
           --dart-define=VALIDATE_RECEIPT_URL=$VALIDATE_RECEIPT_URL
           --dart-define=DELETE_ACCOUNT_URL=$DELETE_ACCOUNT_URL
+          --dart-define=COACH_API_URL=$COACH_API_URL
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
@@ -101,3 +106,4 @@ jobs:
           flutter build ios --no-codesign
           --dart-define=VALIDATE_RECEIPT_URL=$VALIDATE_RECEIPT_URL
           --dart-define=DELETE_ACCOUNT_URL=$DELETE_ACCOUNT_URL
+          --dart-define=COACH_API_URL=$COACH_API_URL

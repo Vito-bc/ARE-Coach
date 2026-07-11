@@ -8,7 +8,7 @@ Flutter App (UI + State)
   -> Hive (flashcard progress, reminder/exam-date preferences)
   -> Firestore (questions, attempts, analytics, usage)
   -> Cloud Functions (askCoach, quota enforcement, billing hooks)
-  -> AI Provider API (Gemini via server-side key)
+  -> Anthropic Claude API (server-side key) + RAG retrieval over the ARE source corpus
 ```
 
 ## Client Layers

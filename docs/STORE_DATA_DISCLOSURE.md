@@ -11,7 +11,7 @@
 This translates the App's real data flows into the answers each store's
 privacy questionnaire expects. Source SDKs: Firebase Auth, Cloud Firestore,
 Crashlytics, App Check; Sign in with Apple; in_app_purchase; speech_to_text;
-Google Gemini API (server-side, AI Coach). **No analytics SDK, no ads SDK, no
+Anthropic Claude API (server-side, AI Coach). **No analytics SDK, no ads SDK, no
 advertising identifier, no location, no push messaging.**
 
 ---
@@ -22,7 +22,7 @@ advertising identifier, no location, no push messaging.**
   → Apple: *"Data is not used to track you."*
   → Play: *No data shared for advertising/marketing; not used for tracking.*
 - **AI Coach content:** the text a user sends to the Coach is transmitted to
-  **Google's Gemini API** (a third-party processor) and stored in Firestore.
+  **Anthropic's Claude API** (a third-party processor) and stored in Firestore.
   Declare this as collecting **user-generated content**, shared with a service
   provider for app functionality.
 - **Voice input:** speech-to-text runs through the **device platform's**
@@ -56,8 +56,8 @@ purpose, and whether it is required.
    "sharing." Confirm this characterization against current Play definitions.
 ² "Required?" = whether the user can use the App without providing it. Email is
    optional because anonymous use is supported.
-³ **Shared = Yes** specifically because Coach prompt text is sent to the Google
-   Gemini API to generate a response. Disclose the data-handling purpose as
+³ **Shared = Yes** specifically because Coach prompt text is sent to the
+   Anthropic Claude API to generate a response. Disclose the data-handling purpose as
    "app functionality."
 
 **Security practices to check in the form:**
@@ -105,7 +105,7 @@ Apple groups answers as **Data Used to Track You**, **Data Linked to You**, and
   the simplest, safe approach is to declare them **Linked** (covers both cases).
 
 ### Third-party processors to mention in your privacy answers/policy
-- Google (Firebase + Gemini API), Apple (Sign in with Apple, billing, speech).
+- Google (Firebase), Anthropic (Claude API), Apple (Sign in with Apple, billing, speech).
 
 ---
 
@@ -117,4 +117,4 @@ Apple groups answers as **Data Used to Track You**, **Data Linked to You**, and
       for apps that support account creation).
 - [ ] IAP products created + approved in App Store Connect and Play Console.
 - [ ] Age rating questionnaires completed.
-- [ ] Confirm the AI Coach (Gemini) disclosure appears in the privacy policy.
+- [ ] Confirm the AI Coach (Anthropic Claude) disclosure appears in the privacy policy.

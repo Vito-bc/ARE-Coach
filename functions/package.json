@@ -12,10 +12,11 @@
     "lint": "node -e \"console.log('No lint configured')\""
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
     "firebase-admin": "^13.7.0",
     "firebase-functions": "^7.2.5"
   },
-  "comment-overrides": "Patch-level overrides for transitive web-facing CVEs in the express request-parsing chain pulled in by firebase-functions. Same-major patches, safe. The remaining moderate advisories are internal GCP-SDK deps (uuid/gaxios/google-gax) that only 'fix' via a firebase-admin major downgrade — left until Google bumps them upstream.",
+  "comment-overrides": "Patch-level overrides for transitive web-facing CVEs in the express request-parsing chain pulled in by firebase-functions. Same-major patches, safe. The 3 high-severity advisories (@grpc/grpc-js, form-data, protobufjs) were cleared by `npm audit fix` — no major bumps. The 9 remaining moderates are all one internal GCP-SDK chain (uuid -> gaxios/teeny-request/retry-request -> google-gax -> @google-cloud/* -> firebase-admin); npm's only 'fix' for them is downgrading firebase-admin to 10.3.0, which is an OLDER and therefore worse-patched major. Left until Google bumps them upstream. Re-check with `npm audit` before each release.",
   "overrides": {
     "express": "4.22.2",
     "body-parser": "1.20.5",

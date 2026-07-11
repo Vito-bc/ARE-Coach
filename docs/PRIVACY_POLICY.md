@@ -43,7 +43,7 @@ shared with, and the choices you have.
 
 ### 1.4 AI Coach content
 - When you use the AI Coach, the text you type (your prompt) is sent to
-  **Google's Gemini API** to generate a response. Your prompts and the
+  **Anthropic's Claude API** to generate a response. Your prompts and the
   generated answers are stored in your account so your chat history persists.
 - If you use **voice input**, your device's speech-recognition service
   (provided by Apple or Google, depending on your device) converts your
@@ -99,7 +99,7 @@ We share data only with service providers that help us run the App:
 | Provider | Purpose | Data involved |
 |---|---|---|
 | **Google Firebase** (Authentication, Cloud Firestore, Crashlytics, App Check) | Accounts, data storage, crash diagnostics, abuse prevention | Account ID/email, study data, Coach history, diagnostics |
-| **Google Gemini API** (Google AI) | Generate AI Coach answers | The prompt text you send to the Coach |
+| **Anthropic** (Claude API) | Generate AI Coach answers | The prompt text you send to the Coach |
 | **Apple** | Sign in with Apple, App Store purchases, on-device speech recognition | Apple user ID, purchase receipts, voice→text |
 | **Google Play** | Purchases, on-device speech recognition | Purchase receipts, voice→text |
 

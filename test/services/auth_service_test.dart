@@ -153,23 +153,19 @@ void main() {
     });
 
     test(
-      'does not overwrite entitlement fields for an existing user',
+      'writes nothing for an existing user (all remaining fields are server-owned)',
       () async {
         when(() => mockAuth.currentUser).thenReturn(mockUser);
         when(() => mockSnapshot.exists).thenReturn(true);
 
         await sut.ensureSignedIn();
 
-        final captured = verify(
-          () => mockDoc.set(captureAny(), any()),
-        ).captured;
-        final data = captured.single as Map<String, dynamic>;
-        expect(data.containsKey('role'), isFalse);
-        expect(data.containsKey('createdAt'), isFalse);
-        expect(data.containsKey('subscriptionId'), isFalse);
-        expect(data.containsKey('subscriptionStatus'), isFalse);
-        expect(data.containsKey('premiumUntil'), isFalse);
-        expect(data.containsKey('lastActiveAt'), isTrue);
+        // firestore.rules only lets the owner change `name` and
+        // `targetExamDate`; `email` and `lastActiveAt` are server-owned and the
+        // Cloud Functions already maintain `lastActiveAt`. The old code wrote
+        // them on every returning login, the rules rejected the write, and a
+        // bare `catch (_)` hid it. The correct behaviour is to not write at all.
+        verifyNever(() => mockDoc.set(any(), any()));
       },
     );
   });
