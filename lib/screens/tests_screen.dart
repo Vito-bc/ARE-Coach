@@ -65,8 +65,13 @@ class _TestsScreenState extends ConsumerState<TestsScreen> {
     'NYC Building Codes': Icons.location_city_outlined,
   };
 
-  /// Proportional distribution matching real NCARB division question weights.
-  /// Total: 65 questions across all 7 sections.
+  /// Cross-division sample used by the diagnostic: 65 questions drawn from all
+  /// 7 sections, weighted by how many questions each section contributes here.
+  ///
+  /// This is NOT a simulation of an ARE division. The real ARE is six separate
+  /// exams (65-100 items each, individually timed), and NCARB's own practice
+  /// exam is multidivisional and likewise not a real division. Treat this as a
+  /// breadth check that tells you where to study next.
   static const _mockDistribution = {
     'Practice Management': 8,
     'Project Management': 9,
@@ -564,7 +569,7 @@ class _TestsConfigView extends StatelessWidget {
           )
         else if (mode == TestMode.mock)
           const Text(
-            '⏱ 130 minutes · All divisions · 65 questions',
+            '⏱ 130 min · 65 questions across all divisions · not an ARE division',
             style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
           ),
         const SizedBox(height: 24),
@@ -651,7 +656,7 @@ class _TestsConfigView extends StatelessWidget {
                   TestMode.quick => 'Quick Quiz',
                   TestMode.section => 'By Division',
                   TestMode.timed => 'Timed Exam',
-                  TestMode.mock => 'Mock Exam',
+                  TestMode.mock => 'Multi-Division Diagnostic',
                 },
               ),
               const Divider(color: Color(0xFF374151), height: 16),
@@ -671,7 +676,7 @@ class _TestsConfigView extends StatelessWidget {
             onPressed: onStart,
             icon: const Icon(Icons.play_arrow_rounded),
             label: Text(
-              mode == TestMode.mock ? 'Start Mock Exam' : 'Start Test',
+              mode == TestMode.mock ? 'Start Diagnostic' : 'Start Test',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ),
@@ -863,7 +868,7 @@ class _MockExamCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Mock Exam',
+                    'Multi-Division Diagnostic',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -872,7 +877,7 @@ class _MockExamCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   const Text(
-                    '65 questions · 130 min · All divisions',
+                    '65 questions · 130 min · breadth check, not an ARE sim',
                     style: TextStyle(
                       fontSize: 12,
                       color: AppTheme.textSecondary,

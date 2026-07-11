@@ -684,7 +684,8 @@ class _ReadinessCard extends StatelessWidget {
                     ),
                     Center(
                       child: Text(
-                        '$percent%',
+                        // No sessions yet -> no readiness claim at all.
+                        attempts > 0 ? '$percent%' : '—',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -702,7 +703,9 @@ class _ReadinessCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      readinessLabel(percent),
+                      attempts > 0
+                          ? readinessLabel(percent)
+                          : 'Not enough data yet',
                       style: tt.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 4),

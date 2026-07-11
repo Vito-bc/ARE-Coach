@@ -2,25 +2,27 @@ import 'package:flutter/material.dart';
 
 import 'theme/app_theme.dart';
 
-const int kReadinessPassThreshold = 70;
+/// Our internal practice target. NOT an NCARB passing score: the real ARE is
+/// scored per division against NCARB's published ranges (58-71% depending on
+/// the division) and reported only as pass/fail. Never label a score here as
+/// "passing".
+const int kPracticeTarget = 70;
 const int kReadinessPracticeThreshold = 40;
 
-const String kAppVersion = '1.0.0';
-
 Color readinessColor(int percent) {
-  if (percent >= kReadinessPassThreshold) return AppTheme.success;
+  if (percent >= kPracticeTarget) return AppTheme.success;
   if (percent >= kReadinessPracticeThreshold) return AppTheme.warning;
   return AppTheme.error;
 }
 
 String readinessLabel(int percent) {
-  if (percent >= kReadinessPassThreshold) return 'On track for the exam';
+  if (percent >= kPracticeTarget) return 'On track for the exam';
   if (percent >= kReadinessPracticeThreshold) return 'Keep practicing';
   return 'Just getting started';
 }
 
 String resultLabel(int score) {
-  if (score >= kReadinessPassThreshold) return 'Passing — great work!';
+  if (score >= kPracticeTarget) return 'Above your practice target';
   if (score >= 50) return 'Almost there — keep studying';
   return 'Needs more practice';
 }
