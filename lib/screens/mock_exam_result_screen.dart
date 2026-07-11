@@ -46,8 +46,13 @@ class MockExamResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final passed = score >= 70;
-    final statusColor = passed ? AppTheme.success : AppTheme.error;
+    // Internal practice target — NOT an NCARB passing score. The real ARE is
+    // scored per division against ranges NCARB publishes (58-71% depending on
+    // the division) and is reported only as pass/fail. This diagnostic mixes
+    // divisions, so no official threshold applies to it at all.
+    const practiceTarget = 70;
+    final onTrack = score >= practiceTarget;
+    final statusColor = onTrack ? AppTheme.success : AppTheme.warning;
 
     final correct =
         questions.where((q) => answers[q.id] == q.correctOption).length;
@@ -103,20 +108,20 @@ class MockExamResultScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    passed
-                        ? Icons.check_circle_rounded
-                        : Icons.cancel_rounded,
+                    onTrack
+                        ? Icons.trending_up_rounded
+                        : Icons.school_outlined,
                     size: 26,
                     color: statusColor,
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    passed ? 'PASS' : 'FAIL',
+                    onTrack ? 'ON TRACK' : 'KEEP STUDYING',
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: 22,
                       fontWeight: FontWeight.w900,
                       color: statusColor,
-                      letterSpacing: 2.5,
+                      letterSpacing: 1.8,
                     ),
                   ),
                 ],
@@ -134,12 +139,23 @@ class MockExamResultScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                passed
-                    ? 'Passing score achieved — great work!'
-                    : 'Passing threshold is 70%',
+                onTrack
+                    ? 'At or above our $practiceTarget% practice target — keep it up!'
+                    : 'Our practice target is $practiceTarget%',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Practice benchmark only — not an NCARB result. The real ARE is '
+                'scored per division and reported as pass/fail.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.textSecondary,
+                  height: 1.4,
                 ),
               ),
               const SizedBox(height: 22),
@@ -343,7 +359,9 @@ class _SectionStats {
   int correct = 0;
 
   int get accuracy => total == 0 ? 0 : ((correct / total) * 100).round();
-  bool get passed => accuracy >= 70;
+
+  /// Meets our internal practice target — not an NCARB pass.
+  bool get meetsTarget => accuracy >= 70;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -446,9 +464,9 @@ class _DivisionRow extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Icon(
-                stats.passed
+                stats.meetsTarget
                     ? Icons.check_circle_outline_rounded
-                    : Icons.highlight_off_rounded,
+                    : Icons.trending_flat_rounded,
                 size: 16,
                 color: color,
               ),

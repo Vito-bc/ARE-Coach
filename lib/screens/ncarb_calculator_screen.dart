@@ -5,16 +5,21 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/theme/app_theme.dart';
 import '../core/ui/app_chrome.dart';
 
-// Approximate raw-score cut points per division.
-// NCARB uses IRT scaling (passing scaled score = 265 on a 200-400 scale).
-// These percentages are community-reported estimates — not official NCARB data.
-const _cutScores = {
-  'PcM': 58,
-  'PjM': 60,
-  'CE': 62,
-  'PA': 60,
-  'PPD': 63,
-  'PDD': 63,
+// Official NCARB-published passing ranges: the share of SCORED items you must
+// answer correctly to pass. The exact cut varies by exam form (IRT), so NCARB
+// publishes a RANGE, not a single number, and does not publish a raw-to-scaled
+// conversion. This screen therefore only reports where a practice score falls
+// relative to that range — it cannot and does not predict an official result.
+// Source: ncarb.org/blog/what-score-do-you-need-to-pass-the-are
+typedef PassingRange = ({int min, int max});
+
+const _passingRanges = <String, PassingRange>{
+  'PcM': (min: 59, max: 71),
+  'PjM': (min: 59, max: 71),
+  'PA': (min: 65, max: 71),
+  'PPD': (min: 65, max: 71),
+  'PDD': (min: 58, max: 66),
+  'CE': (min: 58, max: 66),
 };
 
 const _divisionNames = {
@@ -44,13 +49,15 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
     super.dispose();
   }
 
-  int get _cutScore => _cutScores[_division]!;
+  PassingRange get _range => _passingRanges[_division]!;
 
-  _Verdict _verdict(int raw) {
-    final diff = raw - _cutScore;
-    if (diff >= 5) return _Verdict.pass;
-    if (diff >= -4) return _Verdict.borderline;
-    return _Verdict.fail;
+  /// Where a raw score sits relative to NCARB's published passing range.
+  /// Deliberately not a pass/fail prediction: NCARB does not disclose which
+  /// cut applies to a given exam form.
+  _Band _bandFor(int raw) {
+    if (raw < _range.min) return _Band.below;
+    if (raw > _range.max) return _Band.above;
+    return _Band.within;
   }
 
   @override
@@ -58,7 +65,7 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
     return Scaffold(
       backgroundColor: AppTheme.navy,
       appBar: AppBar(
-        title: const Text('NCARB Score Calculator'),
+        title: const Text('Practice Score Check'),
         backgroundColor: AppTheme.navy.withValues(alpha: 0.92),
         foregroundColor: AppTheme.textPrimary,
       ),
@@ -81,7 +88,7 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: _cutScores.keys.map((div) {
+            children: _passingRanges.keys.map((div) {
               final selected = _division == div;
               return GestureDetector(
                 onTap: () => setState(() {
@@ -169,14 +176,13 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
           // Result card
           if (_rawScore != null) _ResultCard(
             raw: _rawScore!,
-            cut: _cutScore,
-            division: _division,
-            verdict: _verdict(_rawScore!),
+            range: _range,
+            band: _bandFor(_rawScore!),
           ),
 
           const SizedBox(height: 24),
 
-          // Cut score reference table
+          // Passing-range reference table
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -190,7 +196,7 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
                 Row(
                   children: [
                     const Text(
-                      'ESTIMATED CUT SCORES',
+                      'NCARB PASSING RANGES',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -201,11 +207,11 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
                     const Spacer(),
                     GestureDetector(
                       onTap: () => launchUrl(
-                        Uri.parse('https://www.ncarb.org/pass-the-are/prepare/are-exam-prep/scoring'),
+                        Uri.parse('https://www.ncarb.org/blog/what-score-do-you-need-to-pass-the-are'),
                         mode: LaunchMode.externalApplication,
                       ),
                       child: const Text(
-                        'community estimates ↗',
+                        'official source ↗',
                         style: TextStyle(
                           fontSize: 10,
                           color: AppTheme.textSecondary,
@@ -216,7 +222,7 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                ..._cutScores.entries.map((e) => Padding(
+                ..._passingRanges.entries.map((e) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
@@ -246,7 +252,7 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
                         ),
                       ),
                       Text(
-                        '~${e.value}%',
+                        '${e.value.min}–${e.value.max}%',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -262,7 +268,11 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
 
           const SizedBox(height: 16),
           const Text(
-            'Disclaimer: Cut scores are community-reported estimates based on NCARB\'s scaled passing score of 265. Actual results depend on exam form difficulty and IRT scaling. Always refer to official NCARB score reports.',
+            'This is a practice check, not a score prediction. The ranges above are '
+            'NCARB\'s published passing ranges — the share of scored items needed to pass. '
+            'The exact cut depends on your exam form, and NCARB does not publish how a raw '
+            'percentage converts to the 100–800 scaled score (550 = pass). No app can '
+            'predict your official result; only your NCARB score report is authoritative.',
             style: TextStyle(
               fontSize: 11,
               color: AppTheme.textSecondary,
@@ -277,41 +287,43 @@ class _NcarbCalculatorScreenState extends State<NcarbCalculatorScreen> {
   }
 }
 
-enum _Verdict { pass, borderline, fail }
+enum _Band { below, within, above }
 
 class _ResultCard extends StatelessWidget {
   const _ResultCard({
     required this.raw,
-    required this.cut,
-    required this.division,
-    required this.verdict,
+    required this.range,
+    required this.band,
   });
 
   final int raw;
-  final int cut;
-  final String division;
-  final _Verdict verdict;
+  final PassingRange range;
+  final _Band band;
 
   @override
   Widget build(BuildContext context) {
-    final (label, sublabel, color, icon) = switch (verdict) {
-      _Verdict.pass => (
-          'Likely Pass',
-          'Your score is comfortably above the estimated cut score.',
-          AppTheme.success,
-          Icons.check_circle_rounded,
-        ),
-      _Verdict.borderline => (
-          'Borderline',
-          'Your score is within the margin of error. Result could go either way.',
-          AppTheme.warning,
-          Icons.info_rounded,
-        ),
-      _Verdict.fail => (
-          'Likely Fail',
-          'Your score is below the estimated cut score. More practice recommended.',
+    final (label, sublabel, color, icon) = switch (band) {
+      _Band.below => (
+          'Below the passing range',
+          'Even the most forgiving form of this division needs ${range.min}% of scored '
+              'items correct. Keep practising.',
           AppTheme.error,
-          Icons.cancel_rounded,
+          Icons.trending_down_rounded,
+        ),
+      _Band.within => (
+          'Inside the passing range',
+          'This division passes somewhere between ${range.min}% and ${range.max}%, depending '
+              'on your exam form. NCARB does not disclose which cut applies, so this could '
+              'go either way.',
+          AppTheme.warning,
+          Icons.remove_rounded,
+        ),
+      _Band.above => (
+          'Above the passing range',
+          'You are above the highest published cut (${range.max}%) for this division. Still '
+              'not a guarantee — only NCARB scores the real exam.',
+          AppTheme.success,
+          Icons.trending_up_rounded,
         ),
     };
 
@@ -347,9 +359,13 @@ class _ResultCard extends StatelessWidget {
             children: [
               _ScoreStat('Your Score', '$raw%', AppTheme.textPrimary),
               Container(width: 1, height: 32, color: AppTheme.separator),
-              _ScoreStat('Est. Cut', '~$cut%', AppTheme.textSecondary),
+              _ScoreStat('Passing Range', '${range.min}–${range.max}%', AppTheme.textSecondary),
               Container(width: 1, height: 32, color: AppTheme.separator),
-              _ScoreStat('Margin', '${raw - cut > 0 ? '+' : ''}${raw - cut}%', color),
+              _ScoreStat(
+                'To Range Min',
+                '${raw - range.min > 0 ? '+' : ''}${raw - range.min}%',
+                color,
+              ),
             ],
           ),
         ],

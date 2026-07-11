@@ -55,21 +55,45 @@ GUIDE = [
     ("body", "Переписать — тема нужная, но формулировка/зубрёжка плохая."),
     ("body", "Удалить — вопрос плохой или нерелевантный, убрать совсем."),
     ("body", "Удалить дубликат — повтор, убрать."),
-    ("h", "Темп и порядок"),
-    ("body", "В списке 692 вопроса, отсортированы худшие сверху. По ~2 мин это ~3-4 часа — растяни на несколько дней, иди сверху вниз. Совет: сначала фильтром (стрелки в шапке) покажи только CONSISTENCY (их 52, но важные), потом остальное."),
-    ("body", "В колонку «REVIEW: fix / notes» пиши правку: верный ответ, лучшую обманку или короткий комментарий."),
+    ("h", "ВАЖНО: не проверяй весь список подряд"),
+    ("body", "Честная арифметика: в списке ~692 вопроса, по ~2 минуты это примерно 23 ЧАСА, а не пара вечеров. Полностью проходить его не нужно и не надо. Мы разбили список на три очереди — колонка «priority». Фильтруй по ней (стрелка в шапке колонки)."),
+    ("body", "КРАСНАЯ (RED) — только ты. Здесь конфликт ответа/объяснения/ссылки на норму, самые тяжёлые вопросы и дубликаты. AI тут не судья: нужен живой архитектор. Это ~80-120 вопросов, ~10-20 часов. НАЧНИ С НЕЁ и, если времени мало, ограничься ею."),
+    ("body", "ЖЁЛТАЯ (YELLOW) — слабые обманки и подсказки в формулировке. Это AI умеет чинить сам; он предложит правку, а ты только утвердишь. Отдельно проходить не обязательно."),
+    ("body", "ЗЕЛЁНАЯ (GREEN) — вопросы без конфликтов. Достаточно выборочно глянуть 10-15%."),
+    ("h", "Про метку FACTUAL — не переписывай всё подряд"),
+    ("body", "FACTUAL значит «проверяет знание факта», а НЕ «плохой вопрос». Настоящий ARE тоже спрашивает факты, поэтому выбрасывать вопрос только за то, что он FACTUAL, НЕ нужно. Переписывай, только если факт мелкий/бесполезный или формулировка плохая."),
+    ("h", "Как писать правку"),
+    ("body", "В колонку «REVIEW: fix / notes» пиши: верный ответ, лучшую обманку или короткий комментарий."),
 ]
+
+def queue_for(tags: list[str], severity: float) -> str:
+    """Triage a flagged question into the queue that decides WHO reviews it.
+
+    RED    - needs a licensed architect's judgment and nothing less: the answer,
+             explanation and citation disagree; or the question is among the worst
+             scored; or it duplicates another and someone must pick the survivor.
+    YELLOW - mechanical weaknesses (throwaway distractors, answer telegraphed by
+             the stem). An LLM can propose a fix; the architect only approves it.
+    GREEN  - flagged but with no conflict. Spot-check a sample; do not rewrite a
+             question merely for being factual -- the real ARE tests facts too.
+    """
+    if "CONSISTENCY" in tags or "DUPLICATE" in tags or severity >= 7:
+        return "RED"
+    if "WEAK_DISTRACTORS" in tags or "LEAKAGE" in tags:
+        return "YELLOW"
+    return "GREEN"
+
 
 # Column order for the worklist sheet — review columns first (frozen).
 _ORDER = [
     "REVIEW: verdict", "REVIEW: fix / notes",
-    "severity", "id", "section", "issues",
+    "priority", "severity", "id", "section", "issues",
     "question", "options (>> = correct)", "correct", "explanation", "codeReference",
     "why_factual", "distractor_notes", "consistency_problem", "leakage_note",
     "difficulty", "duplicate_of",
 ]
 _WIDTHS = {
-    "REVIEW: verdict": 20, "REVIEW: fix / notes": 34, "severity": 8, "id": 11, "section": 20,
+    "REVIEW: verdict": 20, "REVIEW: fix / notes": 34, "priority": 9, "severity": 8, "id": 11, "section": 20,
     "issues": 20, "question": 55, "options (>> = correct)": 50, "correct": 36, "explanation": 58,
     "codeReference": 26, "why_factual": 36, "distractor_notes": 52, "consistency_problem": 34,
     "leakage_note": 34, "difficulty": 10, "duplicate_of": 16,
@@ -217,6 +241,7 @@ def main() -> None:
         )
         rows.append(
             {
+                "priority": queue_for(tags, r["severity"]),
                 "severity": r["severity"],
                 "id": qid,
                 "section": q.section,
@@ -235,7 +260,19 @@ def main() -> None:
             }
         )
 
-    rows.sort(key=lambda x: -x["severity"])
+    # RED first, then worst-scored within each queue.
+    _RANK = {"RED": 0, "YELLOW": 1, "GREEN": 2}
+    rows.sort(key=lambda x: (_RANK[x["priority"]], -x["severity"]))
+
+    counts = Counter(x["priority"] for x in rows)
+    red, yellow, green = counts["RED"], counts["YELLOW"], counts["GREEN"]
+    print(
+        f"Queues: RED {red} (architect only, ~{round(red * 2 / 60)}-{round(red * 8 / 60)} h) | "
+        f"YELLOW {yellow} (AI proposes, architect approves) | "
+        f"GREEN {green} (spot-check ~10-15%)"
+    )
+    print(f"All {len(rows)} rows at ~2 min each would be ~{round(len(rows) * 2 / 60)} h -- don't do that.")
+
     out = config.REPORTS_DIR / "maryana_worklist.csv"
     with out.open("w", newline="", encoding="utf-8-sig") as f:  # utf-8-sig = clean in Excel
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))

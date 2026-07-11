@@ -1,6 +1,6 @@
 # ARE Coach — NYC ARE 5.0 Exam Prep
 
-> Flutter mobile app for architects preparing for **NCARB ARE 5.0** — 1,100 questions, 300 flashcards, mock exam, AI coach, and progress analytics with an NYC Building Code focus.
+> Flutter mobile app for architects preparing for **NCARB ARE 5.0** — 1,082 questions, 300 flashcards, mock exam, AI coach, and progress analytics with an NYC Building Code focus.
 
 [![CI](https://github.com/Vito-bc/ARE-Coach/actions/workflows/flutter-ci.yml/badge.svg)](https://github.com/Vito-bc/ARE-Coach/actions/workflows/flutter-ci.yml)
 ![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)
@@ -22,10 +22,10 @@
 
 | Feature | Status |
 |---|---|
-| **1,100-question bank** — 6 ARE divisions + NYC codes, with explanations & NCARB topic tags | ✅ |
+| **1,082-question bank** — 6 ARE divisions + NYC codes, with explanations & NCARB topic tags | ✅ |
 | **Mock Exam Mode** — 65 Qs, 130-min countdown, per-division score report | ✅ |
 | Practice tests — Quick Quiz, By Division, Timed session | ✅ |
-| **Flashcards** — 300 cards, SM-2 spaced repetition, exam tips | ✅ |
+| **Flashcards** — 300 cards, basic review scheduling, exam tips | ✅ |
 | **Progress Insights** — score trend chart, accuracy by division, weak spots | ✅ |
 | **Study Plan** — exam countdown, daily card & question targets | ✅ |
 | **AI Coach** — chat + voice (STT / TTS), backed by Cloud Function | ✅ |
@@ -36,7 +36,7 @@
 | Firebase Auth — email/password + anonymous | ✅ |
 | Firestore attempt persistence & weak-topic tracking | ✅ |
 | Offline fallback — bundled JSON + Hive cache | ✅ |
-| Dark / light theme | ✅ |
+| Dark theme | ✅ |
 | In-app purchase paywall (premium + token top-up) | ✅ |
 | Question flag / report pipeline | ✅ |
 
@@ -44,7 +44,7 @@
 
 ## Question Bank
 
-**1,100 questions** — 4-option MCQ, detailed explanations, citations to official standards, and NCARB-aligned topic tags for sub-division analytics.
+**1,082 questions** — 4-option MCQ, detailed explanations, citations to official standards, and NCARB-aligned topic tags for sub-division analytics.
 
 ### By Division
 
@@ -57,7 +57,7 @@
 | Project Docs & Delivery | PDD | 165 |
 | Construction & Evaluation | CE | 165 |
 | NYC Building Codes | NYC | 114 |
-| **Total** | | **1,100** |
+| **Total** | | **1,082** |
 
 ### By Difficulty
 
@@ -73,7 +73,7 @@
 
 ### Reference Sources
 
-Many questions cite more than one source, so the counts below overlap and sum to more than 1,100.
+Many questions cite more than one source, so the counts below overlap and sum to more than 1,082.
 
 | Source | Qs | Link |
 |---|---|---|
@@ -131,7 +131,7 @@ Many questions cite more than one source, so the counts below overlap and sum to
 
 ## Flashcard Deck
 
-**300 cards** — front/back format, exam tip on every card, SM-2 spaced-repetition scheduling.
+**300 cards** — front/back format, exam tip on every card, basic review scheduling (fresh / learning / mastered, with mastered cards resurfacing after 7 days). Not a full SM-2 implementation.
 
 | Division | Cards |
 |---|---|
@@ -168,7 +168,7 @@ are_coach/
 │   │   ├── coach_service.dart            HTTP → Cloud Function with local fallback
 │   │   ├── voice_service.dart            speech_to_text + flutter_tts
 │   │   ├── question_repository.dart      Firestore → JSON asset → seed fallback chain
-│   │   ├── flashcard_repository.dart     Hive-backed SM-2 spaced repetition
+│   │   ├── flashcard_repository.dart     Hive-backed review scheduling
 │   │   ├── progress_repository.dart      Attempt save, weak-topic analytics, insights
 │   │   ├── iap_service.dart              In-app purchase + server-side receipt validation
 │   │   ├── notification_service.dart     Daily reminder — schedule, persist, cancel
@@ -182,7 +182,7 @@ are_coach/
 │   │   ├── test_result_screen.dart       Post-quiz result (section / timed mode)
 │   │   ├── mock_exam_result_screen.dart  Post-mock verdict + per-division breakdown
 │   │   ├── flashcards_screen.dart        Flashcard deck browser and stats
-│   │   ├── flashcard_session_screen.dart Flashcard study session (flip + SM-2 rating)
+│   │   ├── flashcard_session_screen.dart Flashcard study session (flip + rating)
 │   │   ├── attempt_history_screen.dart   Paginated session history
 │   │   ├── ncarb_calculator_screen.dart  NCARB scaled-score calculator
 │   │   ├── coach_screen.dart             AI Coach chat (text + voice)
@@ -199,7 +199,7 @@ are_coach/
 │       └── seed_questions.dart           3-question emergency fallback
 ├── assets/
 │   ├── seeds/
-│   │   ├── questions_ny.json             1,100-question bank
+│   │   ├── questions_ny.json             1,082-question bank
 │   │   └── flashcards_ny.json           300-card flashcard deck
 │   └── images/                          App icons
 ├── functions/                           Firebase Cloud Functions (AI Coach, quota)
@@ -228,7 +228,7 @@ are_coach/
 
 ### Run in offline / demo mode
 
-No Firebase project required. The app loads the bundled 1,100-question JSON bank.
+No Firebase project required. The app loads the bundled 1,082-question JSON bank.
 
 ```bash
 flutter pub get

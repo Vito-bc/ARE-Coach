@@ -630,7 +630,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             _Card(
               child: _SettingsRow(
                 icon: Icons.calculate_outlined,
-                label: 'NCARB Score Calculator',
+                label: 'Practice Score Check',
                 value: '',
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const NcarbCalculatorScreen()),
@@ -685,10 +685,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             _Card(
               child: Column(
                 children: [
-                  const _SettingsRow(
+                  _SettingsRow(
                     icon: Icons.info_outline_rounded,
                     label: 'Version',
-                    value: kAppVersion,
+                    value: ref.watch(appVersionProvider).valueOrNull ?? '',
                     onTap: null,
                   ),
                   _Divider(),

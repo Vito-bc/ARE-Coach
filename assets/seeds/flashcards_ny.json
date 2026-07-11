@@ -5,7 +5,7 @@
     "front": "Design-Bid-Build (DBB)",
     "back": "Traditional delivery method where design is fully completed before construction is bid. Owner holds separate contracts with architect and contractor. Maximum design control for owner; lowest financial risk during design phase.",
     "codeRef": "AIA Document A201",
-    "examTip": "Most common delivery method on the ARE. Know the three phases: design â†’ bid â†’ build. Architect has no contract with contractor."
+    "examTip": "Most common delivery method on the ARE. Know the three phases: design → bid → build. Architect has no contract with contractor."
   },
   {
     "id": "fc_pcm_02",
@@ -253,7 +253,7 @@
     "front": "Substantial Completion",
     "back": "The stage when the work is sufficiently complete for the owner to occupy and use it for its intended purpose. Triggers the start of the warranty period and the release of retainage.",
     "codeRef": "AIA A201 §9.8 / AIA G704",
-    "examTip": "Substantial completion â‰  final completion. The architect issues a Certificate of Substantial Completion (G704). Warranty period and retainage release begin at this date."
+    "examTip": "Substantial completion ≠ final completion. The architect issues a Certificate of Substantial Completion (G704). Warranty period and retainage release begin at this date."
   },
   {
     "id": "fc_pjm_08",
@@ -411,7 +411,7 @@
     "id": "fc_pa_02",
     "section": "Programming & Analysis",
     "front": "Egress Width — Stairs",
-    "back": "Stair egress width = 0.3 inches per occupant. Level egress (corridors, ramps) = 0.2 in/occupant. Minimum stair width: 44 inches (28 in for â‰¤49 occupants).",
+    "back": "Stair egress width = 0.3 inches per occupant. Level egress (corridors, ramps) = 0.2 in/occupant. Minimum stair width: 44 inches (28 in for ≤49 occupants).",
     "codeRef": "IBC §1005.1",
     "examTip": "Stairs: 0.3 in/occupant. Level egress: 0.2 in/occupant. The 44-inch minimum is independent of occupant load (unless serving fewer than 50 occupants—then 28 inches)."
   },
@@ -453,7 +453,7 @@
     "front": "Zoning Variance",
     "back": "Permission granted by a zoning board to deviate from dimensional or use requirements due to practical difficulties or unnecessary hardship. Must demonstrate unique site conditions not self-created.",
     "codeRef": "Local Zoning Resolution / Board of Zoning Appeals",
-    "examTip": "Variance â‰  rezoning. Area variance = dimension relief; use variance = different use allowed. Hardship must be unique to the property, not self-inflicted."
+    "examTip": "Variance ≠ rezoning. Area variance = dimension relief; use variance = different use allowed. Hardship must be unique to the property, not self-inflicted."
   },
   {
     "id": "fc_pa_08",
@@ -683,7 +683,7 @@
     "id": "fc_ppd_11",
     "section": "Project Planning & Design",
     "front": "Beam Deflection Limits",
-    "back": "Allowable beam deflection under live load: L/360 (prevents cracking in brittle finishes below). Under total load: L/240. Deflection increases with spanâ´ and decreases with depthÂ³.",
+    "back": "Allowable beam deflection under live load: L/360 (prevents cracking in brittle finishes below). Under total load: L/240. Deflection increases with span⁴ and decreases with depth³.",
     "codeRef": "IBC Table 1604.3 / AISC",
     "examTip": "Doubling the span increases deflection 16×. Doubling the depth reduces deflection 8×. L/360 = live load limit. Long spans require deep or pre-cambered members."
   },
@@ -723,9 +723,9 @@
     "id": "fc_ppd_16",
     "section": "Project Planning & Design",
     "front": "Indoor Air Quality (IAQ)",
-    "back": "Quality of air within buildings relative to health and comfort. Governed by ASHRAE 62.1, which sets minimum ventilation rates by occupancy. Key pollutants: COâ‚‚, VOCs, radon, particulates, biological contaminants.",
+    "back": "Quality of air within buildings relative to health and comfort. Governed by ASHRAE 62.1, which sets minimum ventilation rates by occupancy. Key pollutants: CO₂, VOCs, radon, particulates, biological contaminants.",
     "codeRef": "ASHRAE Standard 62.1",
-    "examTip": "ASHRAE 62.1 sets minimum ventilation rates. COâ‚‚ above 1,000 ppm signals inadequate fresh air. LEED EQ credits reward improved IAQ beyond minimums."
+    "examTip": "ASHRAE 62.1 sets minimum ventilation rates. CO₂ above 1,000 ppm signals inadequate fresh air. LEED EQ credits reward improved IAQ beyond minimums."
   },
   {
     "id": "fc_ppd_17",
@@ -981,7 +981,7 @@
     "front": "Construction Observation",
     "back": "Periodic site visits by the architect during construction to observe work for general conformance with the contract documents. NOT continuous inspection. Architect reports findings in a Field Report.",
     "codeRef": "AIA B101 §3.6 / A201 §4.2",
-    "examTip": "Observation â‰  supervision. The architect is not responsible for the contractor's means, methods, or construction safety. The contractor is solely responsible for construction quality."
+    "examTip": "Observation ≠ supervision. The architect is not responsible for the contractor's means, methods, or construction safety. The contractor is solely responsible for construction quality."
   },
   {
     "id": "fc_ce_04",
@@ -1307,7 +1307,7 @@
     "id": "fc_pjm_26",
     "section": "Project Management",
     "front": "Total Float vs. Free Float (CPM Scheduling)",
-    "back": "Total float: the maximum time an activity can be delayed without delaying the project completion date. Free float: the time an activity can be delayed without delaying the early start of any immediately following activity. Free float â‰¤ Total float always.",
+    "back": "Total float: the maximum time an activity can be delayed without delaying the project completion date. Free float: the time an activity can be delayed without delaying the early start of any immediately following activity. Free float ≤ Total float always.",
     "codeRef": "PMBOK; CPM Scheduling principles",
     "examTip": "Activities on the critical path have zero total float. Free float impacts the next activity; total float impacts the overall project end date."
   },
@@ -1403,9 +1403,9 @@
     "id": "fc_pjm_38",
     "section": "Project Management",
     "front": "Earned Value Management (EVM) — Key Metrics",
-    "back": "EVM measures project performance using: PV (Planned Value = budgeted cost of work scheduled), EV (Earned Value = budgeted cost of work performed), AC (Actual Cost = actual cost of work performed). Schedule Variance = EV âˆ’ PV; Cost Variance = EV âˆ’ AC. Negative variance = behind schedule or over budget.",
+    "back": "EVM measures project performance using: PV (Planned Value = budgeted cost of work scheduled), EV (Earned Value = budgeted cost of work performed), AC (Actual Cost = actual cost of work performed). Schedule Variance = EV − PV; Cost Variance = EV − AC. Negative variance = behind schedule or over budget.",
     "codeRef": "PMBOK Guide; ANSI/EIA-748",
-    "examTip": "EV âˆ’ AC = Cost Variance (negative = over budget). EV âˆ’ PV = Schedule Variance (negative = behind schedule). The exam may present numbers and ask what they indicate."
+    "examTip": "EV − AC = Cost Variance (negative = over budget). EV − PV = Schedule Variance (negative = behind schedule). The exam may present numbers and ask what they indicate."
   },
   {
     "id": "fc_pjm_39",
@@ -1563,7 +1563,7 @@
     "id": "fc_pa_38",
     "section": "Programming & Analysis",
     "front": "Passive House Standard (PHIUS)",
-    "back": "An ultra-low energy building performance standard requiring: airtight envelope (â‰¤0.6 ACH50), triple-pane windows, continuous insulation, thermal bridge-free detailing, and heat recovery ventilation (HRV/ERV). PHIUS targets are climate-specific and certified by Passive House Institute US. Reduces heating/cooling loads by up to 90%.",
+    "back": "An ultra-low energy building performance standard requiring: airtight envelope (≤0.6 ACH50), triple-pane windows, continuous insulation, thermal bridge-free detailing, and heat recovery ventilation (HRV/ERV). PHIUS targets are climate-specific and certified by Passive House Institute US. Reduces heating/cooling loads by up to 90%.",
     "codeRef": "PHIUS 2021 Standard; Passive House Institute",
     "examTip": "Passive House differs from LEED by focusing on measured energy performance metrics (airtightness, heating/cooling loads) rather than credit-point system."
   },
@@ -1627,9 +1627,9 @@
     "id": "fc_ppd_31",
     "section": "Project Planning & Design",
     "front": "Two-Way Slab vs. One-Way Slab — Span Ratio Rule",
-    "back": "A slab is considered two-way (spanning in both directions) when the long-to-short span ratio is â‰¤ 2:1. When the ratio exceeds 2:1, the slab behaves as one-way and reinforcement runs primarily in the short direction. Two-way slabs are more material-efficient for large, square bays.",
+    "back": "A slab is considered two-way (spanning in both directions) when the long-to-short span ratio is ≤ 2:1. When the ratio exceeds 2:1, the slab behaves as one-way and reinforcement runs primarily in the short direction. Two-way slabs are more material-efficient for large, square bays.",
     "codeRef": "ACI 318 §8.3",
-    "examTip": "L/S â‰¤ 2.0 â†’ two-way slab. L/S > 2.0 â†’ one-way slab. This is the primary design decision in concrete flat-plate and flat-slab structures."
+    "examTip": "L/S ≤ 2.0 → two-way slab. L/S > 2.0 → one-way slab. This is the primary design decision in concrete flat-plate and flat-slab structures."
   },
   {
     "id": "fc_ppd_32",
@@ -2227,7 +2227,7 @@
     "id": "fc_nyc_24",
     "section": "NYC Building Codes",
     "front": "NYC Local Law 33 (2018) — Energy Grade Posting",
-    "back": "Buildings subject to LL 84 benchmarking must post an Energy Efficiency Grade (A, B, C, or D) on or near the building's main entrance. The grade is based on the ENERGY STAR score. Grade A = score â‰¥85; Grade D = score <55 or failure to benchmark. Posting required by October 1 of each year.",
+    "back": "Buildings subject to LL 84 benchmarking must post an Energy Efficiency Grade (A, B, C, or D) on or near the building's main entrance. The grade is based on the ENERGY STAR score. Grade A = score ≥85; Grade D = score <55 or failure to benchmark. Posting required by October 1 of each year.",
     "codeRef": "NYC LL33 of 2018; NYC Admin Code §28-309.12",
     "examTip": "LL 33 creates public accountability for building energy performance — posted grades allow tenants and buyers to compare buildings. The exam tests that the grade is based on ENERGY STAR score, not LL97 compliance."
   },
@@ -2283,7 +2283,7 @@
     "id": "fc_nyc_31",
     "section": "NYC Building Codes",
     "front": "NYC Seismic Design — SDC and Site Class",
-    "back": "Most of NYC falls in Seismic Design Category B (SDC B), with some areas (especially soft soil zones) in SDC C. NYC is in a moderate seismic hazard zone (ASCE 7 SS â‰ˆ 0.35g). Site Class D (stiff soil) is common in NYC's outer boroughs; Site Class E (soft clay) triggers higher seismic forces. SDC determines which seismic lateral system is required.",
+    "back": "Most of NYC falls in Seismic Design Category B (SDC B), with some areas (especially soft soil zones) in SDC C. NYC is in a moderate seismic hazard zone (ASCE 7 SS ≈ 0.35g). Site Class D (stiff soil) is common in NYC's outer boroughs; Site Class E (soft clay) triggers higher seismic forces. SDC determines which seismic lateral system is required.",
     "codeRef": "NYC BC §1613; ASCE 7-22 Chapter 11; USGS Seismic Hazard Maps",
     "examTip": "NYC is NOT a high-seismic zone — SDC B/C means most structures can use ordinary systems. The exam tests that designers must check site class for soft soil amplification even in moderate zones."
   },
@@ -2365,7 +2365,7 @@
     "front": "NYC Local Law 87 vs. Local Law 84 vs. Local Law 97 — Summary Comparison",
     "back": "LL 84 (2009): Annual energy benchmarking for buildings >25,000 SF — measure and report. LL 87 (2009): Energy audit + retro-commissioning every 10 years for buildings >50,000 SF — diagnose and improve. LL 97 (2019): Carbon emissions caps starting 2024 for buildings >25,000 SF — comply or pay fines. Three complementary laws forming NYC's building energy policy.",
     "codeRef": "NYC Admin Code §28-308 (LL87); §28-309 (LL84); §28-320 (LL97)",
-    "examTip": "Benchmark â†’ Audit/Retrofit â†’ Cap is the progression: LL84 measures performance, LL87 improves it, LL97 enforces limits. Know the three thresholds (25K, 50K, 25K SF) and the 10-year audit cycle."
+    "examTip": "Benchmark → Audit/Retrofit → Cap is the progression: LL84 measures performance, LL87 improves it, LL97 enforces limits. Know the three thresholds (25K, 50K, 25K SF) and the 10-year audit cycle."
   },
   {
     "id": "fc_nyc_42",

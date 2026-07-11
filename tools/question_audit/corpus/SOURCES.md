@@ -4,7 +4,7 @@ Every source is from an **official / authoritative publisher**, fetched 2026-07-
 verified to be a valid PDF (`%PDF` header) that ingests into readable, section-numbered
 text. PDFs are git-ignored (kept local for grounding only — not redistributed).
 
-## Collected & verified ✅ — 23 PDFs, 2,769 chunks
+## Collected & verified ✅ — 26 PDFs, 3,441 chunks
 
 | Source | Publisher | Grounds |
 |---|---|---|
@@ -13,7 +13,10 @@ text. PDFs are git-ignored (kept local for grounding only — not redistributed)
 | `nyc_zoning_handbook_2025.pdf` | **NYC DCP** (nyc.gov) | Zoning concepts for Programming & Analysis (FAR, use groups, bulk, yards) |
 | `gsa_p100_facilities_standards_2024.pdf` | **US GSA** (gsa.gov, public) | Building systems / structural / mechanical / materials / sustainability — public substitute for MEEB & Ching (PPD/PDD) |
 | `leed_v41_bdc_rating_system.pdf` | **USGBC** (usgbc.org, free) | LEED v4.1 BD+C — sustainability credits, energy, water, materials (PPD) |
-| `nyc_energy_code_2020_guide.pdf` | **NYC DOB** (nyc.gov) | 2020 NYC Energy Conservation Code — envelope, mechanical, lighting energy compliance (PPD, sustainability) |
+| `nyc_energy_code_2025_c3_general.pdf` | **NYC DOB** (nyc.gov) | 2025 NYCECC Ch. C3 — general requirements, climate zone, materials |
+| `nyc_energy_code_2025_c4_commercial.pdf` | **NYC DOB** (nyc.gov) | 2025 NYCECC Ch. C4 — commercial energy efficiency: envelope, mechanical, lighting (PPD, sustainability) |
+| `nyc_energy_code_2025_c5_existing.pdf` | **NYC DOB** (nyc.gov) | 2025 NYCECC Ch. C5 — existing buildings / alterations |
+| `nyc_ashrae_901_2025_amendments.pdf` | **NYC DOB** (nyc.gov) | ASHRAE 90.1 as adopted with NYC amendments — the ASHRAE energy-standard path (PPD) |
 | `nps_historic_treatment_guidelines_2017.pdf` | **US NPS** (nps.gov, public) | Secretary of the Interior's Standards — treatment of historic properties: preservation & rehabilitation (PPD/PDD historic) |
 | `osha_2202_construction_industry_digest.pdf` | **US OSHA** (osha.gov, public) | Construction Industry Digest — key 29 CFR 1926 jobsite-safety requirements (Construction & Evaluation) |
 | **NYC Building Code chapters** (all **NYC DOB**, nyc.gov) | | |
@@ -58,3 +61,12 @@ user's own books / study notes:
 - **MEEB / Ching (Building Construction Illustrated) / Problem Seeking** -> PPD / PDD / PA. User must
   still find these; GSA P100 + WBDG(public web) partially substitute the systems/materials content.
 - **AIA Code of Ethics** -> PcM. Free at aia.org but the site blocks bot download; user can grab it.
+- ~~LEED / ASHRAE~~ -> **no longer needed**: LEED v4.1 and NYC's adopted ASHRAE 90.1 are both in the
+  corpus now.
+
+## Edition currency (check before generating)
+Codes get superseded. The corpus must track the edition **in force**, not the one we happened to fetch:
+- **2025 NYCECC** replaced the 2020 edition; DOB enforces it for applications filed on/after
+  **2026-03-30**. The 2020 guide was ingested by mistake on 2026-07-06 and **removed** on 2026-07-11.
+- NYC Building Code chapters here are the **2022** construction codes (current).
+Re-verify at nyc.gov/site/buildings/codes before a generation run.
