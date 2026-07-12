@@ -40,3 +40,29 @@ jobs:
 
       - name: Run tests
         run: flutter test --no-pub
+
+  content:
+    name: Content checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # check_bank only needs pydantic — don't drag the grader/embedding stack
+      # (anthropic, sentence-transformers, torch) into every PR.
+      - name: Install dependencies
+        run: pip install "pydantic==2.9.2"
+
+      # Guards the question bank and flashcards against defects that have each
+      # already reached main once: broken encoding, citations to a superseded
+      # code edition, duplicate ids, answer-position skew, and docs advertising
+      # a question count the bank doesn't actually have.
+      - name: Check question bank
+        working-directory: tools/question_audit
+        run: python -m src.check_bank

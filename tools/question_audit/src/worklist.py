@@ -1,12 +1,17 @@
-"""Build maryana_worklist.csv — ONE self-contained, priority-sorted editing sheet.
+"""Build the architect's review sheet — one self-contained, Excel-friendly file.
 
 Each row = the full question (stem, options with the correct one marked,
 explanation, citation) + issue tags + the AI's reasons + any duplicate partner.
-The architect opens this single file (Excel-friendly) and works top-down.
+
+The flagged questions are triaged into three queues (see `queue_for`). What we
+actually hand the architect is the RED queue: the questions where a licensed
+architect's judgment is the only thing that can settle them. YELLOW is an
+AI-repair-then-approve flow and GREEN is a spot-check, so neither belongs in her
+file — sending all 692 rows would be ~23 hours of work, most of it wasted.
 
 Usage (from tools/question_audit/):
-    python -m src.worklist                 # severity >= 4 (+ all duplicates/consistency)
-    python -m src.worklist --min-severity 6
+    python -m src.worklist --queue RED     # what we send the architect
+    python -m src.worklist                 # everything (all three queues)
 """
 from __future__ import annotations
 
@@ -32,38 +37,44 @@ VERDICTS = [
 # Guide sheet content: (style, text). style in {title, h, body}.
 GUIDE = [
     ("title", "Проверка вопросов ARE — инструкция для Марианны"),
-    ("body", "Ты практикующий архитектор в Нью-Йорке — твоя экспертиза здесь главное. Задача: пройти список на вкладке «worklist» и по каждому вопросу выбрать решение в колонке «REVIEW: verdict». Писать вопросы с нуля НЕ нужно — только оценить и поправить существующие. AI уже отметил подозрительные; ты подтверждаешь и правишь как профессионал."),
+    ("body", "Ты практикующий архитектор в Нью-Йорке — твоя экспертиза здесь главное. Писать вопросы с нуля НЕ нужно. Задача: пройти список на вкладке «worklist» и по каждому вопросу выбрать решение в колонке «REVIEW: verdict»."),
+
+    ("h", "Почему здесь только 127 вопросов, а не все 1082"),
+    ("body", "Мы прогнали весь банк через AI-проверку. Она отсортировала вопросы на три группы. Тебе мы отдаём ТОЛЬКО ту группу, где AI не имеет права быть судьёй и нужен живой архитектор. Остальное AI чинит сам, а мы потом просто утверждаем."),
+    ("body", "Что попало в твой список: (1) вопросы, где ОТВЕТ, ОБЪЯСНЕНИЕ и ССЫЛКА НА НОРМУ противоречат друг другу; (2) самые тяжёлые по совокупности проблем; (3) дубликаты, где надо решить, какой из двух оставить."),
+    ("body", "Пример, чтобы было понятно, о чём речь. Вопрос ppd_q3 спрашивает про длиннопролётные конструкции на ГРАВИТАЦИОННУЮ нагрузку, а в ссылке стоит «AISC Seismic Design Manual» — сейсмический мануал. Ответ, возможно, верный, а ссылка — нет. Такое ловится только глазами архитектора."),
+
+    ("h", "Сколько это времени — честно"),
+    ("body", "127 вопросов. Это НЕ «по 2 минуты»: почти каждый требует сверить норму или пункт контракта. Реалистично 5-8 минут на вопрос, то есть примерно 11-17 ЧАСОВ. Растяни на несколько дней, иди сверху вниз — самые проблемные наверху."),
+    ("body", "Если времени совсем мало: отфильтруй колонку «issues» по CONSISTENCY (их 52) — это самое важное и самое опасное."),
+
     ("h", "Главный вопрос к каждому пункту"),
-    ("body", "«Столкнулся бы реальный архитектор с этим на практике — и правильный ли здесь ответ?» Твой практический опыт важнее всего: чаще всего именно ты ловишь неверный «правильный» ответ."),
+    ("body", "«Столкнулся бы реальный архитектор с этим на практике — и правильный ли здесь ответ и ссылка?» Твой практический опыт важнее всего: чаще всего именно ты ловишь неверный «правильный» ответ."),
+
     ("h", "Что значат метки (колонка issues)"),
-    ("body", "FACTUAL — вопрос на зубрёжку факта, а не на суждение. Хороший ARE-вопрос спрашивает «что архитектор должен СДЕЛАТЬ в ситуации», а не «что такое X»."),
-    ("body", "WEAK_DISTRACTORS — неправильные варианты слишком очевидно неверны. Хорошая «обманка» должна быть правдоподобной."),
-    ("body", "LEAKAGE — ответ угадывается по формулировке вопроса, даже не глядя на варианты."),
-    ("body", "CONSISTENCY — ответ, объяснение и ссылка на норму противоречат друг другу. Проверь по коду/практике."),
-    ("body", "DUPLICATE — почти такой же вопрос уже есть (см. колонку duplicate_of)."),
-    ("h", "Как проверять — по шагам (~2 минуты на вопрос)"),
-    ("body", "1. Прочитай вопрос и правильный ответ (помечен >> в колонке options)."),
+    ("body", "CONSISTENCY — САМОЕ ВАЖНОЕ. Ответ, объяснение и ссылка на норму противоречат друг другу. Смотри колонку «consistency_problem» — там написано, что именно нашёл AI. Проверь по коду/практике."),
+    ("body", "DUPLICATE — почти такой же вопрос уже есть в банке (см. колонку «duplicate_of»). Реши, какой оставить, второй помечай «Удалить дубликат»."),
+    ("body", "FACTUAL — вопрос на знание факта, а не на суждение. ВАЖНО: это НЕ значит «плохой вопрос». Настоящий ARE тоже спрашивает факты. НЕ переписывай вопрос только за то, что он FACTUAL."),
+    ("body", "WEAK_DISTRACTORS — неправильные варианты слишком очевидно неверны. LEAKAGE — ответ угадывается по формулировке. Эти две пометки здесь второстепенные: их AI чинит сам, тебе на них отвлекаться не надо."),
+
+    ("h", "Как проверять — по шагам"),
+    ("body", "1. Прочитай вопрос и правильный ответ (помечен >> в колонке «options»)."),
     ("body", "2. Ответ действительно верный? Если нет → «Исправить ответ», впиши верный в «REVIEW: fix / notes»."),
-    ("body", "3. Три неправильных варианта правдоподобны? Если мусор → «Заменить обманки», предложи лучше в notes."),
-    ("body", "4. Это суждение или тупая зубрёжка? Слабая зубрёжка → «Переписать»; совсем плохой → «Удалить»."),
-    ("body", "5. Дубликат? → «Удалить дубликат»."),
-    ("body", "6. Всё хорошо → «OK - оставить»."),
+    ("body", "3. Ссылка на норму (колонка «codeReference») действительно соответствует вопросу? Если нет — впиши верную ссылку в notes и поставь «Исправить ответ»."),
+    ("body", "4. Объяснение не противоречит ответу? Если противоречит — поправь в notes."),
+    ("body", "5. Дубликат? → «Удалить дубликат» у того, который убираем."),
+    ("body", "6. Всё хорошо → «OK - оставить». Это нормальный и частый исход — AI мог ошибиться, ты его подтверждаешь или опровергаешь."),
+
     ("h", "Колонка REVIEW: verdict — выбери из выпадающего списка"),
-    ("body", "OK - оставить — вопрос хороший, не трогаем."),
-    ("body", "Исправить ответ — вопрос ок, но «правильный» ответ неверный (верный пиши в notes)."),
-    ("body", "Заменить обманки — правильный ответ ок, но неправильные слишком очевидны (лучше пиши в notes)."),
-    ("body", "Переписать — тема нужная, но формулировка/зубрёжка плохая."),
+    ("body", "OK - оставить — вопрос хороший, AI поднял ложную тревогу, не трогаем."),
+    ("body", "Исправить ответ — вопрос ок, но неверен «правильный» ответ ИЛИ ссылка на норму (верное пиши в notes)."),
+    ("body", "Заменить обманки — правильный ответ ок, но неправильные варианты слишком очевидны."),
+    ("body", "Переписать — тема нужная, но формулировка плохая."),
     ("body", "Удалить — вопрос плохой или нерелевантный, убрать совсем."),
     ("body", "Удалить дубликат — повтор, убрать."),
-    ("h", "ВАЖНО: не проверяй весь список подряд"),
-    ("body", "Честная арифметика: в списке ~692 вопроса, по ~2 минуты это примерно 23 ЧАСА, а не пара вечеров. Полностью проходить его не нужно и не надо. Мы разбили список на три очереди — колонка «priority». Фильтруй по ней (стрелка в шапке колонки)."),
-    ("body", "КРАСНАЯ (RED) — только ты. Здесь конфликт ответа/объяснения/ссылки на норму, самые тяжёлые вопросы и дубликаты. AI тут не судья: нужен живой архитектор. Это ~80-120 вопросов, ~10-20 часов. НАЧНИ С НЕЁ и, если времени мало, ограничься ею."),
-    ("body", "ЖЁЛТАЯ (YELLOW) — слабые обманки и подсказки в формулировке. Это AI умеет чинить сам; он предложит правку, а ты только утвердишь. Отдельно проходить не обязательно."),
-    ("body", "ЗЕЛЁНАЯ (GREEN) — вопросы без конфликтов. Достаточно выборочно глянуть 10-15%."),
-    ("h", "Про метку FACTUAL — не переписывай всё подряд"),
-    ("body", "FACTUAL значит «проверяет знание факта», а НЕ «плохой вопрос». Настоящий ARE тоже спрашивает факты, поэтому выбрасывать вопрос только за то, что он FACTUAL, НЕ нужно. Переписывай, только если факт мелкий/бесполезный или формулировка плохая."),
+
     ("h", "Как писать правку"),
-    ("body", "В колонку «REVIEW: fix / notes» пиши: верный ответ, лучшую обманку или короткий комментарий."),
+    ("body", "В колонку «REVIEW: fix / notes» пиши свободным текстом: верный ответ, верную ссылку на норму или короткий комментарий. Не надо оформлять — мы разберём."),
 ]
 
 def queue_for(tags: list[str], severity: float) -> str:
@@ -184,6 +195,12 @@ def _write_xlsx(rows: list[dict], path) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--min-severity", type=float, default=4.0)
+    ap.add_argument(
+        "--queue",
+        choices=["RED", "YELLOW", "GREEN", "ALL"],
+        default="ALL",
+        help="RED = the only queue we actually hand the architect",
+    )
     args = ap.parse_args()
 
     audit = {
@@ -267,27 +284,39 @@ def main() -> None:
     counts = Counter(x["priority"] for x in rows)
     red, yellow, green = counts["RED"], counts["YELLOW"], counts["GREEN"]
     print(
-        f"Queues: RED {red} (architect only, ~{round(red * 2 / 60)}-{round(red * 8 / 60)} h) | "
-        f"YELLOW {yellow} (AI proposes, architect approves) | "
+        f"Queues: RED {red} (architect only) | YELLOW {yellow} (AI proposes, architect approves) | "
         f"GREEN {green} (spot-check ~10-15%)"
     )
-    print(f"All {len(rows)} rows at ~2 min each would be ~{round(len(rows) * 2 / 60)} h -- don't do that.")
 
-    out = config.REPORTS_DIR / "maryana_worklist.csv"
+    if args.queue != "ALL":
+        rows = [r for r in rows if r["priority"] == args.queue]
+        if not rows:
+            print(f"No rows in the {args.queue} queue.")
+            return
+
+    # RED items each need a code section or a contract clause checked against the
+    # source -- that is 5-8 minutes of an architect's time, not 2.
+    if args.queue == "RED":
+        stem, lo, hi = "maryana_red_queue", round(len(rows) * 5 / 60), round(len(rows) * 8 / 60)
+        print(f"RED queue for the architect: {len(rows)} questions, realistically ~{lo}-{hi} h.")
+    else:
+        stem = "maryana_worklist"
+        print(f"All {len(rows)} rows at ~2 min each would be ~{round(len(rows) * 2 / 60)} h -- don't send that.")
+
+    out = config.REPORTS_DIR / f"{stem}.csv"
     with out.open("w", newline="", encoding="utf-8-sig") as f:  # utf-8-sig = clean in Excel
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
 
-    xlsx = config.REPORTS_DIR / "maryana_worklist.xlsx"
-    _write_xlsx(rows, xlsx)
+    _write_xlsx(rows, config.REPORTS_DIR / f"{stem}.xlsx")
 
     tally: Counter = Counter()
     for r in rows:
         for t in r["issues"].split(","):
             if t:
                 tally[t] += 1
-    print(f"Wrote {out.name}: {len(rows)} questions to review (severity>={args.min_severity} + all duplicates/consistency).")
+    print(f"Wrote {stem}.csv / {stem}.xlsx: {len(rows)} questions.")
     print("Issue tag tally:", dict(tally))
 
 
