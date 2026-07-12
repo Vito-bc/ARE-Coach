@@ -230,22 +230,29 @@ class AuthService {
   }
 
   Future<void> _ensureUserRecord(User user) async {
+    final doc = _firestore.collection('users').doc(user.uid);
     try {
-      final doc = _firestore.collection('users').doc(user.uid);
       final snapshot = await doc.get();
-      final data = <String, dynamic>{
+
+      // Returning user: there is nothing the client may write here.
+      // firestore.rules makes `email` and `lastActiveAt` server-owned (only
+      // `name` and `targetExamDate` are user-editable), and the Cloud Functions
+      // already refresh `lastActiveAt` on every request. The old code wrote
+      // them anyway, so every returning login was rejected by the rules — and
+      // the failure was swallowed by a bare `catch (_)`, so nobody ever saw it.
+      if (snapshot.exists) return;
+
+      await doc.set({
         'email': user.email,
         'name': user.displayName,
+        'role': 'free',
+        'createdAt': FieldValue.serverTimestamp(),
         'lastActiveAt': FieldValue.serverTimestamp(),
-      };
-      if (!snapshot.exists) {
-        data['role'] = 'free';
-        data['createdAt'] = FieldValue.serverTimestamp();
-      }
-
-      await doc.set(data, SetOptions(merge: true));
-    } catch (_) {
-      // Keep auth flow resilient in local/dev modes.
+      }, SetOptions(merge: true));
+    } catch (error) {
+      // Still non-fatal — a failure here must not block sign-in — but it is no
+      // longer invisible the way the old bare `catch (_)` made it.
+      debugPrint('AuthService._ensureUserRecord failed: $error');
     }
   }
 

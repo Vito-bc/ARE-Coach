@@ -21,6 +21,20 @@ class IAPService {
 
   static const Set<String> _productIds = {kMonthlyId, kYearlyId};
 
+  /// Whether this platform can complete a purchase end-to-end.
+  ///
+  /// Android is deliberately OFF. The client can happily start a Play Billing
+  /// purchase, but the server only validates App Store receipts — so an Android
+  /// user could pay and never receive Premium. Taking money and delivering
+  /// nothing is the worst failure this app has, so the paywall is closed on
+  /// Android until Google Play Developer API validation is implemented server
+  /// side. Flip this on in the same change that ships that validation.
+  static bool get purchasesSupported {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+  }
+
   final InAppPurchase _iap;
   final http.Client _httpClient;
   final String? _validateReceiptUrlOverride;
@@ -50,6 +64,7 @@ class IAPService {
   }
 
   Future<List<ProductDetails>> loadProducts() async {
+    if (!purchasesSupported) return [];
     final available = await _iap.isAvailable();
     if (!available) return [];
 
@@ -58,11 +73,17 @@ class IAPService {
   }
 
   Future<void> purchaseSubscription(ProductDetails product) async {
+    // Guarded here rather than at the call sites so no screen — present or
+    // future — can start a purchase we cannot validate.
+    if (!purchasesSupported) {
+      throw StateError('Purchases are not available on this platform yet.');
+    }
     final param = PurchaseParam(productDetails: product);
     await _iap.buyNonConsumable(purchaseParam: param);
   }
 
   Future<void> restorePurchases() async {
+    if (!purchasesSupported) return;
     await _iap.restorePurchases();
   }
 

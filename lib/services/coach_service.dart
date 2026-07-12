@@ -15,22 +15,21 @@ class CoachService {
   static bool get isLive =>
       const String.fromEnvironment('COACH_API_URL').isNotEmpty;
 
-  static const _fallback = '''
-Formula:
-Required width = Occupant load x egress factor.
-For stairs in many exam problems: 300 x 0.2 = 60 in.
-
-Code:
-Check IBC Section 1005.3.1 and local NYC amendments.
-
-Exam note:
-This is often a 10-15 point competency question. Typical mistakes: using 0.15 for stairs or forgetting minimum clear widths.
-''';
+  // There is deliberately no canned fallback answer.
+  //
+  // This class used to return a stock paragraph about egress width for EVERY
+  // question whenever the endpoint was missing or the call failed — including
+  // in production, where the release workflow never passed COACH_API_URL. A
+  // wrong answer that looks authoritative is far worse than an honest outage:
+  // the candidate studies a code section we invented. If the Coach cannot
+  // answer, say so.
 
   Future<Result<String>> askCoach(String prompt) async {
     final endpoint = const String.fromEnvironment('COACH_API_URL');
     if (endpoint.isEmpty) {
-      return const Ok(_fallback);
+      return const Err(
+        'Coach is unavailable in this build. Please update the app.',
+      );
     }
 
     try {
@@ -74,6 +73,12 @@ This is often a 10-15 point competency question. Typical mistakes: using 0.15 fo
         return const Err('Authentication required. Please re-open the app and try again.');
       }
 
+      // The Coach itself is down (model unreachable, refused, misconfigured).
+      // Surface it honestly — never paper over it with a stock answer.
+      if (response.statusCode == 503) {
+        return const Err('Coach is temporarily unavailable. Please try again shortly.');
+      }
+
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final payload = _asMap(response.body);
         final answer = payload['answer']?.toString();
@@ -81,7 +86,7 @@ This is often a 10-15 point competency question. Typical mistakes: using 0.15 fo
           return Ok(answer);
         }
       }
-      return const Ok(_fallback);
+      return const Err('Coach could not answer that. Please try rephrasing.');
     } catch (_) {
       return const Err('Could not reach the server. Check your connection and try again.');
     }

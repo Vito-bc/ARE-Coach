@@ -7,7 +7,7 @@ This document matches the current implementation in `feature/phase4-hardening`.
 2. Per-minute throttle (`3/min`) + daily limit (`10 free / 200 premium`).
 3. App Check verification in function (`x-firebase-appcheck` token required).
 4. Structured logs with uid, model, usage, latency.
-5. Secret Manager integration (`GEMINI_API_KEY`) instead of plain env var.
+5. Secret Manager integration (`ANTHROPIC_API_KEY`) instead of plain env var.
 6. Flutter app initializes App Check and sends token in coach requests.
 
 ## 1) Install Functions dependencies
@@ -19,7 +19,7 @@ cd ..
 
 ## 2) Set secret in Firebase/Google Secret Manager
 ```powershell
-firebase functions:secrets:set GEMINI_API_KEY
+firebase functions:secrets:set ANTHROPIC_API_KEY
 ```
 
 ## 3) Deploy function

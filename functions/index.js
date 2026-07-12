@@ -3,15 +3,20 @@ const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 
+const { askCoach: generateCoachAnswer } = require("./lib/coach");
+
 admin.initializeApp();
 const db = admin.firestore();
 
-const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 const APPLE_SHARED_SECRET = defineSecret("APPLE_SHARED_SECRET");
 
 const FREE_DAILY_LIMIT = 10;
 const PREMIUM_DAILY_LIMIT = 200;
 const PER_MINUTE_LIMIT = 3;
+
+// Bounds the prompt so a pathological input can't blow up the token bill.
+const MAX_PROMPT_CHARS = 2000;
 
 const APPLE_PRODUCT_IDS = ["are_coach_monthly", "are_coach_yearly"];
 const APPLE_PRODUCTION_URL = "https://buy.itunes.apple.com/verifyReceipt";
@@ -21,10 +26,12 @@ exports.askCoach = onRequest(
   {
     region: "us-central1",
     cors: true,
-    timeoutSeconds: 60,
-    memory: "256MiB",
+    // Grounded generation reads the corpus index at cold start and Claude can
+    // take a while on a hard question, so give it room.
+    timeoutSeconds: 120,
+    memory: "512MiB",
     maxInstances: 10,
-    secrets: [GEMINI_API_KEY],
+    secrets: [ANTHROPIC_API_KEY],
   },
   async (req, res) => {
     const startedAt = Date.now();
@@ -32,18 +39,30 @@ exports.askCoach = onRequest(
       return sendError(res, 405, "Method not allowed");
     }
 
+    const prompt = String(req.body?.prompt || "").trim();
+    let reserved = null;
+
     try {
       const uid = await verifyBearerToken(req);
       await verifyAppCheck(req);
 
-      const prompt = String(req.body?.prompt || "").trim();
       if (!prompt) {
         return sendError(res, 400, "Prompt is required");
       }
+      if (prompt.length > MAX_PROMPT_CHARS) {
+        return sendError(res, 400, `Question is too long (max ${MAX_PROMPT_CHARS} characters)`);
+      }
 
       const entitlement = await getEntitlement(uid);
-      const usage = await enforceUsageLimits(uid, entitlement.isPremium);
-      const answerData = await generateCoachAnswer(prompt, GEMINI_API_KEY.value());
+
+      // Reserve the quota slot up front so concurrent requests can't overrun the
+      // limit, then refund it if the model never produced an answer. The user is
+      // only ever charged for a request that actually answered.
+      const usage = await reserveUsage(uid, entitlement.isPremium);
+      reserved = { uid, usage };
+
+      const answerData = await generateCoachAnswer(prompt, ANTHROPIC_API_KEY.value());
+      reserved = null; // answered -- the reservation is now a real charge
 
       await persistChat(uid, prompt, answerData.answer);
 
@@ -54,6 +73,8 @@ exports.askCoach = onRequest(
         dailyLimit: usage.dailyLimit,
         minuteUsed: usage.minuteUsed,
         model: answerData.model,
+        grounded: answerData.grounded,
+        sources: answerData.sources.map((s) => s.ref || s.source),
         inputTokens: answerData.inputTokens,
         outputTokens: answerData.outputTokens,
         latencyMs: Date.now() - startedAt,
@@ -61,14 +82,24 @@ exports.askCoach = onRequest(
 
       return res.status(200).json({
         answer: answerData.answer,
+        grounded: answerData.grounded,
+        sources: answerData.sources,
         limit: usage.dailyLimit,
         used: usage.dailyUsed,
         remaining: Math.max(0, usage.dailyLimit - usage.dailyUsed),
       });
     } catch (err) {
+      // The question was never answered, so don't make the user pay for it.
+      if (reserved) await refundUsage(reserved.uid).catch(() => {});
+
       logger.error("askCoach failed", err);
       if (err instanceof HttpsError) {
         return sendError(res, mapHttpsErrorStatus(err.code), err.message);
+      }
+      if (err.code && String(err.code).startsWith("coach_")) {
+        // Be honest: the Coach is down. Never dress a failure up as an answer.
+        const status = err.code === "coach_rate_limited" ? 429 : 503;
+        return sendError(res, status, err.message || "Coach temporarily unavailable");
       }
       return sendError(res, err.statusCode || 500, err.message || "Internal error");
     }
@@ -296,19 +327,28 @@ async function getEntitlement(uid) {
   const premiumUntil = data.premiumUntil?.toDate?.() || null;
   const now = new Date();
 
-  const premiumByRole = role === "premium";
-  const premiumBySubscription =
+  // Entitlement is the SUBSCRIPTION, never the role field.
+  //
+  // This used to be `premiumByRole || premiumBySubscription`, so anyone who had
+  // ever been granted `role: "premium"` kept full access forever -- expiry,
+  // cancellation and refund all did nothing. `role` is a label; only a live
+  // subscription with a future premiumUntil is proof of payment.
+  const isPremium =
     subscriptionStatus === "active" &&
     premiumUntil instanceof Date &&
     premiumUntil.getTime() > now.getTime();
 
-  return {
-    role,
-    isPremium: premiumByRole || premiumBySubscription,
-  };
+  return { role, isPremium };
 }
 
-async function enforceUsageLimits(uid, isPremium) {
+/**
+ * Claims one request against the user's quota.
+ *
+ * Claiming BEFORE the model call is what keeps concurrent requests from
+ * overrunning the limit. If the model then fails, `refundUsage` gives the slot
+ * back -- so a user is never charged for a question that went unanswered.
+ */
+async function reserveUsage(uid, isPremium) {
   const dailyLimit = isPremium ? PREMIUM_DAILY_LIMIT : FREE_DAILY_LIMIT;
   const dailyRef = usageDailyDocRef(uid);
   const minuteRef = usageMinuteDocRef(uid);
@@ -355,59 +395,13 @@ async function enforceUsageLimits(uid, isPremium) {
   return usage;
 }
 
-async function generateCoachAnswer(prompt, apiKey) {
-  if (!apiKey) {
-    return {
-      answer: fallbackAnswer(prompt),
-      model: "fallback",
-      inputTokens: null,
-      outputTokens: null,
-    };
-  }
-
-  const model = "gemini-1.5-flash";
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text:
-                  "You are an ARE architecture coach. Reply with: Formula, Code Reference, Exam Weight, Common Mistakes. Keep it concise and practical.\n\nQuestion: " +
-                  prompt,
-              },
-            ],
-          },
-        ],
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    logger.warn("Gemini request failed", { status: response.status });
-    return {
-      answer: fallbackAnswer(prompt),
-      model,
-      inputTokens: null,
-      outputTokens: null,
-    };
-  }
-
-  const data = await response.json();
-  const text =
-    data?.candidates?.[0]?.content?.parts?.[0]?.text?.toString().trim() || "";
-  const usage = data?.usageMetadata || {};
-
-  return {
-    answer: text || fallbackAnswer(prompt),
-    model,
-    inputTokens: usage.promptTokenCount || null,
-    outputTokens: usage.candidatesTokenCount || null,
-  };
+/** Hands back a reserved slot after a request that never produced an answer. */
+async function refundUsage(uid) {
+  const dec = admin.firestore.FieldValue.increment(-1);
+  await Promise.all([
+    usageDailyDocRef(uid).set({ aiMessagesUsed: dec }, { merge: true }),
+    usageMinuteDocRef(uid).set({ aiMessagesUsed: dec }, { merge: true }),
+  ]);
 }
 
 async function persistChat(uid, prompt, answer) {
@@ -442,10 +436,6 @@ function usageMinuteDocRef(uid) {
   const min = String(now.getMinutes()).padStart(2, "0");
   const minuteKey = `${yyyy}${mm}${dd}_${hh}${min}`;
   return db.collection("usage").doc(uid).collection("minute").doc(minuteKey);
-}
-
-function fallbackAnswer(prompt) {
-  return `Formula:\nRequired width = occupant load x egress factor.\n\nCode Reference:\nCheck IBC 2021 Section 1005.3.1 and NYC amendments.\n\nExam Weight:\nUsually 10-15 points in exam-style questions.\n\nCommon Mistakes:\nUsing wrong factor (0.15 vs 0.2), and forgetting minimum clear widths.\n\nYour question was: ${prompt}`;
 }
 
 function mapHttpsErrorStatus(code) {

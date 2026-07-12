@@ -28,7 +28,7 @@
 | **Flashcards** — 300 cards, basic review scheduling, exam tips | ✅ |
 | **Progress Insights** — score trend chart, accuracy by division, weak spots | ✅ |
 | **Study Plan** — exam countdown, daily card & question targets | ✅ |
-| **AI Coach** — chat + voice (STT / TTS), backed by Cloud Function | ✅ |
+| **AI Coach** — chat + voice (STT / TTS); Claude, grounded by RAG in the real code corpus and required to cite only sections it can actually see | ✅ |
 | **Daily study reminder** — time-picker, persisted, rescheduled on change | ✅ |
 | Readiness score & section trend analytics | ✅ |
 | Attempt history with pagination | ✅ |
@@ -242,8 +242,15 @@ flutter run
 # 2. Deploy Firestore rules
 firebase deploy --only firestore:rules,firestore:indexes
 
-# 3. Run with AI Coach endpoint
-flutter run --dart-define=COACH_API_URL=https://<region>-<project>.cloudfunctions.net/coach
+# 3. Build the Coach's retrieval index (once; needs the RAG corpus present)
+cd tools/question_audit && python -m src.build_coach_index && cd ../..
+
+# 4. Set the model key and deploy the function
+firebase functions:secrets:set ANTHROPIC_API_KEY
+firebase deploy --only functions
+
+# 5. Run with the AI Coach endpoint
+flutter run --dart-define=COACH_API_URL=https://<region>-<project>.cloudfunctions.net/askCoach
 ```
 
 ---
@@ -258,7 +265,7 @@ Full guide → [docs/FIREBASE_PHASE2.md](docs/FIREBASE_PHASE2.md)
 | Firestore | Attempt history, weak-topic analytics, usage counters |
 | Firebase App Check | Play Integrity / DeviceCheck anti-abuse |
 | Firebase Crashlytics | Production error reporting |
-| Cloud Functions | Secure AI Coach — token-quota + per-minute throttle |
+| Cloud Functions | Secure AI Coach — Claude + RAG grounding, token-quota + per-minute throttle |
 
 ---
 
