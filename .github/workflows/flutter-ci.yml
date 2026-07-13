@@ -66,3 +66,24 @@ jobs:
       - name: Check question bank
         working-directory: tools/question_audit
         run: python -m src.check_bank
+
+  functions:
+    name: Cloud Functions tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Tests use only Node's built-in test runner (node:test) and the pure
+      # library modules — no npm install, no Firebase emulator needed. Covers
+      # the money path (entitlement: role is not proof of payment) and the
+      # anti-fabrication retrieval gates (off-topic question -> no sources).
+      - name: Run Cloud Functions tests
+        working-directory: functions
+        run: node --test

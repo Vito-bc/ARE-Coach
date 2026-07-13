@@ -44,11 +44,20 @@ function getIndex() {
   const file = path.join(__dirname, "..", "coach_index.json");
   if (!fs.existsSync(file)) {
     // Deployed without an index: the Coach must say so, never invent sections.
-    INDEX = { docs: [], df: new Map(), avgLen: 0, n: 0 };
+    INDEX = prepareIndex([]);
     return INDEX;
   }
 
-  const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+  INDEX = prepareIndex(JSON.parse(fs.readFileSync(file, "utf8")));
+  return INDEX;
+}
+
+/**
+ * Turn raw `[{source, ref, text, sections}, ...]` rows into a scored index
+ * (term frequencies, document frequencies, average length). Pure — no IO — so
+ * tests can build a fixture index without a corpus file on disk.
+ */
+function prepareIndex(raw) {
   const df = new Map();
   let totalLen = 0;
 
@@ -61,18 +70,17 @@ function getIndex() {
     return { ...r, tf, len: terms.length };
   });
 
-  INDEX = { docs, df, n: docs.length, avgLen: docs.length ? totalLen / docs.length : 0 };
-  return INDEX;
+  return { docs, df, n: docs.length, avgLen: docs.length ? totalLen / docs.length : 0 };
 }
 
 /**
- * Top-k passages for a question. Returns [] when nothing clears the floor --
- * the caller MUST then let the Coach answer "I don't have a source for that"
- * rather than guessing.
+ * Top-k passages for a question against a prepared index. Returns [] when
+ * nothing clears the floor -- the caller MUST then let the Coach answer
+ * "I don't have a source for that" rather than guessing. Pure and index-
+ * injectable so the retrieval gates can be unit-tested.
  */
-function retrieve(query, k = 5) {
-  const idx = getIndex();
-  if (!idx.n) return [];
+function search(idx, query, k = 5) {
+  if (!idx || !idx.n) return [];
 
   const qTerms = tokenize(query);
   if (!qTerms.length) return [];
@@ -122,4 +130,12 @@ function retrieve(query, k = 5) {
     }));
 }
 
-module.exports = { retrieve, tokenize, getIndex };
+/**
+ * Top-k passages for a question from the deployed corpus index. Thin IO wrapper
+ * over `search` so production keeps the same `retrieve(query, k)` call.
+ */
+function retrieve(query, k = 5) {
+  return search(getIndex(), query, k);
+}
+
+module.exports = { retrieve, tokenize, getIndex, prepareIndex, search };

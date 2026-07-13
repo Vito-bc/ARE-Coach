@@ -9,6 +9,7 @@
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
+    "test": "node --test",
     "lint": "node -e \"console.log('No lint configured')\""
   },
   "dependencies": {
