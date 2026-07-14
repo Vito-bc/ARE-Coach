@@ -4,6 +4,7 @@ const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 
 const { askCoach: generateCoachAnswer } = require("./lib/coach");
+const { decideEntitlement } = require("./lib/entitlement");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -320,25 +321,9 @@ async function verifyAppCheck(req) {
 
 async function getEntitlement(uid) {
   const snap = await db.collection("users").doc(uid).get();
-  const data = snap.data() || {};
-
-  const role = data.role === "premium" ? "premium" : "free";
-  const subscriptionStatus = String(data.subscriptionStatus || "").toLowerCase();
-  const premiumUntil = data.premiumUntil?.toDate?.() || null;
-  const now = new Date();
-
-  // Entitlement is the SUBSCRIPTION, never the role field.
-  //
-  // This used to be `premiumByRole || premiumBySubscription`, so anyone who had
-  // ever been granted `role: "premium"` kept full access forever -- expiry,
-  // cancellation and refund all did nothing. `role` is a label; only a live
-  // subscription with a future premiumUntil is proof of payment.
-  const isPremium =
-    subscriptionStatus === "active" &&
-    premiumUntil instanceof Date &&
-    premiumUntil.getTime() > now.getTime();
-
-  return { role, isPremium };
+  // The decision (subscription, never role) lives in lib/entitlement.js so it
+  // can be unit-tested without Firestore. See that file for the rationale.
+  return decideEntitlement(snap.data());
 }
 
 /**
