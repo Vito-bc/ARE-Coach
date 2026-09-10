@@ -54,8 +54,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _refreshEmailStatus();
     _purchaseSub = _iapService.purchaseUpdates.listen(
       _onPurchaseUpdate,
-      onError: (_) {
-        if (mounted) setState(() => _restoring = false);
+      onError: (Object error) {
+        if (!mounted) return;
+        // Clearing the spinner without a word left a tapped "Restore
+        // Purchases" looking like it had simply decided nothing was wrong.
+        setState(() => _restoring = false);
+        final message = error is IAPError
+            ? error.message
+            : 'Restore failed. Please try again.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
+        );
       },
     );
   }

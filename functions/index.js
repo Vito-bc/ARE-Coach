@@ -5,12 +5,22 @@ const admin = require("firebase-admin");
 
 const { askCoach: generateCoachAnswer } = require("./lib/coach");
 const { decideEntitlement } = require("./lib/entitlement");
+const {
+  normalizePlatform,
+  decideAppleReceipt,
+  decidePlaySubscription,
+} = require("./lib/receipts");
+const { fetchPlaySubscription } = require("./lib/play_api");
 
 admin.initializeApp();
 const db = admin.firestore();
 
 const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 const APPLE_SHARED_SECRET = defineSecret("APPLE_SHARED_SECRET");
+// Full service-account JSON with the "View financial data" Play Console
+// permission. Set with:
+//   firebase functions:secrets:set GOOGLE_PLAY_SERVICE_ACCOUNT < sa.json
+const GOOGLE_PLAY_SERVICE_ACCOUNT = defineSecret("GOOGLE_PLAY_SERVICE_ACCOUNT");
 
 const FREE_DAILY_LIMIT = 10;
 const PREMIUM_DAILY_LIMIT = 200;
@@ -19,9 +29,13 @@ const PER_MINUTE_LIMIT = 3;
 // Bounds the prompt so a pathological input can't blow up the token bill.
 const MAX_PROMPT_CHARS = 2000;
 
-const APPLE_PRODUCT_IDS = ["are_coach_monthly", "are_coach_yearly"];
 const APPLE_PRODUCTION_URL = "https://buy.itunes.apple.com/verifyReceipt";
 const APPLE_SANDBOX_URL = "https://sandbox.itunes.apple.com/verifyReceipt";
+
+// The Play package the purchase tokens belong to. Must match the
+// applicationId in android/app/build.gradle.kts.
+const ANDROID_PACKAGE_NAME =
+  process.env.ANDROID_PACKAGE_NAME || "com.archedu.architectula_education_app";
 
 exports.askCoach = onRequest(
   {
@@ -114,7 +128,7 @@ exports.validateReceipt = onRequest(
     timeoutSeconds: 30,
     memory: "256MiB",
     maxInstances: 10,
-    secrets: [APPLE_SHARED_SECRET],
+    secrets: [APPLE_SHARED_SECRET, GOOGLE_PLAY_SERVICE_ACCOUNT],
   },
   async (req, res) => {
     if (req.method !== "POST") {
@@ -129,54 +143,39 @@ exports.validateReceipt = onRequest(
       if (!receiptData || typeof receiptData !== "string") {
         return sendError(res, 400, "receiptData is required");
       }
-      if (platform !== "ios" && platform !== "app_store") {
-        return sendError(res, 400, "Only iOS/App Store platform is supported");
+      // Never guess which store a receipt came from — an App Store receipt and
+      // a Play purchase token are validated against completely different APIs.
+      const store = normalizePlatform(platform);
+      if (!store) {
+        // Echo back a bounded slice only — never reflect an unbounded body value.
+        return sendError(res, 400, `Unsupported platform: ${String(platform).slice(0, 32)}`);
       }
 
-      const appleResult = await callAppleVerify(APPLE_PRODUCTION_URL, {
-        "receipt-data": receiptData,
-        password: APPLE_SHARED_SECRET.value(),
-        "exclude-old-transactions": true,
-      });
+      const decision =
+        store === "app_store"
+          ? await validateAppleReceipt(receiptData)
+          : await validatePlayPurchase(receiptData);
 
-      const appleData = appleResult.status === 21007
-        ? await callAppleVerify(APPLE_SANDBOX_URL, {
-            "receipt-data": receiptData,
-            password: APPLE_SHARED_SECRET.value(),
-            "exclude-old-transactions": true,
-          })
-        : appleResult;
-
-      if (appleData.status !== 0) {
-        await markUserFree(uid);
-        logger.warn("validateReceipt: invalid receipt", { uid, appleStatus: appleData.status });
+      if (!decision.valid) {
+        await markUserFree(uid, store);
+        logger.warn("validateReceipt: not entitled", {
+          uid,
+          store,
+          reason: decision.reason,
+          state: decision.state,
+        });
         return res.status(200).json({ valid: false });
       }
-
-      const now = Date.now();
-      const transactions = (appleData.latest_receipt_info || [])
-        .filter(
-          (t) =>
-            APPLE_PRODUCT_IDS.includes(t.product_id) &&
-            Number(t.expires_date_ms) > now
-        )
-        .sort((a, b) => Number(b.expires_date_ms) - Number(a.expires_date_ms));
-
-      if (transactions.length === 0) {
-        await markUserFree(uid);
-        logger.info("validateReceipt: subscription expired", { uid });
-        return res.status(200).json({ valid: false });
-      }
-
-      const latest = transactions[0];
-      const expiresAt = Number(latest.expires_date_ms);
 
       await db.collection("users").doc(uid).set(
         {
           role: "premium",
           subscriptionStatus: "active",
-          subscriptionId: latest.product_id,
-          premiumUntil: admin.firestore.Timestamp.fromMillis(expiresAt),
+          subscriptionId: decision.productId,
+          // Which store owns this entitlement, so a failed check against the
+          // other one can't tear down a live subscription.
+          subscriptionPlatform: store,
+          premiumUntil: admin.firestore.Timestamp.fromMillis(decision.expiresAt),
           lastActiveAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         { merge: true }
@@ -184,11 +183,13 @@ exports.validateReceipt = onRequest(
 
       logger.info("validateReceipt: subscription activated", {
         uid,
-        productId: latest.product_id,
-        expiresAt,
+        store,
+        productId: decision.productId,
+        expiresAt: decision.expiresAt,
+        testPurchase: decision.testPurchase === true,
       });
 
-      return res.status(200).json({ valid: true, expiresAt });
+      return res.status(200).json({ valid: true, expiresAt: decision.expiresAt });
     } catch (err) {
       logger.error("validateReceipt failed", err);
       if (err instanceof HttpsError) {
@@ -266,6 +267,62 @@ async function deleteReportsByUid(uid) {
   }
 }
 
+/**
+ * Verifies an App Store receipt and returns the entitlement decision.
+ *
+ * Apple's production endpoint answers 21007 for a sandbox receipt, which is how
+ * TestFlight builds are meant to be handled — retry the same payload against
+ * sandbox rather than calling the receipt bad.
+ */
+async function validateAppleReceipt(receiptData) {
+  const payload = {
+    "receipt-data": receiptData,
+    password: APPLE_SHARED_SECRET.value(),
+    "exclude-old-transactions": true,
+  };
+
+  const production = await callAppleVerify(APPLE_PRODUCTION_URL, payload);
+  const appleData =
+    production.status === 21007
+      ? await callAppleVerify(APPLE_SANDBOX_URL, payload)
+      : production;
+
+  return decideAppleReceipt(appleData);
+}
+
+/**
+ * Verifies a Google Play purchase token and returns the entitlement decision.
+ *
+ * `receiptData` from an Android client is the Play purchase token
+ * (`purchase.verificationData.serverVerificationData`), not a receipt blob.
+ *
+ * If the service account is not configured we fail with 503 — loudly, and
+ * WITHOUT granting anything. The client then refuses to acknowledge the
+ * purchase, and Google auto-refunds an unacknowledged purchase after three
+ * days, so a misconfiguration costs us a sale but never takes a user's money.
+ */
+async function validatePlayPurchase(purchaseToken) {
+  const serviceAccountJson = GOOGLE_PLAY_SERVICE_ACCOUNT.value();
+  if (!serviceAccountJson) {
+    const err = new Error(
+      "Android purchase validation is not configured on the server"
+    );
+    err.statusCode = 503;
+    throw err;
+  }
+
+  const result = await fetchPlaySubscription({
+    packageName: ANDROID_PACKAGE_NAME,
+    purchaseToken,
+    serviceAccountJson,
+  });
+
+  if (!result.ok) {
+    return { valid: false, reason: result.reason };
+  }
+  return decidePlaySubscription(result.subscription);
+}
+
 async function callAppleVerify(url, payload) {
   const response = await fetch(url, {
     method: "POST",
@@ -280,8 +337,27 @@ async function callAppleVerify(url, payload) {
   return response.json();
 }
 
-async function markUserFree(uid) {
+/**
+ * Downgrades a user whose subscription did not check out.
+ *
+ * `store` scopes the downgrade to the store that actually failed: a stale or
+ * forged Play token must not be able to cancel a live App Store subscription
+ * (or the reverse). A user with no recorded platform is downgraded as before.
+ */
+async function markUserFree(uid, store) {
   try {
+    if (store) {
+      const snap = await db.collection("users").doc(uid).get();
+      const owner = snap.data()?.subscriptionPlatform;
+      if (owner && owner !== store) {
+        logger.info("validateReceipt: skipped downgrade, other store owns it", {
+          uid,
+          store,
+          owner,
+        });
+        return;
+      }
+    }
     await db.collection("users").doc(uid).set(
       {
         role: "free",

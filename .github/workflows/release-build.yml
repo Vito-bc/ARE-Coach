@@ -12,12 +12,20 @@ on:
 # Non-secret build-time URLs. Override via repo Variables (Settings → Secrets
 # and variables → Actions → Variables) if your deployed function URLs differ.
 env:
-  VALIDATE_RECEIPT_URL: ${{ vars.VALIDATE_RECEIPT_URL || 'https://validatereceipt-izodv6upya-uc.a.run.app' }}
+  # Use the cloudfunctions.net form, not a guessed *.a.run.app hostname: the
+  # predicted Cloud Run URL for deleteAccount turned out not to be the real one
+  # (fixed in PR #36), and a wrong URL here means every purchase fails to
+  # validate — the buyer is charged and stays on the free tier.
+  VALIDATE_RECEIPT_URL: ${{ vars.VALIDATE_RECEIPT_URL || 'https://us-central1-architect-study-app.cloudfunctions.net/validateReceipt' }}
   DELETE_ACCOUNT_URL: ${{ vars.DELETE_ACCOUNT_URL || 'https://us-central1-architect-study-app.cloudfunctions.net/deleteAccount' }}
   # Without this the release build shipped with an empty COACH_API_URL and the
   # AI Coach was dead in production — every question fell through to a canned
   # answer. Never omit it again.
   COACH_API_URL: ${{ vars.COACH_API_URL || 'https://us-central1-architect-study-app.cloudfunctions.net/askCoach' }}
+  # Opens the Google Play storefront in the built app. Set the repo variable to
+  # "true" ONLY after GOOGLE_PLAY_SERVICE_ACCOUNT is set on the functions, or
+  # Android buyers pay and receive nothing. Defaults off.
+  ANDROID_PURCHASES_ENABLED: ${{ vars.ANDROID_PURCHASES_ENABLED || 'false' }}
 
 jobs:
   android:
@@ -72,6 +80,7 @@ jobs:
           --dart-define=VALIDATE_RECEIPT_URL=$VALIDATE_RECEIPT_URL
           --dart-define=DELETE_ACCOUNT_URL=$DELETE_ACCOUNT_URL
           --dart-define=COACH_API_URL=$COACH_API_URL
+          --dart-define=ANDROID_PURCHASES_ENABLED=$ANDROID_PURCHASES_ENABLED
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4

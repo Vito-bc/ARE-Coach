@@ -376,6 +376,12 @@ Button is labeled "Sign In" but actually does the same as "Start Free" — pushe
 
 ### Release checklist (pre-launch)
 
+> Snapshot from the original audit — most rows have since been fixed and are
+> not re-ticked here. For the money path specifically: receipt validation is
+> wired client → function, App Check is enforced on `validateReceipt`, and
+> Android is validated against the Play Developer API (see
+> [MONETIZATION_PREP.md](MONETIZATION_PREP.md)).
+
 | Item | Status |
 |---|---|
 | Apple Sign-In nonce fix + test | ❌ |

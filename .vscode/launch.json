@@ -1,4 +1,4 @@
-{
+﻿{
   "version": "0.2.0",
   "configurations": [
     {
@@ -6,7 +6,7 @@
       "request": "launch",
       "type": "dart",
       "args": [
-        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app",
+        "--dart-define=VALIDATE_RECEIPT_URL=https://us-central1-architect-study-app.cloudfunctions.net/validateReceipt",
         "--dart-define=DELETE_ACCOUNT_URL=https://us-central1-architect-study-app.cloudfunctions.net/deleteAccount",
         "--dart-define=COACH_API_URL=https://us-central1-architect-study-app.cloudfunctions.net/askCoach"
       ]
@@ -16,7 +16,8 @@
       "request": "launch",
       "type": "dart",
       "args": [
-        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app",
+        "--dart-define=ANDROID_PURCHASES_ENABLED=true",
+        "--dart-define=VALIDATE_RECEIPT_URL=https://us-central1-architect-study-app.cloudfunctions.net/validateReceipt",
         "--dart-define=DELETE_ACCOUNT_URL=https://us-central1-architect-study-app.cloudfunctions.net/deleteAccount",
         "--dart-define=COACH_API_URL=https://us-central1-architect-study-app.cloudfunctions.net/askCoach"
       ]
@@ -27,7 +28,7 @@
       "type": "dart",
       "flutterMode": "profile",
       "args": [
-        "--dart-define=VALIDATE_RECEIPT_URL=https://validatereceipt-izodv6upya-uc.a.run.app",
+        "--dart-define=VALIDATE_RECEIPT_URL=https://us-central1-architect-study-app.cloudfunctions.net/validateReceipt",
         "--dart-define=DELETE_ACCOUNT_URL=https://us-central1-architect-study-app.cloudfunctions.net/deleteAccount",
         "--dart-define=COACH_API_URL=https://us-central1-architect-study-app.cloudfunctions.net/askCoach"
       ]
