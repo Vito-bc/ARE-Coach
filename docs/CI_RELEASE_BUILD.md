@@ -28,15 +28,39 @@ That copies the base64 string to your clipboard — paste it as the
 > Without these secrets the workflow still runs but produces a **debug-signed**
 > bundle (useful to test the pipeline; **not** uploadable to Play).
 
-## Optional: override the function URLs
+## Repo Variables
 
-The workflow defaults to the known deployed URLs. If your `deleteAccount` (or
-receipt) function URL differs after deploy, set repo **Variables** (not secrets):
+Set these under **Settings → Secrets and variables → Actions → Variables**
+(not secrets — none of them are sensitive).
 
-| Variable | Example |
-|---|---|
-| `VALIDATE_RECEIPT_URL` | `https://validatereceipt-izodv6upya-uc.a.run.app` |
-| `DELETE_ACCOUNT_URL` | `https://deleteaccount-izodv6upya-uc.a.run.app` |
+| Variable | Default | What it does |
+|---|---|---|
+| `ANDROID_PURCHASES_ENABLED` | `false` | Opens the Google Play storefront in the built app. **Only set this to `true` after the server has `GOOGLE_PLAY_SERVICE_ACCOUNT`** — see below. |
+| `VALIDATE_RECEIPT_URL` | `…cloudfunctions.net/validateReceipt` | Receipt/purchase validation endpoint |
+| `DELETE_ACCOUNT_URL` | `…cloudfunctions.net/deleteAccount` | Account deletion endpoint |
+| `COACH_API_URL` | `…cloudfunctions.net/askCoach` | AI Coach endpoint |
+
+The URL defaults use the `https://us-central1-architect-study-app.cloudfunctions.net/<name>`
+form. Don't guess the `*.a.run.app` hostname — the predicted one for
+`deleteAccount` turned out to be wrong, and a bad `VALIDATE_RECEIPT_URL` means
+every purchase silently fails to validate: the buyer is charged and stays free.
+Confirm the real URLs in the output of `firebase deploy --only functions`.
+
+### Turning on Android purchases
+
+The app refuses to sell on Android until `ANDROID_PURCHASES_ENABLED=true`,
+because before that the server has no way to verify a Play purchase. The order
+matters:
+
+1. Deploy the functions with the Play service account set
+   (`firebase functions:secrets:set GOOGLE_PLAY_SERVICE_ACCOUNT < sa.json`) —
+   full steps in [MONETIZATION_PREP.md](MONETIZATION_PREP.md).
+2. Buy the subscription once with a Play **license tester** account and confirm
+   the user doc flips to `role: premium`.
+3. *Then* set the `ANDROID_PURCHASES_ENABLED` variable to `true` and rebuild.
+
+Doing it in the other order takes real money from real users and delivers
+nothing — that exact bug is why the switch exists.
 
 ## Running it
 

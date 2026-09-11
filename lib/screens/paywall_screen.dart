@@ -34,7 +34,15 @@ class _PaywallScreenState extends State<PaywallScreen> {
   void initState() {
     super.initState();
     _loadProducts();
-    _purchaseSub = widget.iapService.purchaseUpdates.listen(_onPurchaseUpdate);
+    _purchaseSub = widget.iapService.purchaseUpdates.listen(
+      _onPurchaseUpdate,
+      // IAPService reports every failure — a declined card, a receipt the
+      // store won't honour, our own validator being down — as a stream
+      // *error*. Without this handler those went to the zone's unhandled
+      // error hook: the spinner spun forever and the buyer, who may well have
+      // just been charged, was told nothing at all.
+      onError: _onPurchaseError,
+    );
   }
 
   @override
@@ -88,6 +96,19 @@ class _PaywallScreenState extends State<PaywallScreen> {
     } else if (details.status == PurchaseStatus.pending) {
       setState(() => _purchasing = true);
     }
+  }
+
+  void _onPurchaseError(Object error) {
+    if (!mounted) return;
+    setState(() => _purchasing = false);
+    // IAPError carries a message written for this exact failure (an outage
+    // reads differently from a rejected receipt); anything else is unexpected.
+    final message = error is IAPError
+        ? error.message
+        : 'Purchase failed. Please try again.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
+    );
   }
 
   ProductDetails? get _selectedProduct {
@@ -223,9 +244,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   Widget _buildProductSection(bool isDark, TextTheme tt, ColorScheme cs) {
-    // Android can start a Play Billing purchase but the server only validates
-    // App Store receipts, so the user would pay and get nothing. Say that
-    // plainly instead of showing a button that takes money into a void.
+    // Shown when this build can't verify a purchase server-side (web, or a
+    // storefront that isn't switched on yet). Say so plainly instead of
+    // offering a button that takes money into a void.
     if (!IAPService.purchasesSupported) {
       return AppGlassCard(
         padding: const EdgeInsets.all(20),
@@ -241,9 +262,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Subscriptions are currently iOS-only while we finish Google Play '
-              'billing. Everything free stays free — nothing is locked behind '
-              'this today.',
+              'Subscriptions are handled by the App Store and Google Play, so '
+              'they are unavailable in this build. Everything free stays free — '
+              'nothing is locked behind this today.',
               style: tt.bodyMedium,
               textAlign: TextAlign.center,
             ),
