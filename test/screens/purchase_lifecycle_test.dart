@@ -272,6 +272,71 @@ void main() {
     );
   });
 
+  testWidgets(
+    'account B can restore and subscribe while account A keeps its retry',
+    (tester) async {
+      final requestAccounts = <String?>[];
+      var appleAvailable = false;
+      when(
+        () => client.post(
+          any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'),
+        ),
+      ).thenAnswer((invocation) async {
+        final headers =
+            invocation.namedArguments[#headers]! as Map<String, String>;
+        requestAccounts.add(headers['Authorization']);
+        return appleAvailable
+            ? http.Response('{"valid":true}', 200)
+            : http.Response('', 503);
+      });
+
+      await app(tester);
+      await open(tester);
+      events.add([purchase(PurchaseStatus.restored)]);
+      await tester.pumpAndSettle();
+      expect(service.canStartPurchase, isFalse);
+      verifyNever(() => store.completePurchase(any()));
+
+      account.signIn('user-b');
+      await tester.pumpAndSettle();
+      expect(service.canStartPurchase, isTrue);
+      var subscribe = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Subscribe Now'),
+      );
+      expect(subscribe.onPressed, isNotNull);
+
+      await tester.tap(find.text('Restore Purchases'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('No matching purchases were returned by the store.'),
+        findsOneWidget,
+      );
+      subscribe = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Subscribe Now'),
+      );
+      expect(subscribe.onPressed, isNotNull);
+      await tester.tap(find.text('Subscribe Now'));
+      await tester.pump();
+      verify(
+        () =>
+            store.buyNonConsumable(purchaseParam: any(named: 'purchaseParam')),
+      ).called(1);
+      expect(requestAccounts, ['Bearer user-a']);
+      verifyNever(() => store.completePurchase(any()));
+
+      appleAvailable = true;
+      account.signIn('user-a');
+      await tester.pumpAndSettle();
+      expect(requestAccounts, ['Bearer user-a', 'Bearer user-a']);
+      expect(account.refreshed, ['user-a']);
+      verify(() => store.completePurchase(any())).called(1);
+      expect(find.byType(PaywallScreen), findsNothing);
+      expect(find.text('Premium access confirmed.'), findsOneWidget);
+    },
+  );
+
   for (final response in ['{"valid":false}', '{}']) {
     testWidgets('validator response $response has no false success', (
       tester,

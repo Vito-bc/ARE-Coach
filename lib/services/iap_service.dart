@@ -125,13 +125,18 @@ class IAPService {
       (_fakeStore || purchasesSupported) &&
       _validEndpoint(_endpoint) &&
       _account.uid != null;
+  bool get _hasRetryForCurrentAccount {
+    final uid = _account.uid;
+    return uid != null && _retry.values.any((entry) => entry.uid == uid);
+  }
+
   bool get canStartPurchase =>
       canPurchase &&
       !_disposed &&
       !flow.value.busy &&
       flow.value.phase != PurchasePhase.pending &&
       flow.value.phase != PurchasePhase.waiting &&
-      _retry.isEmpty;
+      !_hasRetryForCurrentAccount;
   // Restore/recovery must work even when new Android sales are switched off.
   bool get canRestore =>
       _hasStore && _validEndpoint(_endpoint) && _account.uid != null;
@@ -370,6 +375,13 @@ class IAPService {
         }
         continue;
       }
+      final retry = _retry[_key(purchase)];
+      if (retry != null && retry.uid != _account.uid) {
+        // A transaction captured for another account, or while signed out,
+        // cannot be claimed by the current account. Ignore every redelivery
+        // before it can be validated, finished, or change Restore/UI state.
+        continue;
+      }
       if (purchase.status == PurchaseStatus.purchased ||
           purchase.status == PurchaseStatus.restored) {
         _matchingEvents++;
@@ -422,8 +434,10 @@ class IAPService {
 
   Future<void> retryPendingPurchases() async {
     if (_disposed) return;
+    final uid = _account.uid;
+    if (uid == null) return;
     for (final entry in _retry.values.toList()) {
-      if (entry.uid == null || entry.uid == _account.uid) {
+      if (entry.uid == uid) {
         await _process(entry.purchase);
       }
     }
@@ -431,8 +445,10 @@ class IAPService {
 
   Future<void> _process(PurchaseDetails purchase) {
     final key = _key(purchase);
-    if (_inFlight.containsKey(key)) return _inFlight[key]!;
     final uid = _account.uid;
+    final old = _retry[key];
+    if (old != null && old.uid != uid) return Future.value();
+    if (_inFlight.containsKey(key)) return _inFlight[key]!;
     final completedKey = '$uid:$_epoch:$key';
     if (_finished.contains(completedKey)) {
       // An explicit restore is a new access check, not a second completion.
@@ -444,8 +460,6 @@ class IAPService {
       }
       return Future.value();
     }
-    final old = _retry[key];
-    if (old != null && old.uid != null && old.uid != uid) return Future.value();
     _retry[key] = (purchase: purchase, uid: uid);
     return _inFlight[key] = _validateAndComplete(purchase, key, uid, _epoch)
         .whenComplete(() {

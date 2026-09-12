@@ -35,7 +35,7 @@ remains default `false`.
 | Shared app service, early store listener, idempotent initialization | Follow-up diff | Targeted service/navigation tests | Tracked on draft follow-up PR | Pending | Not deployed |
 | Missing/invalid URL fails closed; strict boolean verdict; bounded requests | Follow-up diff | Regression tests, including never-resolving HTTP | Tracked on draft follow-up PR | Pending | Not deployed |
 | Cancellation, pending, empty restore, duplicate suppression and retry | Follow-up diff | Service and real paywall tests | Tracked on draft follow-up PR | Pending | Not deployed |
-| Account change/disposal guard and authoritative entitlement refresh | Follow-up diff | Fake-account and navigation tests | Tracked on draft follow-up PR | Pending | Not deployed |
+| Account change/disposal guard, account-scoped retry gate and authoritative entitlement refresh | Follow-up diff | Fake-account and real paywall A/B tests | Tracked on draft follow-up PR | Pending | Not deployed |
 | Android acknowledgment result handling | Follow-up diff; installed adapter's result is checked explicitly | Fake Android platform test | Tracked on draft follow-up PR | Pending | Not deployed |
 | Repurchase after rejected restore; consistent service/paywall purchase guard | Follow-up review correction | Service and paywall regressions | Tracked on draft follow-up PR | Pending | Not deployed |
 | Browser-safe entitlement expiry with renewal/cancellation | Follow-up review correction | Monthly/yearly timer, renewal, cancellation and tab-suspension regressions; Dart2js/Chrome probe passed | Tracked on draft follow-up PR | Not applicable to local timer | Not deployed |
@@ -69,6 +69,12 @@ do not establish that every money-path blocker is closed.
   15-second bound. Store initiation/restore has a 45-second bound. Pending store
   payment is a visible, non-spinning state. A timeout does not cancel a remote
   server operation; late client callbacks cannot grant access to a new account.
+- Retry ownership is scoped to the uid captured with the store event. Only the
+  current signed-in user's unresolved entries block a new purchase. Entries for
+  another uid, and entries captured while `uid == null`, are skipped before
+  validation, Restore matching and paywall state changes; they are never claimed
+  by the next account. Returning to the original uid restores its retry path.
+  That user's own unresolved operation continues to block a duplicate charge.
 - Transactions with unavailable validation or unfinished confirmation stay
   available for explicit **Restore Purchases** and in-session retry. A terminal
   `valid:false` removes only that transaction from the retry queue, so an expired
@@ -215,15 +221,16 @@ findings as an unfiltered backlog. Release details:
 | Check | Final result |
 | --- | --- |
 | Apple backend contract tests | 36 passed: strict statuses/shapes, timeout/transport, bounded sandbox route and endpoint mutation effects |
-| Client contract-targeted Flutter tests | 70 passed after transfer: service, Android completion, expiry timer and paywall/navigation behavior |
+| Client contract-targeted Flutter tests | 73 passed after the account-scoped retry correction: service, Android completion, expiry timer and paywall/navigation behavior |
+| Account-switch regression before/after | On PR HEAD `181c1b9â€¦`, the two-file run ended with 58 passed / 4 failed: completed and in-flight A retries blocked B, a null retry was claimed by B, and the real paywall button stayed disabled. The identical run passed 62/62 after the correction. |
 | Previous lifecycle/expiry targeted suite | 68 passed before this backend task (2026-09-11) |
 | `flutter analyze --no-pub` | No issues after transfer (2026-09-12) |
-| Full `flutter test --no-pub` | 152 passed after transfer (2026-09-12; 150 before this backend task) |
+| Full `flutter test --no-pub` | 155 passed after the account-scoped retry correction (2026-09-12) |
 | Dart2js timer probe in headless Chrome 153 | Passed: monthly/yearly subscriptions retain access after event-loop turns, and a short actual expiry fires once. Compiles the production timer class directly. |
 | `flutter test --platform chrome` (expiry tests) | Runner failed before test execution: local CanvasKit JS/Wasm loading errors and `Web test for servicessubscription_expiry_timer_test.dart not found`. Not counted as passed; the standalone Dart2js/Chrome probe above bypasses the Flutter rendering/test harness, not the production timer. |
 | `node --test` | 56 passed after transfer in an isolated workspace copy containing only Functions package metadata, libraries and tests; no npm install or node_modules |
-| `python -m src.check_bank` | All eight checks passed on 2026-09-10; 1,082 questions and 300 flashcards. Content remains unchanged in the review correction; not rerun. |
-| `git diff --check` | Passed after transfer and final review |
+| `python -m src.check_bank` | All eight checks passed again on 2026-09-12; 1,082 questions and 300 flashcards. Content remains unchanged. |
+| `git diff --check` | Passed after the account-scoped retry correction |
 
 Environment: Flutter 3.41.6 / Dart 3.11.4, Node 22.17.1. The local content gate
 used the installed Pydantic 2.11.7; CI pins 2.9.2. No dependency versions were
@@ -283,6 +290,14 @@ The Functions gate ran from `build/functions-pure-20260911-191732`, which has no
 `node_modules` and contains only package metadata, `lib/` and `test/`.
 The transferred result was checked again on 2026-09-12 from
 `%TEMP%/ARE-Coach-functions-pure-followup-final` with the same 56/56 result.
+
+Account-switch correction evidence (2026-09-12): the initial two-file service
+and widget run against PR #51 HEAD `181c1b9â€¦` produced four expected failures.
+After scoping the retry gate and redelivery path to the captured non-null uid,
+that run passed 62/62 and the broader IAP target passed 73/73. The full Flutter
+suite passed 155/155, Functions 56/56, content checks 8/8 and analysis was clean.
+No backend contract, rejected-transaction finalization rule or Android release
+flag changed in this correction.
 
 Apple sandbox, Play license-tester/device checks, signed release artifacts and
 production enablement remain pending. Apple error semantics are fixed and

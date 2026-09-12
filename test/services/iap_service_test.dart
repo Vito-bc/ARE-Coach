@@ -557,6 +557,94 @@ void main() {
       },
     );
 
+    test(
+      'another account retry does not block purchase and its owner can recover',
+      () async {
+        final requestAccounts = <String?>[];
+        var appleAvailable = false;
+        when(
+          () => mockHttpClient.post(
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+          ),
+        ).thenAnswer((invocation) async {
+          final headers =
+              invocation.namedArguments[#headers]! as Map<String, String>;
+          requestAccounts.add(headers['Authorization']);
+          return appleAvailable ? validResponse() : http.Response('', 503);
+        });
+
+        await initAndEmit([makePurchase()]);
+        expect(sut.canStartPurchase, isFalse);
+        verifyNever(() => mockIap.completePurchase(any()));
+
+        account.signIn('user-b');
+        await Future<void>.delayed(Duration.zero);
+        expect(sut.canStartPurchase, isTrue);
+        await initAndEmit([makePurchase()]);
+        await initAndEmit([makePurchase(status: PurchaseStatus.canceled)]);
+        expect(sut.canStartPurchase, isTrue);
+        expect(requestAccounts, ['Bearer user-a']);
+        verifyNever(() => mockIap.completePurchase(any()));
+
+        await sut.restorePurchases();
+        expect(sut.flow.value.phase, PurchasePhase.empty);
+        expect(sut.canStartPurchase, isTrue);
+        await sut.purchaseSubscription(product);
+        verify(
+          () => mockIap.buyNonConsumable(
+            purchaseParam: any(named: 'purchaseParam'),
+          ),
+        ).called(1);
+        expect(requestAccounts, ['Bearer user-a']);
+
+        appleAvailable = true;
+        account.signIn('user-a');
+        await Future<void>.delayed(Duration.zero);
+        await sut.retryPendingPurchases();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(requestAccounts, ['Bearer user-a', 'Bearer user-a']);
+        expect(account.refreshed, ['user-a']);
+        expect(updates, hasLength(1));
+        verify(() => mockIap.completePurchase(any())).called(1);
+      },
+    );
+
+    test('an unbound retry is not claimed by the next account', () async {
+      account.signIn(null);
+      await initAndEmit([makePurchase()]);
+      verifyNever(
+        () => mockHttpClient.post(
+          any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'),
+        ),
+      );
+
+      account.signIn('user-b');
+      await Future<void>.delayed(Duration.zero);
+      await initAndEmit([makePurchase()]);
+      await sut.retryPendingPurchases();
+      expect(sut.canStartPurchase, isTrue);
+      verifyNever(
+        () => mockHttpClient.post(
+          any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'),
+        ),
+      );
+      verifyNever(() => mockIap.completePurchase(any()));
+
+      await sut.purchaseSubscription(product);
+      verify(
+        () => mockIap.buyNonConsumable(
+          purchaseParam: any(named: 'purchaseParam'),
+        ),
+      ).called(1);
+    });
+
     for (final status in [PurchaseStatus.canceled, PurchaseStatus.error]) {
       test('unknown StoreKit product with $status is finished once', () async {
         final purchase = makePurchase(status: status);
@@ -643,6 +731,7 @@ void main() {
         await initAndEmit([makePurchase()]);
         account.signIn('user-b');
         await Future<void>.delayed(Duration.zero);
+        expect(sut.canStartPurchase, isTrue);
         response.complete(validResponse());
         await Future<void>.delayed(Duration.zero);
         expect(updates, isEmpty);
