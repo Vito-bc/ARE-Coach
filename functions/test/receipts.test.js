@@ -4,6 +4,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  RECEIPT_OUTCOME,
   normalizePlatform,
   decideAppleReceipt,
   decidePlaySubscription,
@@ -53,17 +54,53 @@ const appleTx = (over = {}) => ({
 
 test("apple: active subscription with a future expiry is valid", () => {
   const d = decideAppleReceipt(appleReceipt([appleTx()]), NOW);
+  assert.equal(d.outcome, RECEIPT_OUTCOME.VERIFIED);
   assert.equal(d.valid, true);
   assert.equal(d.expiresAt, FUTURE);
   assert.equal(d.productId, "are_coach_monthly");
 });
 
-test("apple: a non-zero status is never valid, whatever it contains", () => {
-  // 21002 malformed, 21003 unauthenticated, 21010 no such account.
-  for (const status of [21002, 21003, 21010]) {
+test("apple: terminal receipt failures are authoritative non-entitlement", () => {
+  for (const status of [21003, 21010]) {
     const d = decideAppleReceipt(appleReceipt([appleTx()], status), NOW);
+    assert.equal(d.outcome, RECEIPT_OUTCOME.NOT_ENTITLED);
     assert.equal(d.valid, false);
-    assert.equal(d.reason, "invalid_receipt");
+    assert.equal(d.retryable, false);
+  }
+});
+
+test("apple: temporary and internal statuses are unavailable", () => {
+  for (const status of [21002, 21005, 21009, 21100, 21137, 21199]) {
+    const d = decideAppleReceipt(appleReceipt([appleTx()], status), NOW);
+    assert.equal(d.outcome, RECEIPT_OUTCOME.UNAVAILABLE);
+    assert.equal(d.valid, false);
+    assert.equal(d.retryable, true);
+  }
+});
+
+test("apple: server configuration and routing statuses are unavailable", () => {
+  for (const status of [21000, 21004, 21007, 21008]) {
+    const d = decideAppleReceipt(appleReceipt([appleTx()], status), NOW);
+    assert.equal(d.outcome, RECEIPT_OUTCOME.UNAVAILABLE);
+    assert.equal(d.valid, false);
+    assert.equal(d.retryable, false);
+  }
+});
+
+test("apple: unknown status is unavailable, never a downgrade", () => {
+  const d = decideAppleReceipt(appleReceipt([appleTx()], 29999), NOW);
+  assert.equal(d.outcome, RECEIPT_OUTCOME.UNAVAILABLE);
+  assert.equal(d.reason, "unknown_apple_status");
+});
+
+test("apple: status accepts only an integer number", () => {
+  for (const status of [null, undefined, false, true, "", "0", "21005", 0.5]) {
+    const d = decideAppleReceipt(
+      { status, latest_receipt_info: [appleTx()] },
+      NOW,
+    );
+    assert.equal(d.outcome, RECEIPT_OUTCOME.UNAVAILABLE, String(status));
+    assert.equal(d.reason, "malformed_apple_status");
   }
 });
 
@@ -72,6 +109,7 @@ test("apple: expired subscription is not valid", () => {
     appleReceipt([appleTx({ expires_date_ms: String(PAST) })]),
     NOW,
   );
+  assert.equal(d.outcome, RECEIPT_OUTCOME.NOT_ENTITLED);
   assert.equal(d.valid, false);
   assert.equal(d.reason, "expired");
 });
@@ -83,6 +121,7 @@ test("apple: a REFUNDED transaction does not grant premium", () => {
     appleReceipt([appleTx({ cancellation_date_ms: String(PAST) })]),
     NOW,
   );
+  assert.equal(d.outcome, RECEIPT_OUTCOME.NOT_ENTITLED);
   assert.equal(d.valid, false);
   assert.equal(d.reason, "expired");
 });
@@ -111,9 +150,29 @@ test("apple: picks the LATEST expiry when several transactions are live", () => 
 });
 
 test("apple: empty, missing and malformed bodies are not valid", () => {
-  for (const body of [null, undefined, "nope", {}, appleReceipt([]), appleReceipt(undefined)]) {
-    assert.equal(decideAppleReceipt(body, NOW).valid, false);
+  for (const body of [
+    null,
+    undefined,
+    "nope",
+    [],
+    {},
+    appleReceipt(undefined),
+    appleReceipt("broken"),
+    appleReceipt([appleTx({ expires_date_ms: "" })]),
+    appleReceipt([appleTx({ expires_date_ms: false })]),
+    appleReceipt([appleTx({ cancellation_date_ms: false })]),
+    appleReceipt([appleTx({ cancellation_date_ms: "" })]),
+  ]) {
+    const d = decideAppleReceipt(body, NOW);
+    assert.equal(d.outcome, RECEIPT_OUTCOME.UNAVAILABLE);
+    assert.equal(d.valid, false);
   }
+});
+
+test("apple: valid empty receipt is authoritative non-entitlement", () => {
+  const d = decideAppleReceipt(appleReceipt([]), NOW);
+  assert.equal(d.outcome, RECEIPT_OUTCOME.NOT_ENTITLED);
+  assert.equal(d.reason, "no_subscription");
 });
 
 // ---------------------------------------------------------------------------

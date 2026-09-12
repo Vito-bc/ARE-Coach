@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,7 +10,6 @@ import '../core/study_streak.dart';
 import '../core/theme/app_theme.dart';
 import '../models/flashcard.dart';
 import '../services/flashcard_repository.dart';
-import '../services/iap_service.dart';
 import 'coach_screen.dart';
 import 'paywall_screen.dart';
 
@@ -56,9 +54,10 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
       vsync: this,
       duration: const Duration(milliseconds: 380),
     );
-    _flipAnim = Tween<double>(begin: 0, end: math.pi).animate(
-      CurvedAnimation(parent: _flipCtrl, curve: Curves.easeInOut),
-    );
+    _flipAnim = Tween<double>(
+      begin: 0,
+      end: math.pi,
+    ).animate(CurvedAnimation(parent: _flipCtrl, curve: Curves.easeInOut));
     _initQueue();
   }
 
@@ -113,7 +112,7 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
   /// Free: a gentle upgrade prompt that leads to the paywall.
   void _explainWithCoach() {
     final card = _current;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = ref.read(iapServiceProvider).currentUid;
     final role = ref.read(userRoleProvider(uid)).valueOrNull ?? 'free';
     final isPremium = role == 'premium';
 
@@ -157,9 +156,11 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
       ),
     );
     if (upgrade == true && mounted) {
-      unawaited(Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => PaywallScreen(iapService: IAPService())),
-      ));
+      unawaited(
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const PaywallScreen())),
+      );
     }
   }
 

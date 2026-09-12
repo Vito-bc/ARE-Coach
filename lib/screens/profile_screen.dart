@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/providers.dart';
@@ -37,10 +36,9 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  final _iapService = IAPService();
+  late final IAPService _iapService;
   final _authService = AuthService();
-  StreamSubscription<PurchaseDetails>? _purchaseSub;
-  bool _restoring = false;
+  bool get _restoring => _iapService.flow.value.busy;
   bool _deleting = false;
   bool _verificationSending = false;
   DateTime? _examDate;
@@ -48,25 +46,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _iapService.initialize();
+    _iapService = ref.read(iapServiceProvider);
+    _iapService.flow.addListener(_purchaseStateChanged);
     _loadReminderPref();
     _loadExamDate();
     _refreshEmailStatus();
-    _purchaseSub = _iapService.purchaseUpdates.listen(
-      _onPurchaseUpdate,
-      onError: (Object error) {
-        if (!mounted) return;
-        // Clearing the spinner without a word left a tapped "Restore
-        // Purchases" looking like it had simply decided nothing was wrong.
-        setState(() => _restoring = false);
-        final message = error is IAPError
-            ? error.message
-            : 'Restore failed. Please try again.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
-        );
-      },
-    );
+  }
+
+  void _purchaseStateChanged() {
+    if (mounted) setState(() {});
   }
 
   /// Pulls the latest verification state so the "verify email" prompt hides
@@ -233,46 +221,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _openPaywall() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PaywallScreen(iapService: _iapService),
-      ),
-    );
-  }
-
-  void _onPurchaseUpdate(PurchaseDetails details) {
-    if (!mounted) return;
-    setState(() => _restoring = false);
-    if (details.status == PurchaseStatus.restored) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Purchases restored successfully!')),
-      );
-    }
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PaywallScreen()));
   }
 
   Future<void> _restorePurchases() async {
     if (_restoring) return;
-    setState(() => _restoring = true);
-    try {
-      await _iapService.restorePurchases();
-      // Results arrive via _purchaseSub / _onPurchaseUpdate.
-      // If nothing is restored the stream stays silent, so reset after a delay.
-      await Future<void>.delayed(const Duration(seconds: 8));
-      if (mounted && _restoring) setState(() => _restoring = false);
-    } catch (_) {
-      if (mounted) {
-        setState(() => _restoring = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Restore failed. Please try again.')),
-        );
-      }
-    }
+    // The shared paywall presents every restore outcome, including no match.
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const PaywallScreen(restoreOnOpen: true),
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _purchaseSub?.cancel();
-    _iapService.dispose();
+    _iapService.flow.removeListener(_purchaseStateChanged);
     super.dispose();
   }
 

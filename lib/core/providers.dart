@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../models/quiz_question.dart';
 import '../services/progress_repository.dart';
+import '../services/iap_service.dart';
+import '../services/purchase_account.dart';
 import '../services/question_repository.dart';
+import '../services/subscription_expiry_timer.dart';
 
 typedef DashboardArgs = ({String? uid, bool firebaseReady});
 
@@ -64,13 +69,44 @@ final allSectionAccuraciesProvider =
   return ProgressRepository().fetchAllSectionAccuracies(uid: args.uid!);
 });
 
-/// Streams the user's role ('free' | 'premium') directly from Firestore.
-/// Auto-updates when validateReceipt writes role: 'premium' server-side.
+/// The ProviderScope owns the one store listener across navigation/auth gates.
+final iapServiceProvider = Provider<IAPService>((ref) {
+  final service = IAPService();
+  ref.onDispose(service.dispose);
+  unawaited(service.initialize());
+  return service;
+});
+
+/// Server subscription state, with local expiry and no cached-role grant.
 final userRoleProvider = StreamProvider.family<String, String?>((ref, uid) {
   if (uid == null) return Stream.value('free');
-  return FirebaseFirestore.instance
+  final controller = StreamController<String>();
+  final expiryTimer = SubscriptionExpiryTimer(() => controller.add('free'));
+  final subscription = FirebaseFirestore.instance
       .collection('users')
       .doc(uid)
-      .snapshots()
-      .map((snap) => (snap.data()?['role'] as String?) ?? 'free');
+      .snapshots(includeMetadataChanges: true)
+      .listen((snapshot) {
+        expiryTimer.cancel();
+        final data = snapshot.data();
+        final now = DateTime.now();
+        final active =
+            !snapshot.metadata.isFromCache &&
+            !snapshot.metadata.hasPendingWrites &&
+            hasActiveSubscription(data, now);
+        controller.add(active ? 'premium' : 'free');
+        if (active) {
+          final expiry = (data!['premiumUntil'] as Timestamp).toDate();
+          expiryTimer.schedule(expiry);
+        }
+      }, onError: (Object _) {
+        expiryTimer.cancel();
+        controller.add('free');
+      });
+  ref.onDispose(() {
+    expiryTimer.cancel();
+    subscription.cancel();
+    controller.close();
+  });
+  return controller.stream;
 });
