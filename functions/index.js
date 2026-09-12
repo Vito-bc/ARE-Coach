@@ -7,9 +7,11 @@ const { askCoach: generateCoachAnswer } = require("./lib/coach");
 const { decideEntitlement } = require("./lib/entitlement");
 const {
   normalizePlatform,
-  decideAppleReceipt,
   decidePlaySubscription,
+  notEntitled,
 } = require("./lib/receipts");
+const { validateAppleReceipt } = require("./lib/apple_validation");
+const { applyReceiptDecision } = require("./lib/receipt_endpoint");
 const { fetchPlaySubscription } = require("./lib/play_api");
 
 admin.initializeApp();
@@ -28,9 +30,6 @@ const PER_MINUTE_LIMIT = 3;
 
 // Bounds the prompt so a pathological input can't blow up the token bill.
 const MAX_PROMPT_CHARS = 2000;
-
-const APPLE_PRODUCTION_URL = "https://buy.itunes.apple.com/verifyReceipt";
-const APPLE_SANDBOX_URL = "https://sandbox.itunes.apple.com/verifyReceipt";
 
 // The Play package the purchase tokens belong to. Must match the
 // applicationId in android/app/build.gradle.kts.
@@ -153,43 +152,57 @@ exports.validateReceipt = onRequest(
 
       const decision =
         store === "app_store"
-          ? await validateAppleReceipt(receiptData)
+          ? await validateAppleReceipt(receiptData, {
+              sharedSecret: APPLE_SHARED_SECRET.value(),
+            })
           : await validatePlayPurchase(receiptData);
 
-      if (!decision.valid) {
-        await markUserFree(uid, store);
+      const result = await applyReceiptDecision(decision, {
+        grant: async (verified) => {
+          await db.collection("users").doc(uid).set(
+            {
+              role: "premium",
+              subscriptionStatus: "active",
+              subscriptionId: verified.productId,
+              // Which store owns this entitlement, so a failed check against
+              // the other one can't tear down a live subscription.
+              subscriptionPlatform: store,
+              premiumUntil: admin.firestore.Timestamp.fromMillis(
+                verified.expiresAt
+              ),
+              lastActiveAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        },
+        downgrade: async () => markUserFree(uid, store),
+      });
+
+      if (result.action === "downgraded") {
         logger.warn("validateReceipt: not entitled", {
           uid,
           store,
           reason: decision.reason,
           state: decision.state,
         });
-        return res.status(200).json({ valid: false });
+      } else if (result.action === "granted") {
+        logger.info("validateReceipt: subscription activated", {
+          uid,
+          store,
+          productId: decision.productId,
+          expiresAt: decision.expiresAt,
+          testPurchase: decision.testPurchase === true,
+        });
+      } else {
+        logger.warn("validateReceipt: validation unavailable", {
+          uid,
+          store,
+          reason: decision && decision.reason,
+          retryable: decision && decision.retryable === true,
+        });
       }
 
-      await db.collection("users").doc(uid).set(
-        {
-          role: "premium",
-          subscriptionStatus: "active",
-          subscriptionId: decision.productId,
-          // Which store owns this entitlement, so a failed check against the
-          // other one can't tear down a live subscription.
-          subscriptionPlatform: store,
-          premiumUntil: admin.firestore.Timestamp.fromMillis(decision.expiresAt),
-          lastActiveAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      logger.info("validateReceipt: subscription activated", {
-        uid,
-        store,
-        productId: decision.productId,
-        expiresAt: decision.expiresAt,
-        testPurchase: decision.testPurchase === true,
-      });
-
-      return res.status(200).json({ valid: true, expiresAt: decision.expiresAt });
+      return res.status(result.status).json(result.body);
     } catch (err) {
       logger.error("validateReceipt failed", err);
       if (err instanceof HttpsError) {
@@ -268,29 +281,6 @@ async function deleteReportsByUid(uid) {
 }
 
 /**
- * Verifies an App Store receipt and returns the entitlement decision.
- *
- * Apple's production endpoint answers 21007 for a sandbox receipt, which is how
- * TestFlight builds are meant to be handled — retry the same payload against
- * sandbox rather than calling the receipt bad.
- */
-async function validateAppleReceipt(receiptData) {
-  const payload = {
-    "receipt-data": receiptData,
-    password: APPLE_SHARED_SECRET.value(),
-    "exclude-old-transactions": true,
-  };
-
-  const production = await callAppleVerify(APPLE_PRODUCTION_URL, payload);
-  const appleData =
-    production.status === 21007
-      ? await callAppleVerify(APPLE_SANDBOX_URL, payload)
-      : production;
-
-  return decideAppleReceipt(appleData);
-}
-
-/**
  * Verifies a Google Play purchase token and returns the entitlement decision.
  *
  * `receiptData` from an Android client is the Play purchase token
@@ -318,23 +308,9 @@ async function validatePlayPurchase(purchaseToken) {
   });
 
   if (!result.ok) {
-    return { valid: false, reason: result.reason };
+    return notEntitled(result.reason);
   }
   return decidePlaySubscription(result.subscription);
-}
-
-async function callAppleVerify(url, payload) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    const err = new Error(`Apple API error: ${response.status}`);
-    err.statusCode = 502;
-    throw err;
-  }
-  return response.json();
 }
 
 /**

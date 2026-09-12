@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app.dart';
+import 'core/providers.dart';
 import 'core/theme/app_theme.dart';
 import 'services/notification_service.dart';
 import 'firebase_options.dart';
@@ -56,22 +57,23 @@ Future<void> main() async {
   runApp(ProviderScope(child: ArchiEdBootstrap(firebaseReady: firebaseReady)));
 }
 
-class ArchiEdBootstrap extends StatefulWidget {
+class ArchiEdBootstrap extends ConsumerStatefulWidget {
   const ArchiEdBootstrap({super.key, required this.firebaseReady});
 
   final bool firebaseReady;
 
   @override
-  State<ArchiEdBootstrap> createState() => _ArchiEdBootstrapState();
+  ConsumerState<ArchiEdBootstrap> createState() => _ArchiEdBootstrapState();
 }
 
-class _ArchiEdBootstrapState extends State<ArchiEdBootstrap> {
+class _ArchiEdBootstrapState extends ConsumerState<ArchiEdBootstrap> {
   bool _loading = true;
   bool _onboarded = false;
 
   @override
   void initState() {
     super.initState();
+    if (widget.firebaseReady) ref.read(iapServiceProvider);
     _load();
   }
 

@@ -5,6 +5,7 @@ import 'package:are_coach/screens/paywall_screen.dart';
 import 'package:are_coach/services/iap_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -16,6 +17,14 @@ void main() {
 
   setUp(() {
     iap = MockIAPService();
+    final flow = ValueNotifier<PurchaseFlow>(
+      const PurchaseFlow(PurchasePhase.idle),
+    );
+    when(() => iap.flow).thenReturn(flow);
+    when(() => iap.canPurchase).thenReturn(false);
+    when(() => iap.canStartPurchase).thenReturn(false);
+    when(() => iap.canRestore).thenReturn(true);
+    when(() => iap.initialize()).thenAnswer((_) async {});
     purchases = StreamController<PurchaseDetails>.broadcast();
     when(() => iap.purchaseUpdates).thenAnswer((_) => purchases.stream);
     when(() => iap.loadProducts()).thenAnswer((_) async => <ProductDetails>[]);
@@ -25,9 +34,11 @@ void main() {
 
   Future<void> pumpPaywall(WidgetTester tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.dark(),
-        home: PaywallScreen(iapService: iap),
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.dark(),
+          home: PaywallScreen(iapService: iap),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -53,8 +64,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('We could not confirm your purchase right now.'),
-        findsOneWidget);
+    expect(
+      find.text('We could not confirm your purchase right now.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('an unrecognized error still gets a message', (tester) async {

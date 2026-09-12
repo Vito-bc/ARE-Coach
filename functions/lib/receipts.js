@@ -8,13 +8,41 @@
  * Premium for free. Keeping the decision pure is what lets every branch below
  * be pinned by a unit test (see `test/receipts.test.js`).
  *
- * The only shape callers see is the Decision:
- *   { valid: true,  expiresAt: <ms>, productId: <string> }
- *   { valid: false, reason: <string> }
+ * Every decision has an explicit outcome. `valid` remains for the HTTP client,
+ * but server-side effects must branch on `outcome`, never on `!valid`.
  */
 
 /** Subscription products we sell. Anything else is not our entitlement. */
 const PRODUCT_IDS = ["are_coach_monthly", "are_coach_yearly"];
+const RECEIPT_OUTCOME = Object.freeze({
+  VERIFIED: "verified",
+  NOT_ENTITLED: "not_entitled",
+  UNAVAILABLE: "unavailable",
+});
+
+function verified(fields) {
+  return { outcome: RECEIPT_OUTCOME.VERIFIED, valid: true, ...fields };
+}
+
+function notEntitled(reason, fields = {}) {
+  return {
+    outcome: RECEIPT_OUTCOME.NOT_ENTITLED,
+    valid: false,
+    reason,
+    retryable: false,
+    ...fields,
+  };
+}
+
+function unavailable(reason, { retryable = true, httpStatus = 503 } = {}) {
+  return {
+    outcome: RECEIPT_OUTCOME.UNAVAILABLE,
+    valid: false,
+    reason,
+    retryable,
+    httpStatus,
+  };
+}
 
 /**
  * Play subscription states that still entitle the user.
@@ -53,40 +81,150 @@ function normalizePlatform(value) {
  *
  * @param {object} appleData  parsed response from verifyReceipt
  * @param {number} [now]      injectable clock (ms since epoch)
- * @returns {{valid: boolean, expiresAt?: number, productId?: string, reason?: string}}
+ * @returns {{outcome: string, valid: boolean, expiresAt?: number, productId?: string, reason?: string, retryable?: boolean, httpStatus?: number}}
  */
 function decideAppleReceipt(appleData, now = Date.now()) {
-  if (!appleData || typeof appleData !== "object") {
-    return { valid: false, reason: "invalid_receipt" };
-  }
-  // Apple signals every failure through a non-zero status (21002 malformed,
-  // 21003 unauthenticated, 21010 no such account, ...). Only 0 is a real receipt.
-  if (Number(appleData.status) !== 0) {
-    return { valid: false, reason: "invalid_receipt" };
+  if (
+    !appleData ||
+    typeof appleData !== "object" ||
+    Array.isArray(appleData)
+  ) {
+    return unavailable("malformed_apple_response", {
+      retryable: true,
+      httpStatus: 502,
+    });
   }
 
-  const transactions = (appleData.latest_receipt_info || [])
-    .filter((t) => {
-      if (!t || !PRODUCT_IDS.includes(t.product_id)) return false;
+  // Apple's schema declares an integer. Number(null/false/"") is zero, so
+  // coercion here could turn a malformed gateway response into a valid receipt.
+  if (!Number.isInteger(appleData.status)) {
+    return unavailable("malformed_apple_status", {
+      retryable: true,
+      httpStatus: 502,
+    });
+  }
+
+  const status = appleData.status;
+  if (status === 21003) return notEntitled("invalid_receipt");
+  if (status === 21010) return notEntitled("account_not_found");
+  // Apple says 21006 is a valid legacy subscription receipt in an expired
+  // state. It is therefore authoritative non-entitlement, not an outage.
+  if (status === 21006) return notEntitled("expired");
+
+  if (status === 21002 || status === 21005 || status === 21009) {
+    return unavailable("apple_temporarily_unavailable", { retryable: true });
+  }
+  if (status >= 21100 && status <= 21199) {
+    return unavailable("apple_internal_error", { retryable: true });
+  }
+  if (status === 21004) {
+    return unavailable("apple_shared_secret_mismatch", { retryable: false });
+  }
+  if (status === 21000) {
+    return unavailable("apple_request_protocol_error", {
+      retryable: false,
+      httpStatus: 502,
+    });
+  }
+  if (status === 21007 || status === 21008) {
+    return unavailable("apple_routing_error", {
+      retryable: false,
+      httpStatus: 502,
+    });
+  }
+  if (status !== 0) {
+    return unavailable("unknown_apple_status", {
+      retryable: false,
+      httpStatus: 502,
+    });
+  }
+
+  if (!Array.isArray(appleData.latest_receipt_info)) {
+    return unavailable("malformed_apple_response", {
+      retryable: true,
+      httpStatus: 502,
+    });
+  }
+
+  const candidates = [];
+  for (const transaction of appleData.latest_receipt_info) {
+    if (
+      !transaction ||
+      typeof transaction !== "object" ||
+      Array.isArray(transaction) ||
+      typeof transaction.product_id !== "string"
+    ) {
+      return unavailable("malformed_apple_transaction", {
+        retryable: true,
+        httpStatus: 502,
+      });
+    }
+    if (!PRODUCT_IDS.includes(transaction.product_id)) continue;
+
+    const rawExpiry = transaction.expires_date_ms;
+    const expiryIsDecimalString =
+      typeof rawExpiry === "string" && /^[0-9]+$/.test(rawExpiry);
+    const expiryIsInteger =
+      typeof rawExpiry === "number" && Number.isSafeInteger(rawExpiry);
+    if (!expiryIsDecimalString && !expiryIsInteger) {
+      return unavailable("malformed_apple_transaction", {
+        retryable: true,
+        httpStatus: 502,
+      });
+    }
+    const expiresAt = Number(rawExpiry);
+    if (!Number.isSafeInteger(expiresAt) || expiresAt <= 0) {
+      return unavailable("malformed_apple_transaction", {
+        retryable: true,
+        httpStatus: 502,
+      });
+    }
+
+    candidates.push({ transaction, expiresAt });
+  }
+
+  const transactions = [];
+  for (const candidate of candidates) {
+    const { transaction, expiresAt } = candidate;
+    if (
+      Object.prototype.hasOwnProperty.call(
+        transaction,
+        "cancellation_date_ms"
+      )
+    ) {
+      const rawCancellation = transaction.cancellation_date_ms;
+      const cancellationIsDecimalString =
+        typeof rawCancellation === "string" && /^[0-9]+$/.test(rawCancellation);
+      const cancellationIsInteger =
+        typeof rawCancellation === "number" &&
+        Number.isSafeInteger(rawCancellation) &&
+        rawCancellation > 0;
+      if (!cancellationIsDecimalString && !cancellationIsInteger) {
+        return unavailable("malformed_apple_transaction", {
+          retryable: true,
+          httpStatus: 502,
+        });
+      }
       // A refunded or revoked transaction carries a cancellation date. Its
       // expiry can still be in the future, so without this check we would keep
       // serving Premium to someone Apple already gave the money back to.
-      if (t.cancellation_date_ms) return false;
-      const expires = Number(t.expires_date_ms);
-      return Number.isFinite(expires) && expires > now;
-    })
-    .sort((a, b) => Number(b.expires_date_ms) - Number(a.expires_date_ms));
+      continue;
+    }
+    if (expiresAt > now) transactions.push(candidate);
+  }
+  transactions.sort((a, b) => b.expiresAt - a.expiresAt);
 
   if (transactions.length === 0) {
-    return { valid: false, reason: "expired" };
+    return notEntitled(
+      candidates.length === 0 ? "no_subscription" : "expired"
+    );
   }
 
   const latest = transactions[0];
-  return {
-    valid: true,
-    expiresAt: Number(latest.expires_date_ms),
-    productId: latest.product_id,
-  };
+  return verified({
+    expiresAt: latest.expiresAt,
+    productId: latest.transaction.product_id,
+  });
 }
 
 /**
@@ -98,20 +236,21 @@ function decideAppleReceipt(appleData, now = Date.now()) {
  *
  * @param {object} sub    the subscriptionsv2 resource
  * @param {number} [now]  injectable clock (ms since epoch)
- * @returns {{valid: boolean, expiresAt?: number, productId?: string, reason?: string, state?: string, testPurchase?: boolean}}
+ * @returns {{outcome: string, valid: boolean, expiresAt?: number, productId?: string, reason?: string, state?: string, testPurchase?: boolean}}
  */
 function decidePlaySubscription(sub, now = Date.now()) {
   if (!sub || typeof sub !== "object") {
-    return { valid: false, reason: "invalid_receipt" };
+    return notEntitled("invalid_receipt");
   }
 
   const state = String(sub.subscriptionState || "").toUpperCase();
   if (!PLAY_ENTITLING_STATES.has(state)) {
-    return {
-      valid: false,
+    return notEntitled(
+      state === "SUBSCRIPTION_STATE_EXPIRED" ? "expired" : "not_entitled",
+      {
       state,
-      reason: state === "SUBSCRIPTION_STATE_EXPIRED" ? "expired" : "not_entitled",
-    };
+      }
+    );
   }
 
   // Google extends `expiryTime` into the future while a grace-period retry is
@@ -131,23 +270,25 @@ function decidePlaySubscription(sub, now = Date.now()) {
     .sort((a, b) => b.expiresAt - a.expiresAt);
 
   if (items.length === 0) {
-    return { valid: false, state, reason: "expired" };
+    return notEntitled("expired", { state });
   }
 
-  return {
-    valid: true,
+  return verified({
     state,
     expiresAt: items[0].expiresAt,
     productId: items[0].productId,
     // License testers get real-looking purchases that were never charged. They
     // must work (that is how we QA), but the log should say so.
     testPurchase: Boolean(sub.testPurchase),
-  };
+  });
 }
 
 module.exports = {
   PRODUCT_IDS,
+  RECEIPT_OUTCOME,
   PLAY_ENTITLING_STATES,
+  notEntitled,
+  unavailable,
   normalizePlatform,
   decideAppleReceipt,
   decidePlaySubscription,

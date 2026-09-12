@@ -1,26 +1,34 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:in_app_purchase/in_app_purchase.dart';
+
+import '../core/providers.dart';
 
 import '../core/ui/app_chrome.dart';
 import '../services/iap_service.dart';
 
-class PaywallScreen extends StatefulWidget {
-  const PaywallScreen({super.key, required this.iapService});
+class PaywallScreen extends ConsumerStatefulWidget {
+  const PaywallScreen({super.key, this.iapService, this.restoreOnOpen = false});
 
-  final IAPService iapService;
+  final IAPService? iapService;
+  final bool restoreOnOpen;
 
   @override
-  State<PaywallScreen> createState() => _PaywallScreenState();
+  ConsumerState<PaywallScreen> createState() => _PaywallScreenState();
 }
 
-class _PaywallScreenState extends State<PaywallScreen> {
+class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   List<ProductDetails> _products = [];
   bool _loading = true;
   String? _errorMessage;
   String _selectedId = IAPService.kYearlyId;
-  bool _purchasing = false;
+  late final IAPService _iap;
+  bool _successHandled = false;
+  bool get _purchasing => _iap.flow.value.busy;
+  String? _purchaseMessage;
   StreamSubscription<PurchaseDetails>? _purchaseSub;
 
   static const List<_Feature> _features = [
@@ -33,81 +41,73 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProducts();
-    _purchaseSub = widget.iapService.purchaseUpdates.listen(
-      _onPurchaseUpdate,
-      // IAPService reports every failure — a declined card, a receipt the
-      // store won't honour, our own validator being down — as a stream
-      // *error*. Without this handler those went to the zone's unhandled
-      // error hook: the spinner spun forever and the buyer, who may well have
-      // just been charged, was told nothing at all.
+    _iap = widget.iapService ?? ref.read(iapServiceProvider);
+    _purchaseSub = _iap.purchaseUpdates.listen(
+      (_) {},
       onError: _onPurchaseError,
     );
+    _iap.flow.addListener(_syncFlow);
+    unawaited(_prepare());
+  }
+
+  Future<void> _prepare() async {
+    await _iap.initialize();
+    if (!mounted) return;
+    _syncFlow();
+    await _loadProducts();
+    if (!mounted) return;
+    if (widget.restoreOnOpen) await _restore();
   }
 
   @override
   void dispose() {
     _purchaseSub?.cancel();
+    _iap.flow.removeListener(_syncFlow);
     super.dispose();
   }
 
   Future<void> _loadProducts() async {
-    setState(() {
-      _loading = true;
-      _errorMessage = null;
-    });
     try {
-      final products = await widget.iapService.loadProducts();
-      if (mounted) {
-        setState(() {
-          _products = products
-            ..sort((a, b) => a.id == IAPService.kMonthlyId ? -1 : 1);
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Could not reach the App Store. Check your connection.';
-          _loading = false;
-        });
-      }
+      final products = await _iap.loadProducts();
+      if (!mounted) return;
+      setState(() {
+        _products = [...products]..sort((a, b) => a.id.compareTo(b.id));
+        _loading = false;
+        _errorMessage = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Could not reach the store. Check your connection.';
+        _loading = false;
+      });
     }
   }
 
-  void _onPurchaseUpdate(PurchaseDetails details) {
+  void _syncFlow() {
     if (!mounted) return;
-    if (details.status == PurchaseStatus.purchased ||
-        details.status == PurchaseStatus.restored) {
-      setState(() => _purchasing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Welcome to Premium!')),
-      );
-      Navigator.of(context).pop(true);
-    } else if (details.status == PurchaseStatus.error) {
-      setState(() => _purchasing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            details.error?.message ?? 'Purchase failed. Please try again.',
-          ),
-        ),
-      );
-    } else if (details.status == PurchaseStatus.pending) {
-      setState(() => _purchasing = true);
+    final state = _iap.flow.value;
+    setState(() => _purchaseMessage = state.message);
+    if (state.phase != PurchasePhase.verified) _successHandled = false;
+    if (state.phase == PurchasePhase.verified && !_successHandled) {
+      _successHandled = true;
+      // Defer navigation; the state may be replayed while this route is built.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_iap.takeVerifiedNotice(state)) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Premium access confirmed.')),
+        );
+        Navigator.of(context).pop(true);
+      });
     }
   }
 
   void _onPurchaseError(Object error) {
     if (!mounted) return;
-    setState(() => _purchasing = false);
-    // IAPError carries a message written for this exact failure (an outage
-    // reads differently from a rejected receipt); anything else is unexpected.
-    final message = error is IAPError
-        ? error.message
-        : 'Purchase failed. Please try again.';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
+    setState(
+      () => _purchaseMessage = error is IAPError
+          ? error.message
+          : 'Purchase failed. Please try again.',
     );
   }
 
@@ -122,30 +122,18 @@ class _PaywallScreenState extends State<PaywallScreen> {
   Future<void> _subscribe() async {
     final product = _selectedProduct;
     if (product == null || _purchasing) return;
-    setState(() => _purchasing = true);
     try {
-      await widget.iapService.purchaseSubscription(product);
-    } catch (e) {
-      if (mounted) {
-        setState(() => _purchasing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not initiate purchase.')),
-        );
-      }
+      await _iap.purchaseSubscription(product);
+    } catch (error) {
+      _onPurchaseError(error);
     }
   }
 
   Future<void> _restore() async {
-    setState(() => _purchasing = true);
     try {
-      await widget.iapService.restorePurchases();
-    } catch (e) {
-      if (mounted) {
-        setState(() => _purchasing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Restore failed. Please try again.')),
-        );
-      }
+      await _iap.restorePurchases();
+    } catch (error) {
+      _onPurchaseError(error);
     }
   }
 
@@ -247,13 +235,16 @@ class _PaywallScreenState extends State<PaywallScreen> {
     // Shown when this build can't verify a purchase server-side (web, or a
     // storefront that isn't switched on yet). Say so plainly instead of
     // offering a button that takes money into a void.
-    if (!IAPService.purchasesSupported) {
+    if (!_iap.canPurchase) {
       return AppGlassCard(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Icon(Icons.hourglass_empty_rounded,
-                size: 32, color: cs.onSurfaceVariant),
+            Icon(
+              Icons.hourglass_empty_rounded,
+              size: 32,
+              color: cs.onSurfaceVariant,
+            ),
             const SizedBox(height: 12),
             Text(
               'Premium is not available on this platform yet',
@@ -287,7 +278,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Text(_errorMessage!, style: tt.bodyMedium, textAlign: TextAlign.center),
+            Text(
+              _errorMessage!,
+              style: tt.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 12),
             TextButton.icon(
               onPressed: _loadProducts,
@@ -336,8 +331,18 @@ class _PaywallScreenState extends State<PaywallScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_purchaseMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(_purchaseMessage!, textAlign: TextAlign.center),
+            ),
           FilledButton(
-            onPressed: (_purchasing || _selectedProduct == null) ? null : _subscribe,
+            onPressed:
+                (_purchasing ||
+                    !_iap.canStartPurchase ||
+                    _selectedProduct == null)
+                ? null
+                : _subscribe,
             child: _purchasing
                 ? const SizedBox(
                     width: 20,
@@ -351,7 +356,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
           ),
           const SizedBox(height: 4),
           TextButton(
-            onPressed: _purchasing ? null : _restore,
+            onPressed: _purchasing || !_iap.canRestore ? null : _restore,
             child: const Text('Restore Purchases'),
           ),
           TextButton(
@@ -369,7 +374,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 8),
             child: Text(
-              'Subscription renews automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your Apple ID settings.',
+              'Subscription renews automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel in your App Store or Google Play subscription settings.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 10,
