@@ -19,7 +19,7 @@ void main() {
   late FakeAccount account;
 
   const testEndpoint = 'https://test.example.com/validateReceipt';
-  const receiptData = 'base64-receipt-data';
+  const receiptData = 'signed.fixture.jws';
   const platform = 'app_store';
   final product = ProductDetails(
     id: IAPService.kMonthlyId,
@@ -64,14 +64,15 @@ void main() {
     PurchaseStatus status = PurchaseStatus.purchased,
     bool pendingComplete = true,
     String source = platform,
+    String receipt = receiptData,
   }) {
     final verificationData = MockPurchaseVerificationData();
-    when(() => verificationData.serverVerificationData).thenReturn(receiptData);
+    when(() => verificationData.serverVerificationData).thenReturn(receipt);
     when(() => verificationData.source).thenReturn(source);
 
     final purchase = MockPurchaseDetails();
     when(() => purchase.productID).thenReturn(IAPService.kMonthlyId);
-    when(() => purchase.purchaseID).thenReturn('transaction-1');
+    when(() => purchase.purchaseID).thenReturn('123');
     when(() => purchase.transactionDate).thenReturn('123');
     when(() => purchase.status).thenReturn(status);
     when(() => purchase.pendingCompletePurchase).thenReturn(pendingComplete);
@@ -80,15 +81,10 @@ void main() {
   }
 
   http.Response validResponse() =>
-      http.Response(jsonEncode({'valid': true}), 200);
+      http.Response(appleResponse(uid: account.uid ?? 'user-a'), 200);
 
   http.Response invalidResponse() => http.Response(
-    jsonEncode({
-      'valid': false,
-      'outcome': 'not_entitled',
-      'reason': 'expired',
-      'transactionFinalization': 'not_safe',
-    }),
+    appleResponse(uid: account.uid ?? 'user-a', valid: false),
     200,
   );
 
@@ -612,38 +608,41 @@ void main() {
       },
     );
 
-    test('an unbound retry is not claimed by the next account', () async {
-      account.signIn(null);
-      await initAndEmit([makePurchase()]);
-      verifyNever(
-        () => mockHttpClient.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        ),
-      );
+    test(
+      'an unbound legacy retry is not claimed by the next account',
+      () async {
+        account.signIn(null);
+        await initAndEmit([makePurchase(receipt: 'legacy-base64')]);
+        verifyNever(
+          () => mockHttpClient.post(
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+          ),
+        );
 
-      account.signIn('user-b');
-      await Future<void>.delayed(Duration.zero);
-      await initAndEmit([makePurchase()]);
-      await sut.retryPendingPurchases();
-      expect(sut.canStartPurchase, isTrue);
-      verifyNever(
-        () => mockHttpClient.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        ),
-      );
-      verifyNever(() => mockIap.completePurchase(any()));
+        account.signIn('user-b');
+        await Future<void>.delayed(Duration.zero);
+        await initAndEmit([makePurchase(receipt: 'legacy-base64')]);
+        await sut.retryPendingPurchases();
+        expect(sut.canStartPurchase, isTrue);
+        verifyNever(
+          () => mockHttpClient.post(
+            any(),
+            headers: any(named: 'headers'),
+            body: any(named: 'body'),
+          ),
+        );
+        verifyNever(() => mockIap.completePurchase(any()));
 
-      await sut.purchaseSubscription(product);
-      verify(
-        () => mockIap.buyNonConsumable(
-          purchaseParam: any(named: 'purchaseParam'),
-        ),
-      ).called(1);
-    });
+        await sut.purchaseSubscription(product);
+        verify(
+          () => mockIap.buyNonConsumable(
+            purchaseParam: any(named: 'purchaseParam'),
+          ),
+        ).called(1);
+      },
+    );
 
     for (final status in [PurchaseStatus.canceled, PurchaseStatus.error]) {
       test('unknown StoreKit product with $status is finished once', () async {
@@ -700,6 +699,11 @@ void main() {
 
     test('a never-resolving HTTP request times out without success', () async {
       final response = Completer<http.Response>();
+      final timedOut = Completer<void>();
+      final listener = sut.purchaseUpdates.listen((_) {}, onError: (Object _) {
+        if (!timedOut.isCompleted) timedOut.complete();
+      });
+      addTearDown(listener.cancel);
       when(
         () => mockHttpClient.post(
           any(),
@@ -708,7 +712,7 @@ void main() {
         ),
       ).thenAnswer((_) => response.future);
       await initAndEmit([makePurchase()]);
-      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await timedOut.future.timeout(const Duration(seconds: 5));
       expect((errors.single as IAPError).code, 'validation_unavailable');
       expect(sut.flow.value.busy, isFalse);
       response.complete(validResponse());

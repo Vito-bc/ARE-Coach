@@ -21,7 +21,7 @@ The IDs are hardcoded in `functions/lib/receipts.js` (`PRODUCT_IDS`) and
 ```
 app  --(receipt / purchase token + ID token + App Check)-->  validateReceipt
                                                                   |
-                     App Store verifyReceipt  <-------------------+
+                     Apple signed JWS verifier <------------------+
                      Play subscriptionsv2     <-------------------+
                                                                   |
                               users/{uid} { role, subscriptionStatus,
@@ -42,6 +42,79 @@ Two rules that are easy to get wrong and cost real money:
 
 ## iOS (App Store)
 
+PR #51 is merged at `bab1534524c545ce8d9e13dadac378174cb6ec67`. The subsequent
+StoreKit 2 patch implements signed transaction verification and atomic ownership.
+It is not deployment or payment-release approval.
+
+### Server and adapter contract
+
+Installed StoreKit 0.4.8+1 uses JWS in `serverVerificationData` and a decimal
+transaction ID in `purchaseID`. The client first posts
+`{platform:app_store, action:prepare_apple_purchase}` with Firebase ID token and
+App Check. The backend creates a stable UUID for the authenticated UID; the
+adapter forwards it through `PurchaseParam.applicationUserName` to native
+`Product.PurchaseOption.appAccountToken`. It is not a user-selectable owner ID.
+
+Validation posts `receiptFormat:storekit2_jws`, `receiptData`, `transactionId`
+and `productId`. The official `@apple/app-store-server-library` 3.1.0 validates
+ES256/trusted Apple certificates and expected bundle/environment. Server policy
+checks product, auto-renewable type, transaction/original IDs, dates, revocation
+and signed token. The worker always enables online certificate checks and is
+terminated after 6 seconds, including outstanding requests. It accepts neither
+test roots nor Xcode/LocalTesting signature-bypass modes.
+
+Required backend environment configuration (not set by this task):
+
+| Setting | Meaning |
+| --- | --- |
+| `APPLE_BUNDLE_ID` | Exact App Store bundle identifier; checked source currently uses `com.archedu.architectulaEducationApp`, confirm against App Store Connect before configuration. |
+| `APPLE_APP_ID` | Actual positive decimal numeric App Store app ID, not Firebase app ID; no invented default. Required by the production library constructor. |
+| `APPLE_ENVIRONMENT` | Exactly `Production` or `Sandbox`; no default or client override. |
+
+Transaction JWS payloads identify the app by bundle ID; they do not contain an
+`appAppleId` field for this verifier to compare. The configured App Store app ID
+is supplied to the official verifier and included in the storage namespace;
+App Store Connect must confirm the bundle/numeric-ID pair. Notifications/app
+transactions have additional app-ID checks in Apple's library and are separate.
+Public Apple trust anchors are bundled under `functions/certificates` with
+source URLs and SHA-256 fingerprints. No App Store private API key is required
+just to verify transaction signatures. API notifications/reconciliation will
+require their own setup.
+
+Within `appleBilling/{hash(bundle,environment,appId)}`, only the backend can read
+or write accounts, token mappings, owners, transaction ledger and sandbox records.
+Firestore rules deny these paths even to client admin claims. Owner assignment,
+ledger and entitlement updates form one transaction; retries are idempotent.
+Missing/foreign tokens, conflicts, invalid signatures, malformed proof,
+configuration failures and outages return non-200 `unavailable`, without grant,
+extension or downgrade. Recovery must authenticate and establish ownership through
+a separately reviewed process; receipt possession or first claim is insufficient.
+
+Production grants update `users/{uid}`. Sandbox grants are recorded only under
+the separate private `sandboxEntitlements` namespace and never unlock production
+Premium. The current app requires production-scope proof before completion;
+a configured Sandbox backend alone does **not** produce end-to-end sandbox
+paywall success. An isolated test-app entitlement/finalization flow and device
+sign-off remain pending. Never point a production client at testing trust roots.
+
+Success must match current UID and the exact transaction/product, include future
+expiry and `transactionFinalization:verified_transaction`, and pass a fresh
+Firestore entitlement read before `completePurchase`. Cold-start events may probe
+ownership after login but remain unbound until server proof; late callbacks cannot
+complete for another account. Definitive expired/revoked results release the retry
+gate and keep `transactionFinalization:not_safe`; finishing rejections is separate.
+
+### Legacy receipts and release prerequisites
+
+Legacy `receiptFormat:legacy_receipt` remains a distinct bounded validation route.
+It never accepts a JWS or handles fallback after signature failure. Because legacy
+receipts do not prove the signed account-token relationship, this route returns
+`apple_ownership_recovery_required` without changing entitlement. Existing expiry
+enforcement continues. Historical/untagged purchases require safe support recovery;
+they cannot be silently assigned to the caller.
+
+The following shared-secret setup is for that legacy route only:
+
 1. Create the subscription products in App Store Connect with the IDs above.
 2. Generate an **App-Specific Shared Secret** (App Store Connect → App
    Information → App-Specific Shared Secret).
@@ -50,9 +123,9 @@ Two rules that are easy to get wrong and cost real money:
    firebase functions:secrets:set APPLE_SHARED_SECRET
    ```
 
-Sandbox receipts are handled automatically: Apple answers `21007` on the
-production endpoint and the function retries against sandbox, so TestFlight
-purchases validate without a code change. That route is bounded to production
+The legacy validator routes numeric `21007` from the
+production endpoint to sandbox. This does not grant a bound entitlement or
+establish StoreKit 2/TestFlight sign-off. That route is bounded to production
 plus one sandbox call. Apple calls have a 6-second timeout each, so both fit
 inside the client's 15-second request bound.
 
@@ -64,7 +137,14 @@ errors, unknown statuses, malformed response shapes, transport errors and
 timeouts are validation unavailability. Those unavailable cases return non-200
 and never grant Premium or call the downgrade path. Apple defines `21002` as
 malformed data *or* a temporary service issue, so it remains retryable rather
-than being guessed into a terminal receipt verdict.
+than being guessed into a terminal receipt verdict. These are legacy helper
+classifications; the endpoint now adds the ownership-recovery restriction above.
+
+Renewal/refund notifications, secure historical-purchase recovery, rejected
+finalization and device sign-off remain release blockers. A valid signature on an
+old JWS does not establish that no later refund occurred. Local verifier/emulator
+tests and green CI do not authorize public sales. No deploy, store settings,
+production secrets or Android sales flag were changed in this patch.
 
 ## Android (Google Play)
 
