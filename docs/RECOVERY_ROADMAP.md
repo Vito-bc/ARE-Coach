@@ -2,13 +2,62 @@
 
 ## Current iteration: StoreKit 2 and Apple account binding
 
-Updated 2026-09-12. PR [#51](https://github.com/Vito-bc/ARE-Coach/pull/51)
+Updated 2026-09-13. PR [#51](https://github.com/Vito-bc/ARE-Coach/pull/51)
 is **merged**, squash/main `bab1534524c545ce8d9e13dadac378174cb6ec67`.
 Current `origin/main` was fetched and matches that base. The new isolated branch
 is `codex/storekit2-account-binding` in `build/storekit2-worktree`. The original
 dirty `codex/iap-lifecycle-followup` checkout, the earlier worktree and the
 25-file snapshot/archive remain preserved. This iteration authorizes a new
 draft PR only, without merge, deployment, production changes or sales enablement.
+
+### PR #52 review corrections: revoked expiry and first delivery
+
+Continued the existing draft [PR #52](https://github.com/Vito-bc/ARE-Coach/pull/52)
+from verified local/remote HEAD `350f7ff5dea141630f3458123e17d8427726cf00`.
+Before production-code changes, the new Firestore-emulator regression failed:
+yearly grant -> confirmed revocation -> shorter new monthly grant returned
+`verified` while the user remained `free`. Two new service regressions (including
+switching accounts during HTTP) and a real-paywall regression also failed:
+first delivery to B, ownership refusal, then A's Restore never completed purchase.
+
+The backend now compares expiry against a current grant only when its status is
+active and its expiry is in the future. The historical expiry of revoked access
+cannot block a new eligible subscription. Ownership, ledger and entitlement still
+commit atomically; replay of the old revoked or expired transaction cannot remove
+the new monthly access or resurrect revoked access. The emulator regression also
+checks repeated monthly proof leaves the ledger unchanged.
+
+The client stores `ownerUid` separately from `attemptUid`. First JWS delivery
+reserves the attempt account's retry gate but does not prove ownership. A strict
+503 `unavailable` / `apple_ownership_recovery_required` response releases that
+reservation without finishing the purchase. Ordinary outages retain the attempt
+reservation, preserving protection against duplicate purchase. Legacy/Play retain
+their previous captured-account policy. Exact verified server proof sets the JWS
+owner before entitlement refresh/completion; an unfinished proven purchase cannot
+be retried or completed for another account.
+
+A late ownership refusal can release only the unproven attempt's bookkeeping;
+it cannot change the new account's UI or grant/finish a purchase. Restore waiting
+for another account's in-flight request re-evaluates eligibility after the request
+settles. Requests for the same transaction remain serialized. Real paywall and
+service tests cover B -> refusal -> A -> explicit Restore, plus account switching
+during HTTP and recovery of a proven owner's unfinished entitlement delivery.
+
+Before/after evidence: the four defect regressions failed before the fixes and
+pass afterward. The targeted Flutter suite passes 79 tests; the real verifier /
+Firestore suite passes 11 (4 crypto, 7 emulator). Pure Functions tests pass 60 in
+a fresh temporary copy without node_modules; content checks pass 8. Full Flutter
+passes 172 tests and `flutter analyze --no-pub` reports no issues. One initial
+full run exposed a pre-existing HTTP-timeout test's fixed 40ms sleep under load;
+the test now awaits the error event with a bounded timeout. Its focused rerun
+and the subsequent full suite both passed. `git diff --check` is clean.
+CI is checked against
+the exact pushed follow-up SHA, not the earlier green HEAD.
+
+This correction does not implement notifications, sandbox client flow or rejected
+finalization. `transactionFinalization:not_safe`, Android's default-off flag and
+the CanvasKit/full-web limitation remain unchanged. Original dirty checkout and
+backup are preserved; no real purchases, production writes, merge or deploy.
 
 ### Implemented contract
 

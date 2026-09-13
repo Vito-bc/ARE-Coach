@@ -214,6 +214,78 @@ void main() {
       verify(() => store.completePurchase(any())).called(1);
     },
   );
+  for (final switchDuringRequest in [false, true]) {
+    test(
+      'first JWS delivery to B recovers for A (in-flight switch: $switchDuringRequest)',
+      () async {
+        account.signIn('user-b');
+        await settle();
+        final declined = Completer<http.Response>();
+        var ownerAvailable = false;
+        respond = (request) async =>
+            request.headers['authorization'] == 'Bearer user-b'
+            ? declined.future
+            : ownerAvailable
+            ? http.Response(appleResponse(), 200)
+            : http.Response('', 503);
+        final transaction = purchase();
+        events.add([transaction]);
+        await settle();
+        expect(service.canStartPurchase, isFalse);
+        final recovery = http.Response(
+          '{"outcome":"unavailable","code":"apple_ownership_recovery_required","transactionFinalization":"not_safe"}',
+          503,
+        );
+        if (!switchDuringRequest) {
+          declined.complete(recovery);
+          await settle();
+        }
+        verifyNever(() => store.completePurchase(any()));
+        account.signIn('user-a');
+        await settle();
+        ownerAvailable = true;
+        final restore = service.restorePurchases();
+        if (switchDuringRequest) declined.complete(recovery);
+        await restore;
+        await settle();
+        verify(() => store.completePurchase(transaction)).called(1);
+        expect(account.refreshed, isNot(contains('user-b')));
+        expect(service.flow.value.phase, PurchasePhase.verified);
+        expect(service.flow.value.uid, 'user-a');
+        expect(
+          requests.map((r) => r.headers['authorization']),
+          containsAllInOrder(['Bearer user-b', 'Bearer user-a']),
+        );
+      },
+    );
+  }
+
+  test(
+    'proven ownership stays bound while entitlement delivery is pending',
+    () async {
+      account.entitled = false;
+      final transaction = purchase();
+      events.add([transaction]);
+      await settle();
+      expect(service.canStartPurchase, isFalse);
+      verifyNever(() => store.completePurchase(any()));
+      account.signIn('user-b');
+      await settle();
+      await service.restorePurchases();
+      expect(service.canStartPurchase, isTrue);
+      expect(requests, hasLength(1));
+      verifyNever(() => store.completePurchase(any()));
+      account.entitled = true;
+      account.signIn('user-a');
+      await settle();
+      verify(() => store.completePurchase(transaction)).called(1);
+      expect(
+        requests.map((r) => r.headers['authorization']),
+        everyElement('Bearer user-a'),
+      );
+    },
+  );
+
   test(
     'definitive rejection releases retry gate without finishing transaction',
     () async {

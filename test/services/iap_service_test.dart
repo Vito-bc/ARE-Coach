@@ -699,6 +699,11 @@ void main() {
 
     test('a never-resolving HTTP request times out without success', () async {
       final response = Completer<http.Response>();
+      final timedOut = Completer<void>();
+      final listener = sut.purchaseUpdates.listen((_) {}, onError: (Object _) {
+        if (!timedOut.isCompleted) timedOut.complete();
+      });
+      addTearDown(listener.cancel);
       when(
         () => mockHttpClient.post(
           any(),
@@ -707,7 +712,7 @@ void main() {
         ),
       ).thenAnswer((_) => response.future);
       await initAndEmit([makePurchase()]);
-      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await timedOut.future.timeout(const Duration(seconds: 5));
       expect((errors.single as IAPError).code, 'validation_unavailable');
       expect(sut.flow.value.busy, isFalse);
       response.complete(validResponse());

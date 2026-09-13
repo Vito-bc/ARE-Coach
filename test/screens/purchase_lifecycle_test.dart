@@ -387,6 +387,47 @@ void main() {
     },
   );
 
+  testWidgets('first JWS delivery to B allows the real owner A to Restore', (
+    tester,
+  ) async {
+    account.signIn('user-b');
+    var ownerAvailable = false;
+    when(
+      () => client.post(
+        any(),
+        headers: any(named: 'headers'),
+        body: any(named: 'body'),
+      ),
+    ).thenAnswer((invocation) async {
+      final headers =
+          invocation.namedArguments[#headers]! as Map<String, String>;
+      if (headers['Authorization'] == 'Bearer user-b') {
+        return http.Response(
+          '{"outcome":"unavailable","code":"apple_ownership_recovery_required","transactionFinalization":"not_safe"}',
+          503,
+        );
+      }
+      return ownerAvailable
+          ? http.Response(responseBody(), 200)
+          : http.Response('', 503);
+    });
+    await app(tester);
+    await open(tester);
+    events.add([purchase(PurchaseStatus.purchased)]);
+    await tester.pumpAndSettle();
+    verifyNever(() => store.completePurchase(any()));
+    expect(account.refreshed, isEmpty);
+    account.signIn('user-a');
+    await tester.pumpAndSettle();
+    ownerAvailable = true;
+    await tester.tap(find.text('Restore Purchases'));
+    await tester.pumpAndSettle();
+    verify(() => store.completePurchase(any())).called(1);
+    expect(account.refreshed, isNot(contains('user-b')));
+    expect(find.byType(PaywallScreen), findsNothing);
+    expect(find.text('Premium access confirmed.'), findsOneWidget);
+  });
+
   for (final response in ['{"valid":false}', '{}']) {
     testWidgets('validator response $response has no false success', (
       tester,

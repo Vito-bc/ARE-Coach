@@ -95,6 +95,29 @@ test("older expired transaction cannot overwrite newer entitlement; revocation i
   assert.equal((await request(newer)).body.valid, false);
   assert.equal((await db.doc("users/A").get()).data().subscriptionStatus, "expired");
 });
+test("revoked yearly expiry cannot block a new monthly entitlement", async () => {
+  const now = Date.now();
+  const yearly = await payload({ productId: "are_coach_yearly", expiresDate: now + 365 * 86400000 });
+  assert.equal((await request(yearly)).body.valid, true);
+  const revoked = { ...yearly, revocationDate: now };
+  assert.equal((await request(revoked)).body.valid, false);
+  assert.equal((await db.doc("users/A").get()).data().subscriptionStatus, "expired");
+  const monthly = await payload({ transactionId: "124", originalTransactionId: "101", expiresDate: now + 30 * 86400000 });
+  assert.equal((await request(monthly)).body.outcome, "verified");
+  const active = (await db.doc("users/A").get()).data();
+  assert.equal(active.role, "premium");
+  assert.equal(active.subscriptionStatus, "active");
+  assert.equal(active.appleTransactionId, monthly.transactionId);
+  assert.equal(active.premiumUntil.toMillis(), monthly.expiresDate);
+  const ledger = await records("transactions");
+  await request(monthly);
+  assert.deepEqual(await records("transactions"), ledger);
+  for (const old of [yearly, revoked, await payload({ transactionId: "122", expiresDate: now - 1 })]) {
+    assert.equal((await request(old)).body.valid, false);
+    assert.deepEqual((await db.doc("users/A").get()).data(), active);
+  }
+});
+
 test("sandbox has separate ownership namespace and cannot grant production Premium", async () => {
   const sandbox = { ...config, environment: "Sandbox" };
   const sandboxRepository = createAppleRepository(db, sandbox, Timestamp);

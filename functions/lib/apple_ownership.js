@@ -33,16 +33,20 @@ function createAppleRepository(db, config, Timestamp) {
         if (previous.exists && (previous.data().originalTransactionId !== purchase.originalTransactionId ||
             previous.data().productId !== purchase.productId)) return unavailable("apple_transaction_mismatch");
         const revoked = purchase.revoked || (previous.exists && previous.data().revoked === true);
-        const active = !revoked && purchase.expiresAt > Date.now();
+        const now = Date.now();
+        const active = !revoked && purchase.expiresAt > now;
         const data = user.data() || {};
         const currentExpiry = data.premiumUntil?.toMillis?.() || 0;
+        // Retained expiry is history after revocation, not an active grant.
+        // Compare durations only while the current entitlement is still active.
+        const currentActive = data.subscriptionStatus === "active" && currentExpiry > now;
         if (!owner.exists) tx.create(ownerRef, { uid });
         const record = { ...purchase, uid, revoked };
         // Replaying identical proof does not rewrite the processing record.
         if (!previous.exists || purchase.signedAt > previous.data().signedAt || (revoked && !previous.data().revoked)) {
           tx.set(purchaseRef, record);
         }
-        if (active && purchase.expiresAt > currentExpiry) {
+        if (active && (!currentActive || purchase.expiresAt > currentExpiry)) {
           tx.set(entitlementRef, { role: "premium", subscriptionStatus: "active",
             subscriptionPlatform: "app_store", subscriptionId: purchase.productId,
             premiumUntil: Timestamp.fromMillis(purchase.expiresAt), appleTransactionId: purchase.transactionId,

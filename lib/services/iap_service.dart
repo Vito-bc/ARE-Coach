@@ -128,7 +128,10 @@ class IAPService {
       _account.uid != null;
   bool get _hasRetryForCurrentAccount {
     final uid = _account.uid;
-    return uid != null && _retry.values.any((entry) => entry.uid == uid);
+    return uid != null &&
+        _retry.values.any(
+          (entry) => entry.ownerUid == uid || entry.attemptUid == uid,
+        );
   }
 
   bool get canStartPurchase =>
@@ -156,7 +159,8 @@ class IAPService {
   int _epoch = 0;
   Timer? _storeTimer;
   final _inFlight = <String, Future<void>>{};
-  final _retry = <String, ({PurchaseDetails purchase, String? uid})>{};
+  final _inFlightAccounts = <String, String>{};
+  final _retry = <String, _PurchaseRetry>{};
   final _finished = <String>{};
   final _completions = <String, Future<void>>{};
   int _matchingEvents = 0;
@@ -386,13 +390,13 @@ class IAPService {
       }
       final retry = _retry[_key(purchase)];
       if (retry != null &&
-          retry.uid != _account.uid &&
-          !(retry.uid == null &&
-              _isJws(purchase) &&
-              (purchase.status == PurchaseStatus.purchased ||
-                  purchase.status == PurchaseStatus.restored))) {
-        // Locally bound transactions stay with their captured account. Only
-        // an unbound JWS can probe the server for cryptographic ownership proof.
+          (!_canRetry(retry, _account.uid) ||
+              (retry.ownerUid == null &&
+                  retry.attemptUid != _account.uid &&
+                  purchase.status != PurchaseStatus.purchased &&
+                  purchase.status != PurchaseStatus.restored))) {
+        // An unresolved attempt reserves its account's retry gate, but is not
+        // ownership proof. A recovery-required response releases that attempt.
         continue;
       }
       if (purchase.status == PurchaseStatus.purchased ||
@@ -450,20 +454,40 @@ class IAPService {
     final uid = _account.uid;
     if (uid == null) return;
     for (final entry in _retry.values.toList()) {
-      if (entry.uid == uid || (entry.uid == null && _isJws(entry.purchase))) {
+      if (_canRetry(entry, uid) ||
+          (entry.ownerUid == null &&
+              _isJws(entry.purchase) &&
+              _inFlight.containsKey(_key(entry.purchase)))) {
         await _process(entry.purchase);
       }
     }
   }
 
+  bool _canRetry(_PurchaseRetry entry, String? uid) => entry.ownerUid != null
+      ? entry.ownerUid == uid
+      : _isJws(entry.purchase) &&
+            (entry.attemptUid == null || entry.attemptUid == uid);
+
   Future<void> _process(PurchaseDetails purchase) {
     final key = _key(purchase);
     final uid = _account.uid;
     final old = _retry[key];
-    if (old != null && old.uid != uid && !(old.uid == null && _isJws(purchase))) {
+    if (old != null && old.ownerUid != null && old.ownerUid != uid) {
       return Future.value();
     }
-    if (_inFlight.containsKey(key)) return _inFlight[key]!;
+    final pending = _inFlight[key];
+    if (pending != null) {
+      final epoch = _epoch;
+      if (_inFlightAccounts[key] == '$uid:$epoch') return pending;
+      // Restore may start while the previous account's proof is still pending.
+      // Re-evaluate after it settles; never run concurrent validation of the key.
+      return pending.then((_) {
+        if (uid != null && _current(uid, epoch) && _retry.containsKey(key)) {
+          return _process(purchase);
+        }
+      });
+    }
+    if (old != null && !_canRetry(old, uid)) return Future.value();
     final completedKey = '$uid:$_epoch:$key';
     if (_finished.contains(completedKey)) {
       // An explicit restore is a new access check, not a second completion.
@@ -475,11 +499,18 @@ class IAPService {
       }
       return Future.value();
     }
-    // A cold-start entry stays unbound until the backend proves ownership.
-    _retry[key] = (purchase: purchase, uid: old == null ? uid : old.uid);
+    // First delivery identifies only an attempt account, never a JWS owner.
+    // Cold-start/released entries stay unreserved until ownership is proven.
+    _retry[key] = _PurchaseRetry(
+      purchase,
+      ownerUid: old?.ownerUid ?? (_isJws(purchase) ? null : uid),
+      attemptUid: old == null ? uid : old.attemptUid,
+    );
+    _inFlightAccounts[key] = '$uid:$_epoch';
     return _inFlight[key] = _validateAndComplete(purchase, key, uid, _epoch)
         .whenComplete(() {
           _inFlight.remove(key);
+          _inFlightAccounts.remove(key);
         });
   }
 
@@ -522,6 +553,14 @@ class IAPService {
     }
     _setFlow(PurchasePhase.validating, 'Confirming your purchase...');
     final outcome = await _validateWithServer(purchase, uid, epoch);
+    if (outcome == _Validation.ownershipRecoveryRequired) {
+      final entry = _retry[key];
+      if (entry != null && entry.ownerUid == null && entry.attemptUid == uid) {
+        // Safe bookkeeping even after a switch: no ownership, UI or entitlement
+        // is assigned by a late rejection. The next account can request proof.
+        _retry[key] = _PurchaseRetry(purchase);
+      }
+    }
     if (!_current(uid, epoch)) return;
     if (outcome != _Validation.verified) {
       if (outcome == _Validation.rejected) {
@@ -543,7 +582,7 @@ class IAPService {
       return;
     }
     try {
-      _retry[key] = (purchase: purchase, uid: uid);
+      _retry[key] = _PurchaseRetry(purchase, ownerUid: uid, attemptUid: uid);
       final entitled = await _account
           .refreshEntitlement(uid)
           .timeout(_requestTimeout);
@@ -628,7 +667,17 @@ class IAPService {
             }),
           )
           .timeout(_requestTimeout);
-      if (response.statusCode != 200) return _Validation.unavailable;
+      if (response.statusCode != 200) {
+        if (_isJws(purchase) && response.statusCode == 503) {
+          final body = jsonDecode(response.body);
+          if (body is Map<String, dynamic> &&
+              body['outcome'] == 'unavailable' &&
+              body['code'] == 'apple_ownership_recovery_required') {
+            return _Validation.ownershipRecoveryRequired;
+          }
+        }
+        return _Validation.unavailable;
+      }
       final body = jsonDecode(response.body);
       if (body is! Map<String, dynamic> || body['valid'] is! bool) {
         return _Validation.unavailable;
@@ -711,4 +760,13 @@ class IAPService {
   }
 }
 
-enum _Validation { verified, rejected, unavailable }
+class _PurchaseRetry {
+  const _PurchaseRetry(this.purchase, {this.ownerUid, this.attemptUid});
+  final PurchaseDetails purchase;
+  // For JWS only an exact verified server response can set ownerUid.
+  // Legacy/Play keep their previous captured-account behavior.
+  final String? ownerUid;
+  final String? attemptUid;
+}
+
+enum _Validation { verified, rejected, unavailable, ownershipRecoveryRequired }
