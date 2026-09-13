@@ -8,6 +8,32 @@ function createAppleRepository(db, config, Timestamp) {
   const ref = (kind, key) => root.collection(kind).doc(key);
   const userRef = uid => config.environment === "Production" ? db.collection("users").doc(uid) : ref("sandboxEntitlements", uid);
   return {
+    async entitlementFor(uid, requested = {}) {
+      if (config.environment !== "Sandbox") return unavailable("apple_environment_mismatch");
+      const transactionId = requested.transactionId;
+      const productId = requested.productId;
+      if ((transactionId === undefined) !== (productId === undefined) ||
+          (transactionId !== undefined && (!/^[1-9][0-9]{0,39}$/.test(transactionId) ||
+            !["are_coach_monthly", "are_coach_yearly"].includes(productId)))) {
+        return unavailable("apple_request_invalid");
+      }
+      const refs = [userRef(uid)];
+      if (transactionId !== undefined) refs.push(ref("transactions", transactionId));
+      const snapshots = await db.getAll(...refs);
+      const data = snapshots[0].data() || {};
+      const expiry = data.premiumUntil?.toMillis?.() || null;
+      const active = data.subscriptionStatus === "active" && Number.isSafeInteger(expiry) && expiry > Date.now();
+      const transaction = snapshots[1]?.data();
+      const processedTransaction = transactionId !== undefined && transaction?.uid === uid &&
+        transaction.transactionId === transactionId && transaction.productId === productId &&
+        transaction.revoked !== true && transaction.expiresAt > Date.now();
+      return { status: 200, body: {
+        uid, environment: config.environment, firebaseProjectId: config.firebaseProjectId,
+        entitlementScope: "sandbox", active, expiresAt: expiry,
+        transactionId: transactionId ?? null, productId: productId ?? null,
+        processedTransaction, checkedAt: Date.now(),
+      } };
+    },
     async tokenFor(uid) {
       return db.runTransaction(async tx => {
         const account = ref("accounts", uid);
@@ -60,6 +86,7 @@ function createAppleRepository(db, config, Timestamp) {
         return { status: 200, body: { valid: active, outcome: active ? "verified" : "not_entitled",
           uid, transactionId: purchase.transactionId, originalTransactionId: purchase.originalTransactionId,
           productId: purchase.productId, expiresAt: purchase.expiresAt, environment: config.environment,
+          firebaseProjectId: config.firebaseProjectId,
           entitlementScope: config.environment === "Production" ? "production" : "sandbox",
           transactionFinalization: active ? "verified_transaction" : "not_safe",
           ...(active ? {} : { reason: revoked ? "revoked" : "expired" }),

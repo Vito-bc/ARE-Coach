@@ -10,7 +10,7 @@ const { SignedDataVerifier } = require("@apple/app-store-server-library");
 const { createAppleRepository } = require("../lib/apple_ownership");
 const { handleAppleRequest } = require("../lib/apple_transactions");
 const { fixtures } = require("./signed_fixtures.cjs");
-const config = { bundleId: "com.example.coach", environment: "Production", appAppleId: 123 };
+const config = { bundleId: "com.example.coach", environment: "Production", appAppleId: 123, firebaseProjectId: "demo-are-coach" };
 let env, app, db, repository, pki, verifier;
 before(async () => {
   // Refuse to run unless explicitly connected to the local demo emulator.
@@ -32,8 +32,11 @@ async function payload(patch = {}) {
     appAccountToken: await repository.tokenFor("A"), ...patch };
 }
 function request(p, uid = "A", deps = {}) {
+  const requestConfig = deps.config || config;
   return handleAppleRequest({ receiptFormat: "storekit2_jws", receiptData: pki.signed(p),
-    transactionId: p.transactionId, productId: p.productId }, uid, { config,
+    transactionId: p.transactionId, productId: p.productId, appleEnvironment: requestConfig.environment,
+    firebaseProjectId: requestConfig.firebaseProjectId,
+    entitlementSource: requestConfig.environment === "Sandbox" ? "apple_sandbox" : "production" }, uid, { config,
     verify: jws => verifier.verifyAndDecodeTransaction(jws), repository, ...deps });
 }
 const records = async kind => (await db.collectionGroup(kind).get()).docs.map(d => d.data());
@@ -130,6 +133,29 @@ test("sandbox has separate ownership namespace and cannot grant production Premi
   assert.equal((await db.doc("users/A").get()).exists, false);
   assert.equal((await records("sandboxEntitlements")).length, 1);
   assert.equal((await request(p)).status, 503);
+});
+test("sandbox entitlement endpoint returns only the authenticated uid and exact processed proof", async () => {
+  const sandbox = { ...config, environment: "Sandbox" };
+  const sandboxRepository = createAppleRepository(db, sandbox, Timestamp);
+  const token = await sandboxRepository.tokenFor("A");
+  const p = await payload({ environment: "Sandbox", appAccountToken: token });
+  const sandboxVerifier = new SignedDataVerifier([pki.root], false, "Sandbox", config.bundleId, config.appAppleId);
+  await request(p, "A", { config: sandbox, repository: sandboxRepository,
+    verify: jws => sandboxVerifier.verifyAndDecodeTransaction(jws) });
+  const result = await handleAppleRequest({ action: "get_apple_entitlement", platform: "app_store",
+    appleEnvironment: "Sandbox", firebaseProjectId: config.firebaseProjectId, entitlementSource: "apple_sandbox",
+    transactionId: p.transactionId, productId: p.productId, uid: "B" }, "A",
+  { config: sandbox, repository: sandboxRepository });
+  assert.equal(result.body.uid, "A");
+  assert.equal(result.body.active, true);
+  assert.equal(result.body.processedTransaction, true);
+  const foreign = await handleAppleRequest({ action: "get_apple_entitlement", platform: "app_store",
+    appleEnvironment: "Sandbox", firebaseProjectId: config.firebaseProjectId, entitlementSource: "apple_sandbox",
+    transactionId: p.transactionId, productId: p.productId }, "B",
+  { config: sandbox, repository: sandboxRepository });
+  assert.equal(foreign.body.active, false);
+  assert.equal(foreign.body.processedTransaction, false);
+  assert.equal((await db.doc("users/A").get()).exists, false);
 });
 test("Firestore rules deny billing reads and writes for owner, foreign, admin and anonymous clients", async () => {
   await request(await payload());

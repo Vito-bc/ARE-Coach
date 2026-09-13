@@ -83,6 +83,9 @@ void main() {
         expect(jsonDecode(request.body), {
           'platform': 'app_store',
           'action': 'prepare_apple_purchase',
+          'appleEnvironment': 'Production',
+          'firebaseProjectId': 'architect-study-app',
+          'entitlementSource': 'production',
         });
         expect(request.headers['authorization'], 'Bearer user-a');
         return http.Response(
@@ -90,6 +93,8 @@ void main() {
             'uid': 'user-a',
             'appAccountToken': token,
             'environment': 'Production',
+            'firebaseProjectId': 'architect-study-app',
+            'entitlementScope': 'production',
           }),
           200,
         );

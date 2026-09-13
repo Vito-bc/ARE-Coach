@@ -4,7 +4,7 @@ const { SignedDataVerifier } = require("@apple/app-store-server-library");
 const { fixtures } = require("./signed_fixtures.cjs");
 const { handleAppleRequest } = require("../lib/apple_transactions");
 const { verifyAppleTransaction } = require("../lib/apple_verifier");
-const config = { bundleId: "com.example.coach", environment: "Production", appAppleId: 123 };
+const config = { bundleId: "com.example.coach", environment: "Production", appAppleId: 123, firebaseProjectId: "test-project" };
 let pki, verifier;
 before(() => { pki = fixtures(); verifier = new SignedDataVerifier([pki.root], false, config.environment, config.bundleId, config.appAppleId); });
 after(() => pki?.close());
@@ -30,7 +30,8 @@ test("endpoint applies policy after real signature verification", async () => {
     repository: { apply: async () => { writes++; return { status: 200 }; } } };
   for (const patch of [{ productId: "other" }, { transactionId: "999" }, { appAccountToken: undefined }, { expiresDate: null }]) {
     const result = await handleAppleRequest({ receiptFormat: "storekit2_jws", receiptData: pki.signed({ ...payload(), ...patch }),
-      transactionId: "123", productId: "are_coach_monthly" }, "A", deps);
+      transactionId: "123", productId: "are_coach_monthly", appleEnvironment: "Production",
+      firebaseProjectId: config.firebaseProjectId, entitlementSource: "production" }, "A", deps);
     assert.equal(result.status, 503);
   }
   assert.equal(writes, 0);

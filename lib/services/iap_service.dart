@@ -11,6 +11,7 @@ import 'package:in_app_purchase_platform_interface/in_app_purchase_platform_inte
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 
 import 'purchase_account.dart';
+import 'purchase_environment.dart';
 
 enum PurchasePhase {
   idle,
@@ -41,6 +42,7 @@ class IAPService {
     @visibleForTesting InAppPurchase? iap,
     @visibleForTesting http.Client? httpClient,
     @visibleForTesting String? validateReceiptUrlOverride,
+    PurchaseEnvironment? environment,
     PurchaseAccount? account,
     @visibleForTesting Duration requestTimeout = const Duration(seconds: 15),
     @visibleForTesting Duration storeTimeout = const Duration(seconds: 45),
@@ -48,7 +50,10 @@ class IAPService {
        _fakeStore = iap != null,
        _httpClient = httpClient ?? http.Client(),
        _ownsHttpClient = httpClient == null,
-       _account = account ?? FirebasePurchaseAccount(),
+       _environment = environment ?? PurchaseEnvironment.current,
+       _environmentWasImplicit = environment == null,
+       _ownsAccount = account == null,
+       _account = account ?? FirebasePurchaseAccount(environment: environment),
        _requestTimeout = requestTimeout,
        _storeTimeout = storeTimeout,
        _validateReceiptUrlOverride = validateReceiptUrlOverride;
@@ -98,10 +103,23 @@ class IAPService {
   final http.Client _httpClient;
   final bool _ownsHttpClient;
   final PurchaseAccount _account;
+  final bool _ownsAccount;
+  final PurchaseEnvironment _environment;
+  final bool _environmentWasImplicit;
   final Duration _requestTimeout;
   final Duration _storeTimeout;
   final String? _validateReceiptUrlOverride;
-  String get _endpoint => _validateReceiptUrlOverride ?? _envValidateReceiptUrl;
+  String get _endpoint =>
+      _validateReceiptUrlOverride ?? _environment.validationEndpoint;
+
+  String? get configurationErrorMessage {
+    if (_environmentWasImplicit &&
+        _validateReceiptUrlOverride != null &&
+        _validEndpoint(_endpoint)) {
+      return null;
+    }
+    return _environment.configurationError;
+  }
 
   static bool _validEndpoint(String endpoint) {
     final uri = Uri.tryParse(endpoint);
@@ -125,6 +143,7 @@ class IAPService {
   bool get canPurchase =>
       (_fakeStore || purchasesSupported) &&
       _validEndpoint(_endpoint) &&
+      configurationErrorMessage == null &&
       _account.uid != null;
   bool get _hasRetryForCurrentAccount {
     final uid = _account.uid;
@@ -143,7 +162,10 @@ class IAPService {
       !_hasRetryForCurrentAccount;
   // Restore/recovery must work even when new Android sales are switched off.
   bool get canRestore =>
-      _hasStore && _validEndpoint(_endpoint) && _account.uid != null;
+      _hasStore &&
+      _validEndpoint(_endpoint) &&
+      configurationErrorMessage == null &&
+      _account.uid != null;
 
   final flow = ValueNotifier<PurchaseFlow>(
     const PurchaseFlow(PurchasePhase.idle),
@@ -260,6 +282,13 @@ class IAPService {
   }
 
   Future<void> purchaseSubscription(ProductDetails product) async {
+    if (configurationErrorMessage != null) {
+      throw IAPError(
+        source: 'purchase_service',
+        code: 'purchase_configuration_invalid',
+        message: configurationErrorMessage!,
+      );
+    }
     if (!canPurchase || _disposed) throw StateError('Purchases unavailable');
     await initialize();
     if (!canStartPurchase) {
@@ -583,9 +612,9 @@ class IAPService {
     }
     try {
       _retry[key] = _PurchaseRetry(purchase, ownerUid: uid, attemptUid: uid);
-      final entitled = await _account
-          .refreshEntitlement(uid)
-          .timeout(_requestTimeout);
+      final entitled = _environment.isSandbox
+          ? await _sandboxProof(purchase, uid).timeout(_requestTimeout)
+          : await _account.refreshEntitlement(uid).timeout(_requestTimeout);
       if (!_current(uid, epoch)) return;
       if (!entitled) {
         _fail(
@@ -602,6 +631,7 @@ class IAPService {
       if (!_current(uid, epoch)) return;
       _finished.add('$uid:$epoch:$key');
       _retry.remove(key);
+      _account.notifyEntitlementChanged(uid);
       _setFlow(PurchasePhase.verified, 'Premium access confirmed.');
       _purchaseController.add(purchase);
     } catch (_) {
@@ -658,6 +688,9 @@ class IAPService {
               'receiptData': purchase.verificationData.serverVerificationData,
               'platform': purchase.verificationData.source,
               if (purchase.verificationData.source == 'app_store') ...{
+                'appleEnvironment': _environment.appleName,
+                'firebaseProjectId': _environment.firebaseProjectId,
+                'entitlementSource': _environment.entitlementSource,
                 'receiptFormat': _isJws(purchase)
                     ? 'storekit2_jws'
                     : 'legacy_receipt',
@@ -690,8 +723,9 @@ class IAPService {
             body['uid'] != uid ||
             body['transactionId'] != purchase.purchaseID ||
             body['productId'] != purchase.productID ||
-            body['environment'] != 'Production' ||
-            body['entitlementScope'] != 'production') {
+            body['environment'] != _environment.appleName ||
+            body['firebaseProjectId'] != _environment.firebaseProjectId ||
+            body['entitlementScope'] != _environment.scope) {
           return _Validation.unavailable;
         }
         if (body['valid'] == true &&
@@ -721,6 +755,9 @@ class IAPService {
           purchase.verificationData.serverVerificationData.contains('.'));
 
   Future<String> _prepareApplePurchase(String uid, int epoch) async {
+    if (configurationErrorMessage != null) {
+      throw StateError(configurationErrorMessage!);
+    }
     final headers = await _account.headers(uid).timeout(_requestTimeout);
     if (!_current(uid, epoch)) throw StateError('Account changed');
     final response = await _httpClient
@@ -730,6 +767,9 @@ class IAPService {
           body: jsonEncode({
             'platform': 'app_store',
             'action': 'prepare_apple_purchase',
+            'appleEnvironment': _environment.appleName,
+            'firebaseProjectId': _environment.firebaseProjectId,
+            'entitlementSource': _environment.entitlementSource,
           }),
         )
         .timeout(_requestTimeout);
@@ -739,6 +779,9 @@ class IAPService {
     final body = jsonDecode(response.body);
     if (body is! Map<String, dynamic> ||
         body['uid'] != uid ||
+        body['environment'] != _environment.appleName ||
+        body['firebaseProjectId'] != _environment.firebaseProjectId ||
+        body['entitlementScope'] != _environment.scope ||
         body['appAccountToken'] is! String ||
         !RegExp(
           r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
@@ -746,6 +789,24 @@ class IAPService {
       throw StateError('Purchase preparation invalid');
     }
     return body['appAccountToken'] as String;
+  }
+
+  Future<bool> _sandboxProof(PurchaseDetails purchase, String uid) async {
+    if (!_environment.isSandbox || purchase.purchaseID == null) return false;
+    final proof = await _account.refreshAppleEntitlement(
+      uid,
+      transactionId: purchase.purchaseID,
+      productId: purchase.productID,
+    );
+    return proof.active &&
+        proof.processedTransaction &&
+        proof.uid == uid &&
+        proof.environment == _environment.appleName &&
+        proof.scope == _environment.scope &&
+        proof.transactionId == purchase.purchaseID &&
+        proof.productId == purchase.productID &&
+        proof.expiresAt != null &&
+        proof.expiresAt!.isAfter(DateTime.now());
   }
 
   void dispose() {
@@ -757,6 +818,7 @@ class IAPService {
     _purchaseController.close();
     flow.dispose();
     if (_ownsHttpClient) _httpClient.close();
+    if (_ownsAccount) _account.dispose();
   }
 }
 

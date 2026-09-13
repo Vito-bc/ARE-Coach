@@ -2,21 +2,34 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { configuration, classifyTransaction, handleAppleRequest } = require("../lib/apple_transactions");
-const config = { bundleId: "com.example.coach", environment: "Production", appAppleId: 123 };
+const config = { bundleId: "com.example.coach", environment: "Production", appAppleId: 123, firebaseProjectId: "test-project" };
 const now = Date.now();
 const payload = { bundleId: config.bundleId, environment: "Production", productId: "are_coach_monthly",
   type: "Auto-Renewable Subscription", transactionId: "123", originalTransactionId: "100",
   purchaseDate: now - 1000, signedDate: now, expiresDate: now + 100000,
   inAppOwnershipType: "PURCHASED", appAccountToken: "00112233-4455-4677-8899-aabbccddeeff" };
 const request = { platform: "app_store", receiptFormat: "storekit2_jws", receiptData: "signed.fixture.jws",
-  transactionId: "123", productId: payload.productId };
+  transactionId: "123", productId: payload.productId, appleEnvironment: "Production",
+  firebaseProjectId: config.firebaseProjectId, entitlementSource: "production" };
 test("server config rejects missing identifiers and unsigned testing modes", () => {
   for (const environment of [undefined, "LocalTesting", "Xcode", "", true]) {
-    assert.throws(() => configuration({ APPLE_BUNDLE_ID: config.bundleId, APPLE_ENVIRONMENT: environment, APPLE_APP_ID: "123" }));
+    assert.throws(() => configuration({ APPLE_BUNDLE_ID: config.bundleId, APPLE_ENVIRONMENT: environment, APPLE_APP_ID: "123", GCLOUD_PROJECT: "test-project" }));
   }
   for (const appId of [undefined, "", "0", "1.1", true, null]) {
-    assert.throws(() => configuration({ APPLE_BUNDLE_ID: config.bundleId, APPLE_ENVIRONMENT: "Production", APPLE_APP_ID: appId }));
+    assert.throws(() => configuration({ APPLE_BUNDLE_ID: config.bundleId, APPLE_ENVIRONMENT: "Production", APPLE_APP_ID: appId, GCLOUD_PROJECT: "test-project" }));
   }
+  assert.throws(() => configuration({ APPLE_BUNDLE_ID: config.bundleId, APPLE_ENVIRONMENT: "Production", APPLE_APP_ID: "123" }));
+});
+test("prepare and validation reject mismatched build environments before any work", async () => {
+  let calls = 0;
+  const dependencies = { config, verify: async () => { calls++; return payload; },
+    repository: { tokenFor: async () => { calls++; }, apply: async () => { calls++; } } };
+  for (const patch of [{ appleEnvironment: "Sandbox" }, { firebaseProjectId: "other-project" },
+    { entitlementSource: "apple_sandbox" }, { appleEnvironment: undefined }]) {
+    const result = await handleAppleRequest({ ...request, action: "prepare_apple_purchase", ...patch }, "A", dependencies);
+    assert.equal(result.body.code, "apple_environment_mismatch");
+  }
+  assert.equal(calls, 0);
 });
 test("verified, expired and revoked are distinct from malformed signed data", () => {
   assert.equal(classifyTransaction(payload, request, config).transaction.outcome, "verified");

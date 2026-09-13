@@ -8,6 +8,7 @@ import '../models/quiz_question.dart';
 import '../services/progress_repository.dart';
 import '../services/iap_service.dart';
 import '../services/purchase_account.dart';
+import '../services/purchase_environment.dart';
 import '../services/question_repository.dart';
 import '../services/subscription_expiry_timer.dart';
 
@@ -70,8 +71,23 @@ final allSectionAccuraciesProvider =
 });
 
 /// The ProviderScope owns the one store listener across navigation/auth gates.
+final purchaseEnvironmentProvider = Provider<PurchaseEnvironment>(
+  (_) => PurchaseEnvironment.current,
+);
+
+final purchaseAccountProvider = Provider<PurchaseAccount>((ref) {
+  final account = FirebasePurchaseAccount(
+    environment: ref.watch(purchaseEnvironmentProvider),
+  );
+  ref.onDispose(account.dispose);
+  return account;
+});
+
 final iapServiceProvider = Provider<IAPService>((ref) {
-  final service = IAPService();
+  final service = IAPService(
+    environment: ref.watch(purchaseEnvironmentProvider),
+    account: ref.watch(purchaseAccountProvider),
+  );
   ref.onDispose(service.dispose);
   unawaited(service.initialize());
   return service;
@@ -80,6 +96,43 @@ final iapServiceProvider = Provider<IAPService>((ref) {
 /// Server subscription state, with local expiry and no cached-role grant.
 final userRoleProvider = StreamProvider.family<String, String?>((ref, uid) {
   if (uid == null) return Stream.value('free');
+  final environment = ref.watch(purchaseEnvironmentProvider);
+  final account = ref.watch(purchaseAccountProvider);
+  if (environment.isSandbox) {
+    final controller = StreamController<String>();
+    final expiryTimer = SubscriptionExpiryTimer(() => controller.add('free'));
+    var closed = false;
+    var hasResult = false;
+    Future<void> refresh() async {
+      try {
+        final proof = await account.refreshAppleEntitlement(uid);
+        if (closed || account.uid != uid) return;
+        expiryTimer.cancel();
+        final active = proof.active &&
+            proof.uid == uid &&
+            proof.environment == environment.appleName &&
+            proof.scope == environment.scope &&
+            proof.expiresAt != null &&
+            proof.expiresAt!.isAfter(DateTime.now());
+        controller.add(active ? 'premium' : 'free');
+        hasResult = true;
+        if (active) expiryTimer.schedule(proof.expiresAt!);
+      } catch (_) {
+        if (!closed && !hasResult) controller.add('free');
+      }
+    }
+    final subscription = account.entitlementChanges
+        .where((changedUid) => changedUid == uid)
+        .listen((_) => unawaited(refresh()));
+    unawaited(refresh());
+    ref.onDispose(() {
+      closed = true;
+      expiryTimer.cancel();
+      subscription.cancel();
+      controller.close();
+    });
+    return controller.stream;
+  }
   final controller = StreamController<String>();
   final expiryTimer = SubscriptionExpiryTimer(() => controller.add('free'));
   final subscription = FirebaseFirestore.instance

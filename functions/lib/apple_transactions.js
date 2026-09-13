@@ -11,12 +11,14 @@ function unavailable(reason, retryable = false) {
 }
 function configuration(env) {
   const { APPLE_BUNDLE_ID: bundleId, APPLE_ENVIRONMENT: environment, APPLE_APP_ID: appId } = env;
+  const firebaseProjectId = env.GCLOUD_PROJECT || env.GOOGLE_CLOUD_PROJECT;
   if (typeof bundleId !== "string" || !/^[a-zA-Z0-9.-]{3,200}$/.test(bundleId) ||
       !["Production", "Sandbox"].includes(environment) ||
-      typeof appId !== "string" || !/^[1-9][0-9]*$/.test(appId) || !Number.isSafeInteger(Number(appId))) {
+      typeof appId !== "string" || !/^[1-9][0-9]*$/.test(appId) || !Number.isSafeInteger(Number(appId)) ||
+      typeof firebaseProjectId !== "string" || !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(firebaseProjectId)) {
     throw new Error("apple_configuration");
   }
-  return { bundleId, environment, appAppleId: Number(appId) };
+  return { bundleId, environment, appAppleId: Number(appId), firebaseProjectId };
 }
 function classifyTransaction(payload, request, config, now = Date.now()) {
   if (!payload || typeof payload !== "object" ||
@@ -42,9 +44,22 @@ function classifyTransaction(payload, request, config, now = Date.now()) {
 }
 async function handleAppleRequest(body, uid, { config, verify, repository, validateLegacy }) {
   try {
+    const expectedSource = config.environment === "Sandbox" ? "apple_sandbox" : "production";
+    if (!body || body.appleEnvironment !== config.environment ||
+        body.firebaseProjectId !== config.firebaseProjectId || body.entitlementSource !== expectedSource) {
+      return unavailable("apple_environment_mismatch");
+    }
+    if (body.action === "get_apple_entitlement") {
+      if (config.environment !== "Sandbox") return unavailable("apple_environment_mismatch");
+      return await repository.entitlementFor(uid, {
+        transactionId: body.transactionId,
+        productId: body.productId,
+      });
+    }
     if (body.action === "prepare_apple_purchase") {
       return { status: 200, body: { uid, appAccountToken: await repository.tokenFor(uid),
-        environment: config.environment } };
+        environment: config.environment, firebaseProjectId: config.firebaseProjectId,
+        entitlementScope: config.environment === "Sandbox" ? "sandbox" : "production" } };
     }
     if (typeof body.receiptData !== "string" || body.receiptData.length > 100000 || !body.receiptData) {
       return unavailable("apple_request_invalid");
