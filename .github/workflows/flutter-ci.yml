@@ -87,3 +87,26 @@ jobs:
       - name: Run Cloud Functions tests
         working-directory: functions
         run: node --test
+
+  apple-integration:
+    name: Apple verifier and Firestore integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install locked verifier and rules-test dependencies
+        working-directory: functions
+        run: npm ci
+      - name: Verify real signed fixtures
+        working-directory: functions
+        run: node --test integration/apple_verifier.spec.cjs
+      - name: Check atomic ownership and rules on local demo emulator
+        run: npx --yes firebase-tools@15.8.0 emulators:exec --only firestore --project demo-are-coach --config firebase.test.json "node --test functions/integration/apple_ownership.spec.cjs"

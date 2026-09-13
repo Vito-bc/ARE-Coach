@@ -13,6 +13,9 @@ const {
 const { validateAppleReceipt } = require("./lib/apple_validation");
 const { applyReceiptDecision } = require("./lib/receipt_endpoint");
 const { fetchPlaySubscription } = require("./lib/play_api");
+const { configuration, handleAppleRequest, unavailable } = require("./lib/apple_transactions");
+const { createAppleRepository } = require("./lib/apple_ownership");
+const { verifyAppleTransaction } = require("./lib/apple_verifier");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -139,6 +142,19 @@ exports.validateReceipt = onRequest(
       await verifyAppCheck(req);
 
       const { receiptData, platform } = req.body || {};
+      if (normalizePlatform(platform) === "app_store") {
+        let result;
+        try {
+          const config = configuration(process.env);
+          result = await handleAppleRequest(req.body, uid, {
+            config,
+            verify: jws => verifyAppleTransaction(jws, config),
+            repository: createAppleRepository(db, config, admin.firestore.Timestamp),
+            validateLegacy: receipt => validateAppleReceipt(receipt, { sharedSecret: APPLE_SHARED_SECRET.value() }),
+          });
+        } catch (_) { result = unavailable("apple_configuration"); }
+        return res.status(result.status).json(result.body);
+      }
       if (!receiptData || typeof receiptData !== "string") {
         return sendError(res, 400, "receiptData is required");
       }
@@ -150,12 +166,7 @@ exports.validateReceipt = onRequest(
         return sendError(res, 400, `Unsupported platform: ${String(platform).slice(0, 32)}`);
       }
 
-      const decision =
-        store === "app_store"
-          ? await validateAppleReceipt(receiptData, {
-              sharedSecret: APPLE_SHARED_SECRET.value(),
-            })
-          : await validatePlayPurchase(receiptData);
+      const decision = await validatePlayPurchase(receiptData);
 
       const result = await applyReceiptDecision(decision, {
         grant: async (verified) => {

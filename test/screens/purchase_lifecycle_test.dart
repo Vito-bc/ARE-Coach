@@ -20,9 +20,11 @@ import 'package:mocktail/mocktail.dart';
 import '../support/purchase_fakes.dart';
 
 void main() {
-  const notEntitledResponse =
-      '{"valid":false,"outcome":"not_entitled",'
-      '"reason":"expired","transactionFinalization":"not_safe"}';
+  String responseBody({bool valid = true}) => appleResponse(
+    transactionId: '142',
+    productId: IAPService.kYearlyId,
+    valid: valid,
+  );
   late MockInAppPurchase store;
   late MockHttpClient client;
   late FakeAccount account;
@@ -69,7 +71,7 @@ void main() {
         headers: any(named: 'headers'),
         body: any(named: 'body'),
       ),
-    ).thenAnswer((_) async => http.Response('{"valid":true}', 200));
+    ).thenAnswer((_) async => http.Response(responseBody(), 200));
     service = IAPService(
       iap: store,
       httpClient: client,
@@ -102,10 +104,10 @@ void main() {
   PurchaseDetails purchase(PurchaseStatus status) =>
       PurchaseDetails(
           productID: IAPService.kYearlyId,
-          purchaseID: 'transaction-42',
+          purchaseID: '142',
           verificationData: PurchaseVerificationData(
             localVerificationData: '',
-            serverVerificationData: 'receipt',
+            serverVerificationData: 'signed.fixture.jws',
             source: 'app_store',
           ),
           transactionDate: '123',
@@ -194,7 +196,7 @@ void main() {
           headers: any(named: 'headers'),
           body: any(named: 'body'),
         ),
-      ).thenAnswer((_) async => http.Response(notEntitledResponse, 200));
+      ).thenAnswer((_) async => http.Response(responseBody(valid: false), 200));
       when(() => store.restorePurchases()).thenAnswer((_) async {
         events.add([purchase(PurchaseStatus.restored)]);
       });
@@ -222,7 +224,7 @@ void main() {
           headers: any(named: 'headers'),
           body: any(named: 'body'),
         ),
-      ).thenAnswer((_) async => http.Response('{"valid":true}', 200));
+      ).thenAnswer((_) async => http.Response(responseBody(), 200));
       events.add([purchase(PurchaseStatus.purchased)]);
       await tester.pumpAndSettle();
       expect(find.byType(PaywallScreen), findsNothing);
@@ -288,7 +290,7 @@ void main() {
             invocation.namedArguments[#headers]! as Map<String, String>;
         requestAccounts.add(headers['Authorization']);
         return appleAvailable
-            ? http.Response('{"valid":true}', 200)
+            ? http.Response(responseBody(), 200)
             : http.Response('', 503);
       });
 
@@ -332,6 +334,54 @@ void main() {
       expect(requestAccounts, ['Bearer user-a', 'Bearer user-a']);
       expect(account.refreshed, ['user-a']);
       verify(() => store.completePurchase(any())).called(1);
+      expect(find.byType(PaywallScreen), findsNothing);
+      expect(find.text('Premium access confirmed.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'cold-start purchase needs server ownership before paywall success',
+    (tester) async {
+      account.signIn(null);
+      when(
+        () => client.post(
+          any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'),
+        ),
+      ).thenAnswer((invocation) async {
+        final headers =
+            invocation.namedArguments[#headers]! as Map<String, String>;
+        return headers['Authorization'] == 'Bearer user-a'
+            ? http.Response(responseBody(), 200)
+            : http.Response(
+                '{"outcome":"unavailable","code":"apple_ownership_recovery_required"}',
+                503,
+              );
+      });
+      await app(tester);
+      await service.initialize();
+      events.add([purchase(PurchaseStatus.purchased)]);
+      await tester.pumpAndSettle();
+      verifyNever(
+        () => client.post(
+          any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'),
+        ),
+      );
+      account.signIn('user-b');
+      await tester.pumpAndSettle();
+      await open(tester);
+      await tester.tap(find.text('Restore Purchases'));
+      await tester.pumpAndSettle();
+      verifyNever(() => store.completePurchase(any()));
+      expect(service.canStartPurchase, isTrue);
+      expect(find.byType(PaywallScreen), findsOneWidget);
+      account.signIn('user-a');
+      await tester.pumpAndSettle();
+      verify(() => store.completePurchase(any())).called(1);
+      expect(account.refreshed, ['user-a']);
       expect(find.byType(PaywallScreen), findsNothing);
       expect(find.text('Premium access confirmed.'), findsOneWidget);
     },
@@ -381,7 +431,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('Confirming your purchase...'), findsOneWidget);
-      response.complete(http.Response('{"valid":true}', 200));
+      response.complete(http.Response(responseBody(), 200));
       await tester.pumpAndSettle();
       expect(find.byType(PaywallScreen), findsNothing);
       expect(find.text('Premium access confirmed.'), findsOneWidget);
@@ -411,7 +461,7 @@ void main() {
     await tester.pump();
     account.signIn('user-b');
     await tester.pump();
-    response.complete(http.Response('{"valid":true}', 200));
+    response.complete(http.Response(responseBody(), 200));
     await tester.pumpAndSettle();
     expect(find.byType(PaywallScreen), findsOneWidget);
     expect(find.text('Premium access confirmed.'), findsNothing);

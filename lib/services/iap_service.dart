@@ -8,6 +8,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:in_app_purchase_platform_interface/in_app_purchase_platform_interface.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 
 import 'purchase_account.dart';
 
@@ -268,9 +269,17 @@ class IAPService {
     final epoch = _epoch;
     _waitForStore(PurchasePhase.starting, 'Waiting for the store...');
     try {
+      final apple =
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS;
+      final token = apple ? await _prepareApplePurchase(uid, epoch) : null;
+      if (!_current(uid, epoch)) return;
       final sent = await _iap
           .buyNonConsumable(
-            purchaseParam: PurchaseParam(productDetails: product),
+            purchaseParam: PurchaseParam(
+              productDetails: product,
+              applicationUserName: token,
+            ),
           )
           .timeout(_storeTimeout);
       if (_current(uid, epoch) && !sent) {
@@ -376,10 +385,14 @@ class IAPService {
         continue;
       }
       final retry = _retry[_key(purchase)];
-      if (retry != null && retry.uid != _account.uid) {
-        // A transaction captured for another account, or while signed out,
-        // cannot be claimed by the current account. Ignore every redelivery
-        // before it can be validated, finished, or change Restore/UI state.
+      if (retry != null &&
+          retry.uid != _account.uid &&
+          !(retry.uid == null &&
+              _isJws(purchase) &&
+              (purchase.status == PurchaseStatus.purchased ||
+                  purchase.status == PurchaseStatus.restored))) {
+        // Locally bound transactions stay with their captured account. Only
+        // an unbound JWS can probe the server for cryptographic ownership proof.
         continue;
       }
       if (purchase.status == PurchaseStatus.purchased ||
@@ -437,7 +450,7 @@ class IAPService {
     final uid = _account.uid;
     if (uid == null) return;
     for (final entry in _retry.values.toList()) {
-      if (entry.uid == uid) {
+      if (entry.uid == uid || (entry.uid == null && _isJws(entry.purchase))) {
         await _process(entry.purchase);
       }
     }
@@ -447,7 +460,9 @@ class IAPService {
     final key = _key(purchase);
     final uid = _account.uid;
     final old = _retry[key];
-    if (old != null && old.uid != uid) return Future.value();
+    if (old != null && old.uid != uid && !(old.uid == null && _isJws(purchase))) {
+      return Future.value();
+    }
     if (_inFlight.containsKey(key)) return _inFlight[key]!;
     final completedKey = '$uid:$_epoch:$key';
     if (_finished.contains(completedKey)) {
@@ -460,7 +475,8 @@ class IAPService {
       }
       return Future.value();
     }
-    _retry[key] = (purchase: purchase, uid: uid);
+    // A cold-start entry stays unbound until the backend proves ownership.
+    _retry[key] = (purchase: purchase, uid: old == null ? uid : old.uid);
     return _inFlight[key] = _validateAndComplete(purchase, key, uid, _epoch)
         .whenComplete(() {
           _inFlight.remove(key);
@@ -512,10 +528,9 @@ class IAPService {
         // A terminal verdict (including an expired restore) must not block a
         // new subscription. Unavailable validation remains retryable.
         _retry.remove(key);
-        // The server explicitly distinguishes this account-level verdict from
-        // unavailable validation. It still cannot identify this exact store
-        // transaction, so do not finish it here. Store redelivery or explicit
-        // restore may revalidate it, while a new purchase is no longer blocked.
+        // Rejection deliberately carries transactionFinalization:not_safe.
+        // Even an expired/revoked JWS must not imply finalization policy. Store
+        // redelivery may revalidate it while a new purchase is no longer blocked.
       }
       _fail(
         outcome == _Validation.rejected
@@ -528,6 +543,7 @@ class IAPService {
       return;
     }
     try {
+      _retry[key] = (purchase: purchase, uid: uid);
       final entitled = await _account
           .refreshEntitlement(uid)
           .timeout(_requestTimeout);
@@ -602,6 +618,13 @@ class IAPService {
             body: jsonEncode({
               'receiptData': purchase.verificationData.serverVerificationData,
               'platform': purchase.verificationData.source,
+              if (purchase.verificationData.source == 'app_store') ...{
+                'receiptFormat': _isJws(purchase)
+                    ? 'storekit2_jws'
+                    : 'legacy_receipt',
+                'transactionId': purchase.purchaseID,
+                'productId': purchase.productID,
+              },
             }),
           )
           .timeout(_requestTimeout);
@@ -610,7 +633,28 @@ class IAPService {
       if (body is! Map<String, dynamic> || body['valid'] is! bool) {
         return _Validation.unavailable;
       }
-      if (body['valid'] == true) return _Validation.verified;
+      if (purchase.verificationData.source == 'app_store') {
+        // Neither HTTP success nor an account-level entitlement proves this
+        // individual StoreKit transaction was delivered to its rightful owner.
+        if (!_isJws(purchase) ||
+            purchase.purchaseID == null ||
+            body['uid'] != uid ||
+            body['transactionId'] != purchase.purchaseID ||
+            body['productId'] != purchase.productID ||
+            body['environment'] != 'Production' ||
+            body['entitlementScope'] != 'production') {
+          return _Validation.unavailable;
+        }
+        if (body['valid'] == true &&
+            body['outcome'] == 'verified' &&
+            body['transactionFinalization'] == 'verified_transaction' &&
+            body['expiresAt'] is int &&
+            body['expiresAt'] > DateTime.now().millisecondsSinceEpoch) {
+          return _Validation.verified;
+        }
+      } else if (body['valid'] == true) {
+        return _Validation.verified;
+      }
       if (body['valid'] == false &&
           body['outcome'] == 'not_entitled' &&
           body['transactionFinalization'] == 'not_safe') {
@@ -620,6 +664,39 @@ class IAPService {
     } catch (_) {
       return _Validation.unavailable;
     }
+  }
+
+  bool _isJws(PurchaseDetails purchase) =>
+      purchase.verificationData.source == 'app_store' &&
+      (purchase is SK2PurchaseDetails ||
+          purchase.verificationData.serverVerificationData.contains('.'));
+
+  Future<String> _prepareApplePurchase(String uid, int epoch) async {
+    final headers = await _account.headers(uid).timeout(_requestTimeout);
+    if (!_current(uid, epoch)) throw StateError('Account changed');
+    final response = await _httpClient
+        .post(
+          Uri.parse(_endpoint),
+          headers: headers,
+          body: jsonEncode({
+            'platform': 'app_store',
+            'action': 'prepare_apple_purchase',
+          }),
+        )
+        .timeout(_requestTimeout);
+    if (!_current(uid, epoch) || response.statusCode != 200) {
+      throw StateError('Purchase preparation unavailable');
+    }
+    final body = jsonDecode(response.body);
+    if (body is! Map<String, dynamic> ||
+        body['uid'] != uid ||
+        body['appAccountToken'] is! String ||
+        !RegExp(
+          r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+        ).hasMatch(body['appAccountToken'])) {
+      throw StateError('Purchase preparation invalid');
+    }
+    return body['appAccountToken'] as String;
   }
 
   void dispose() {

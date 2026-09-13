@@ -1,5 +1,120 @@
 # ARE Coach recovery roadmap
 
+## Current iteration: StoreKit 2 and Apple account binding
+
+Updated 2026-09-12. PR [#51](https://github.com/Vito-bc/ARE-Coach/pull/51)
+is **merged**, squash/main `bab1534524c545ce8d9e13dadac378174cb6ec67`.
+Current `origin/main` was fetched and matches that base. The new isolated branch
+is `codex/storekit2-account-binding` in `build/storekit2-worktree`. The original
+dirty `codex/iap-lifecycle-followup` checkout, the earlier worktree and the
+25-file snapshot/archive remain preserved. This iteration authorizes a new
+draft PR only, without merge, deployment, production changes or sales enablement.
+
+### Implemented contract
+
+- Installed `in_app_purchase` 3.2.3 / StoreKit adapter 0.4.8+1 use StoreKit 2 by
+  default. `sk2_transaction_wrapper.dart:154,159` supplies the transaction JWS
+  and decimal transaction ID. `in_app_purchase_storekit_platform.dart:177`
+  maps `PurchaseParam.applicationUserName` to `appAccountToken`; the Swift
+  StoreKit2 purchase bridge parses the UUID and adds `.appAccountToken`.
+  StoreKit was promoted to a direct dependency without a version change.
+- Authenticated `prepare_apple_purchase` returns the server-created stable UUID
+  for that UID and app/environment namespace. The client waits for it before
+  opening the Apple checkout and rejects late account-switch responses.
+- `receiptFormat:storekit2_jws` adds the requested `transactionId` and `productId`.
+  The official Apple Node library 3.1.0 verifies the signature, Apple chain,
+  bundle and environment; policy then checks subscription type, product, IDs,
+  signed/purchase/expiry/revocation dates and the signed account token. Server
+  configuration supplies identifiers, never the client or an unverified payload.
+  OCSP checks run inside a worker with a 6-second termination deadline.
+- `appleBilling/{namespace}` contains private account/token mappings, original
+  transaction owners and processed transaction IDs. Namespace hashes bundle,
+  environment and App Store app ID. Ownership and entitlement commit atomically.
+  Repeat proof is idempotent; foreign/missing tokens and owner conflicts make no
+  entitlement writes. Older expired transactions cannot remove a newer grant;
+  a revocation already observed for a transaction cannot be undone by old proof.
+- Production writes `users/{uid}`; Sandbox uses only the private
+  `sandboxEntitlements` subcollection. This client accepts only production-scope
+  access proof, so Sandbox cannot unlock or finalize production access. A separate
+  sandbox application/backend verification flow remains a sign-off requirement.
+- Successful Apple responses contain exact UID, transaction/product IDs,
+  environment, scope, expiry and `transactionFinalization:verified_transaction`.
+  The client matches those fields and refreshes server entitlement before
+  finishing that transaction. Expired/revoked proof returns `not_entitled` with
+  `transactionFinalization:not_safe`: it clears the repurchase retry gate but
+  does not finish the rejected transaction.
+- Cold-start JWS entries remain locally unbound while probing the backend.
+  Login alone never binds them. A foreign login or unavailable verification
+  leaves the entry recoverable; exact successful ownership proof binds it before
+  entitlement refresh/completion. Existing UID/epoch guards and account-scoped
+  retry protection remain in place.
+- Legacy receipts use an explicit separate route, never a fallback after JWS
+  failure. Because they lack this ownership proof, they return unavailable /
+  `apple_ownership_recovery_required` without granting or downgrading. They need
+  a separately reviewed recovery process; first receipt claimant is never owner.
+- Play validation and Android's default-off sales flag are unchanged. The bounded
+  premium-expiry timer and unknown StoreKit transaction behavior remain intact.
+
+### Verification evidence and release limits
+
+New tests exercise actual ES256 signing and the official verifier with ephemeral
+test-only PKI, including payload/signature tampering, mismatched app/environment,
+product/transaction IDs and production rejection of test trust. The test CA is
+never loaded by production code; `functions/integration` is excluded from deploy.
+Firestore demo-emulator tests use real signed requests and real transactions for
+concurrent A/B replay, stable tokens, idempotency, failed-commit rollback, older
+expiry, revocation, outage recovery, Sandbox isolation and rules denial for owner,
+foreign, anonymous and admin clients. Pure tests still run without node_modules;
+CI installs locked dependencies explicitly for the separate integration job.
+
+Local evidence for this patch:
+
+| Gate | Result |
+| --- | --- |
+| New StoreKit service contract tests | 12 passed; cold-start real-paywall regression also passed |
+| Full `flutter test --no-pub` | 168 passed |
+| `flutter analyze --no-pub` | No issues found |
+| Pure Functions tests | 60 passed in a fresh temporary copy containing only `lib` and `test`, no node_modules |
+| Real verifier signed-fixture tests | 4 passed |
+| Firestore emulator ownership/rules tests | 6 passed against local `demo-are-coach`, including real failed-commit rollback |
+| Content checks | 8 passed |
+| Dependency review | Existing npm package versions unchanged; added official Apple and explicit test dependencies. Flutter lock changes only StoreKit `transitive` to `direct main`. |
+| Diff check | Clean before commit |
+
+CI includes a separate dependency-installed verifier/emulator job; the PR receipt
+reports results against the exact pushed SHA. Windows `flutter pub get --offline`
+resolved the unchanged plugin versions but warned that native plugin symlinks
+require Developer Mode. Tests and analyze succeeded; this is not a Windows native
+build sign-off. The first rules test incorrectly expected an identical no-op
+write to fail; it now attempts a real protected-field change. The cold-start widget
+test explicitly initializes the shared listener before emitting the purchase.
+No real store purchases, production writes or device verification were performed.
+The earlier standalone dart2js timer check remains valid evidence only for that
+timer; the Flutter web runner was blocked loading CanvasKit. Full web integration
+is **not** claimed.
+
+Remaining payment release blockers:
+
+1. Configure and independently verify actual App Store numeric app ID, bundle,
+   environment, App Check and isolated sandbox/device flow; no settings were
+   changed here. See [MONETIZATION_PREP.md](MONETIZATION_PREP.md).
+2. Renewal/refund notifications and reconciliation. An old correctly signed JWS
+   does not prove that no later refund occurred; certificate OCSP checks do not
+   answer subscription refund status. Known revocation is monotonic locally,
+   but obtaining later lifecycle events is a separate implementation task.
+3. Rejected-transaction finalization and safe support/migration for missing or
+   mismatched appAccountToken. Historical legacy receipts cannot automatically
+   become bound purchases. Family sharing is not automatically assigned either.
+4. Device/sandbox restore, interrupted checkout, pending/Ask-to-Buy, restart,
+   renewal/refund and account-switch sign-off; release review and sales approval.
+   Local unit/emulator success does not make payments release-ready.
+
+## Archived evidence: PR #51 lifecycle and legacy-validation follow-up
+
+The rest of this document records the earlier iteration. Its references to an
+open draft, the next StoreKit task and missing JWS/account binding are historical;
+the current contract and remaining blockers above supersede those statements.
+
 Updated: 2026-09-12. Scope of this iteration: **PR #50 follow-up: purchase
 lifecycle and validation safety**. The supplied September recovery plan and
 its April research comparison are the planning inputs; competitor claims and
