@@ -20,6 +20,17 @@ function configuration(env) {
   }
   return { bundleId, environment, appAppleId: Number(appId), firebaseProjectId };
 }
+function revalidateConfiguration(config) {
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    throw new Error("apple_configuration");
+  }
+  return configuration({
+    APPLE_BUNDLE_ID: config.bundleId,
+    APPLE_ENVIRONMENT: config.environment,
+    APPLE_APP_ID: typeof config.appAppleId === "number" ? String(config.appAppleId) : undefined,
+    GCLOUD_PROJECT: config.firebaseProjectId,
+  });
+}
 function classifyTransaction(payload, request, config, now = Date.now()) {
   if (!payload || typeof payload !== "object" ||
       payload.bundleId !== config.bundleId || payload.environment !== config.environment ||
@@ -83,4 +94,4 @@ async function handleAppleRequest(body, uid, { config, verify, repository, valid
     return unavailable("apple_validation_unavailable", true);
   }
 }
-module.exports = { configuration, classifyTransaction, handleAppleRequest, unavailable, uuid };
+module.exports = { configuration, revalidateConfiguration, classifyTransaction, handleAppleRequest, unavailable, uuid };

@@ -385,10 +385,20 @@ until its known expiry. Account epoch/retry guards prevent a late response from
 granting or completing for another login. Rejected finalization remains
 `not_safe`, and Android sales remain disabled.
 
+Worker-bootstrap correction evidence on 2026-09-13: the new integration
+regression failed on the reviewed PR head because the worker discarded the
+Firebase project ID and stopped at configuration before constructing
+`SignedDataVerifier`. The parent and worker now strictly validate the same
+serialized Production/Sandbox configuration. Tests assert that both trusted
+environments reach JWS signature verification, while a missing project ID and
+`LocalTesting` stop at configuration. The worker still uses only the bundled
+Apple roots, enables online certificate checks and remains bounded by the
+six-second parent timeout; test roots are not passed to production code.
+
 Local evidence on 2026-09-13: 39/39 targeted Flutter IAP/provider/real-paywall
-tests; 183/183 complete Flutter tests; clean `flutter analyze --no-pub`; 61/61
-pure Functions tests without loading production services; 4/4 real ES256
-verifier fixture tests; 8/8 Firestore demo-emulator ownership/rules tests; and
+tests; 183/183 complete Flutter tests; clean `flutter analyze --no-pub`; 62/62
+pure Functions tests without loading production services; 6/6 real ES256 and
+worker-bootstrap verifier tests; 8/8 Firestore demo-emulator ownership/rules tests; and
 8/8 content checks. `git diff --check` is clean. The emulator suite specifically
 covers authenticated-UID isolation, exact processed proof, sandbox storage
 separation, production rejection of sandbox JWS, atomicity, idempotency and

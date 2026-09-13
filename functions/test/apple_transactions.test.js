@@ -1,7 +1,7 @@
 "use strict";
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { configuration, classifyTransaction, handleAppleRequest } = require("../lib/apple_transactions");
+const { configuration, revalidateConfiguration, classifyTransaction, handleAppleRequest } = require("../lib/apple_transactions");
 const config = { bundleId: "com.example.coach", environment: "Production", appAppleId: 123, firebaseProjectId: "test-project" };
 const now = Date.now();
 const payload = { bundleId: config.bundleId, environment: "Production", productId: "are_coach_monthly",
@@ -19,6 +19,16 @@ test("server config rejects missing identifiers and unsigned testing modes", () 
     assert.throws(() => configuration({ APPLE_BUNDLE_ID: config.bundleId, APPLE_ENVIRONMENT: "Production", APPLE_APP_ID: appId, GCLOUD_PROJECT: "test-project" }));
   }
   assert.throws(() => configuration({ APPLE_BUNDLE_ID: config.bundleId, APPLE_ENVIRONMENT: "Production", APPLE_APP_ID: "123" }));
+});
+test("serialized verifier config is strictly revalidated for Production and Sandbox", () => {
+  for (const environment of ["Production", "Sandbox"]) {
+    assert.deepEqual(revalidateConfiguration({ ...config, environment }), { ...config, environment });
+  }
+  for (const invalid of [undefined, null, [], { ...config, firebaseProjectId: undefined },
+    { ...config, firebaseProjectId: "bad" }, { ...config, appAppleId: "123" },
+    { ...config, environment: "LocalTesting" }]) {
+    assert.throws(() => revalidateConfiguration(invalid), /apple_configuration/);
+  }
 });
 test("prepare and validation reject mismatched build environments before any work", async () => {
   let calls = 0;

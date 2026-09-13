@@ -1,5 +1,7 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
+const { Worker } = require("node:worker_threads");
+const path = require("node:path");
 const { SignedDataVerifier } = require("@apple/app-store-server-library");
 const { fixtures } = require("./signed_fixtures.cjs");
 const { handleAppleRequest } = require("../lib/apple_transactions");
@@ -12,6 +14,15 @@ function payload() { const now = Date.now(); return { bundleId: config.bundleId,
   productId: "are_coach_monthly", type: "Auto-Renewable Subscription", transactionId: "123", originalTransactionId: "100",
   purchaseDate: now - 1000, signedDate: now, expiresDate: now + 100000, inAppOwnershipType: "PURCHASED",
   appAccountToken: "00112233-4455-4677-8899-aabbccddeeff" }; }
+function runWorker(jws, workerConfig) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, "../lib/apple_verifier_worker.js"), {
+      workerData: { jws, config: workerConfig },
+    });
+    worker.once("message", resolve);
+    worker.once("error", reject);
+  });
+}
 test("real verifier accepts test-signed ES256 chain and correct transaction", async () => {
   const p = payload();
   assert.deepEqual(await verifier.verifyAndDecodeTransaction(pki.signed(p)), p);
@@ -37,6 +48,25 @@ test("endpoint applies policy after real signature verification", async () => {
   assert.equal(writes, 0);
 });
 test("production worker cannot trust the test root or enable LocalTesting", async () => {
-  await assert.rejects(verifyAppleTransaction(pki.signed(payload()), config));
-  await assert.rejects(verifyAppleTransaction(pki.signed({ ...payload(), environment: "LocalTesting" }), { ...config, environment: "LocalTesting" }));
+  await assert.rejects(verifyAppleTransaction(pki.signed(payload()), config),
+    error => error.verificationStage === "signature");
+  await assert.rejects(verifyAppleTransaction(pki.signed({ ...payload(), environment: "LocalTesting" }),
+    { ...config, environment: "LocalTesting" }), error => error.verificationStage === "configuration");
+});
+
+test("worker bootstrap carries trusted project configuration into Production and Sandbox verification", async () => {
+  for (const environment of ["Production", "Sandbox"]) {
+    const workerConfig = { ...config, environment };
+    const jws = pki.signed({ ...payload(), environment });
+    await assert.rejects(verifyAppleTransaction(jws, workerConfig), error => {
+      assert.equal(error.message, "apple_verification_unavailable");
+      assert.equal(error.verificationStage, "signature");
+      return true;
+    });
+  }
+});
+
+test("worker independently rejects serialized configuration without a Firebase project", async () => {
+  const result = await runWorker(pki.signed(payload()), { ...config, firebaseProjectId: undefined });
+  assert.deepEqual(result, { ok: false, stage: "configuration" });
 });
