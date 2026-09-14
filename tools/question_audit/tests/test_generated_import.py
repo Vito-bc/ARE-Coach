@@ -74,7 +74,9 @@ def _bank_row():
 class GeneratedImportTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
+        # Hosted Windows TEMP can use an 8.3 alias (RUNNER~1). Fault-injection
+        # targets must identify the same resolved paths as the real importer.
+        self.root = Path(self.temp.name).resolve()
         self.source = self.root / "generated_accepted.json"
         self.review = self.root / "generated_review.xlsx"
         self.bank = self.root / "questions_ny.json"

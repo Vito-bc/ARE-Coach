@@ -82,6 +82,15 @@ the additional check is `Content checks (Windows)`. Consult the checks attached
 to the final PR HEAD for the actual CI outcome; local Windows results alone do
 not establish Linux behavior.
 
+The initial CI run on `03f9cfe` confirmed all 25 tests and eight content checks on
+Linux. Windows exposed two test-fixture assumptions: TEMP used the 8.3 alias
+`RUNNER~1`, while the importer resolved it, so injected failures did not match
+their targets; the checkout and TEMP were on different drives, so a relative
+path between them did not exist. Fixtures now resolve their root before fault
+injection, and relative-path contenders run from the synthetic data directory
+with the tool on PYTHONPATH. The Windows alias test also exercises the original
+TEMP spelling. No assertions or platform tests were disabled.
+
 ## Limits
 
 - This is a cooperative, single-host lock on a local filesystem. Cross-machine

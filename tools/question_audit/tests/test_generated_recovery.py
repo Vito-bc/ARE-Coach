@@ -167,9 +167,11 @@ class GeneratedRecoveryTest(unittest.TestCase):
         self.assertEqual(self.run_main(apply=False)[0], 2)
         self.assertEqual(snapshot(), before)
 
-    def cli(self, argv, env=None):
+    def cli(self, argv, *, cwd=TOOL_DIR):
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(TOOL_DIR)
         return subprocess.run([sys.executable, "-m", "src.merge_accepted", *argv],
-                              cwd=TOOL_DIR, env=env, capture_output=True, text=True, timeout=30)
+                              cwd=cwd, env=env, capture_output=True, text=True, timeout=30)
 
     @contextlib.contextmanager
     def paused_cli(self, argv):
@@ -235,10 +237,13 @@ class GeneratedRecoveryTest(unittest.TestCase):
         source, review = self.batch("alias")
         # Relative paths and '..' must converge on the same lock. On Windows,
         # also exercise case normalization; Unix additionally tests symlinks.
-        aliases = [Path(os.path.relpath(self.f.bank, TOOL_DIR)),
+        # Run the contender from the data directory: the Windows runner keeps
+        # its checkout on D: and TEMP on C:, which have no relative path.
+        aliases = [Path(self.f.bank.name),
                    self.f.root / ".." / self.f.root.name / self.f.bank.name]
         if os.name == "nt":
             aliases.append(Path(str(self.f.bank).upper()))
+            aliases.append(Path(self.f.temp.name) / self.f.bank.name)  # TEMP's possible 8.3 alias
         else:
             link = self.f.root / "bank-alias.json"
             link.symlink_to(self.f.bank)
@@ -247,7 +252,7 @@ class GeneratedRecoveryTest(unittest.TestCase):
         with self.paused_cli(self.argv()) as (owner, connection):
             for alias in aliases:
                 with self.subTest(alias=alias):
-                    result = self.cli(self.argv(source, review, bank=alias, journal=other_journal))
+                    result = self.cli(self.argv(source, review, bank=alias, journal=other_journal), cwd=self.f.root)
                     self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
                     self.assertIn("lock", result.stdout.lower())
             self.assertFalse(other_journal.exists())
