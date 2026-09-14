@@ -47,6 +47,7 @@ app.*.map.json
 # Local tooling and secrets
 node_modules/
 serviceAccountKey.json
+config/*.local.json
 
 # AI Coach retrieval index — built locally from the RAG corpus by
 # tools/question_audit/src/build_coach_index.py. It contains extracted text from

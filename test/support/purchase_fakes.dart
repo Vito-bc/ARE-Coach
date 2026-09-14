@@ -21,7 +21,12 @@ class FakeAccount implements PurchaseAccount {
   final events = StreamController<String?>.broadcast();
   @override
   Stream<String?> get changes => events.stream;
+  final entitlementEvents = StreamController<String>.broadcast();
+  @override
+  Stream<String> get entitlementChanges => entitlementEvents.stream;
   bool entitled = true;
+  PurchaseEntitlement? entitlementProof;
+  Object? entitlementError;
   final refreshed = <String>[];
   @override
   Future<Map<String, String>> headers(String uid) async => {
@@ -31,6 +36,32 @@ class FakeAccount implements PurchaseAccount {
   Future<bool> refreshEntitlement(String uid) async {
     refreshed.add(uid);
     return entitled;
+  }
+  @override
+  Future<PurchaseEntitlement> refreshAppleEntitlement(
+    String uid, {
+    String? transactionId,
+    String? productId,
+  }) async {
+    refreshed.add(uid);
+    if (entitlementError != null) throw entitlementError!;
+    return entitlementProof ?? PurchaseEntitlement(
+      active: entitled,
+      uid: uid,
+      environment: 'Sandbox',
+      scope: 'sandbox',
+      expiresAt: DateTime.now().add(const Duration(days: 1)),
+      transactionId: transactionId,
+      productId: productId,
+      processedTransaction: transactionId != null,
+    );
+  }
+  @override
+  void notifyEntitlementChanged(String uid) => entitlementEvents.add(uid);
+  @override
+  void dispose() {
+    events.close();
+    entitlementEvents.close();
   }
 
   void signIn(String? value) {
@@ -56,6 +87,7 @@ String appleResponse({
   'originalTransactionId': '100',
   'productId': productId,
   'environment': 'Production',
+  'firebaseProjectId': 'architect-study-app',
   'entitlementScope': 'production',
   'expiresAt': DateTime.now()
       .add(const Duration(days: 30))

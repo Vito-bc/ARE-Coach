@@ -359,6 +359,64 @@ Other separate pre-launch money tasks:
    in this scoped patch; neither the old count nor green tests are a current
    security sign-off.
 
+## Isolated Apple Sandbox flow (draft follow-up)
+
+The follow-up from merged PR #52 adds a build-wide purchase contract and a
+separate sandbox entitlement read. Production remains the default. A sandbox
+checkout is enabled only when Apple `Sandbox`, Firebase `Sandbox`, entitlement
+source `apple_sandbox`, a non-production Firebase project, that project's
+canonical `validateReceipt` URL and complete Firebase iOS options agree.
+Prepare and validation carry this contract; the backend compares it with its
+deployment configuration before token provisioning or JWS verification.
+
+Sandbox entitlements stay under the private environment namespace. The
+authenticated `get_apple_entitlement` action returns only the caller's UID and
+can attest that an exact transaction/product was processed. Auth and App Check
+remain endpoint prerequisites, while Firestore rules continue to deny all
+client access to tokens, owners, ledger and sandbox-entitlement documents.
+Production `users/{uid}` is not mutated by sandbox validation.
+
+The sandbox client uses that endpoint for restart/account refresh, paywall and
+Premium UI state, with local expiry scheduling. Completion requires matching
+UID, transaction, product, Firebase project, Apple environment and scope, plus
+a current future entitlement read. Outages do not fabricate access or finish a
+transaction; a previously confirmed in-memory entitlement is retained only
+until its known expiry. Account epoch/retry guards prevent a late response from
+granting or completing for another login. Rejected finalization remains
+`not_safe`, and Android sales remain disabled.
+
+Worker-bootstrap correction evidence on 2026-09-13: the new integration
+regression failed on the reviewed PR head because the worker discarded the
+Firebase project ID and stopped at configuration before constructing
+`SignedDataVerifier`. The parent and worker now strictly validate the same
+serialized Production/Sandbox configuration. Tests assert that both trusted
+environments reach JWS signature verification, while a missing project ID and
+`LocalTesting` stop at configuration. The worker still uses only the bundled
+Apple roots, enables online certificate checks and remains bounded by the
+six-second parent timeout; test roots are not passed to production code.
+
+Local evidence on 2026-09-13: 39/39 targeted Flutter IAP/provider/real-paywall
+tests; 183/183 complete Flutter tests; clean `flutter analyze --no-pub`; 62/62
+pure Functions tests without loading production services; 6/6 real ES256 and
+worker-bootstrap verifier tests; 8/8 Firestore demo-emulator ownership/rules tests; and
+8/8 content checks. `git diff --check` is clean. The emulator suite specifically
+covers authenticated-UID isolation, exact processed proof, sandbox storage
+separation, production rejection of sandbox JWS, atomicity, idempotency and
+private billing rules. CI evidence is tied to the exact draft-PR SHA after push.
+The earlier CanvasKit limitation remains: a full Flutter web integration run is
+not claimed, and unrelated web-runner troubleshooting was not repeated.
+
+External configuration is **not performed** and device testing is **not
+performed**. The dedicated Firebase project/app, Auth users, App Check
+registration/enforcement, Functions environment/secrets, App Store products,
+Sandbox Apple Accounts, signing/provisioning and physical-device/TestFlight run
+remain required. See `MONETIZATION_PREP.md` for exact commands, scenarios and
+evidence fields. Sandbox Premium currently controls client Premium surfaces;
+server features such as Coach quota still read `users/{uid}` and therefore do
+not treat the private sandbox entitlement as production payment. Notifications
+and reconciliation are still absent, so renewal/refund automation is not
+claimed.
+
 ## Remaining product and release roadmap
 
 | Priority/workstream | Remaining work and acceptance evidence |

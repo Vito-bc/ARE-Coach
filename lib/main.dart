@@ -13,6 +13,7 @@ import 'app.dart';
 import 'core/providers.dart';
 import 'core/theme/app_theme.dart';
 import 'services/notification_service.dart';
+import 'services/purchase_environment.dart';
 import 'firebase_options.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -25,7 +26,9 @@ Future<void> main() async {
   var firebaseReady = false;
   try {
     await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
+      options: PurchaseEnvironment.current.firebaseOptions(
+        DefaultFirebaseOptions.currentPlatform,
+      ),
     );
     try {
       const recaptchaKey = String.fromEnvironment('RECAPTCHA_SITE_KEY');

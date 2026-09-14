@@ -247,13 +247,16 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Premium is not available on this platform yet',
+              _iap.configurationErrorMessage != null
+                  ? 'Purchase test build is not configured'
+                  : 'Premium is not available on this platform yet',
               style: tt.titleSmall,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
             Text(
-              'Subscriptions are handled by the App Store and Google Play, so '
+              _iap.configurationErrorMessage ??
+                  'Subscriptions are handled by the App Store and Google Play, so '
               'they are unavailable in this build. Everything free stays free — '
               'nothing is locked behind this today.',
               style: tt.bodyMedium,

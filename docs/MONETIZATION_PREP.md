@@ -24,8 +24,9 @@ app  --(receipt / purchase token + ID token + App Check)-->  validateReceipt
                      Apple signed JWS verifier <------------------+
                      Play subscriptionsv2     <-------------------+
                                                                   |
-                              users/{uid} { role, subscriptionStatus,
-                                            premiumUntil, subscriptionPlatform }
+       Production / Play --> users/{uid} live subscription fields
+       Apple Sandbox      --> private sandboxEntitlements/{uid}
+                              (read only through the authenticated endpoint)
 ```
 
 Two rules that are easy to get wrong and cost real money:
@@ -91,11 +92,29 @@ extension or downgrade. Recovery must authenticate and establish ownership throu
 a separately reviewed process; receipt possession or first claim is insufficient.
 
 Production grants update `users/{uid}`. Sandbox grants are recorded only under
-the separate private `sandboxEntitlements` namespace and never unlock production
-Premium. The current app requires production-scope proof before completion;
-a configured Sandbox backend alone does **not** produce end-to-end sandbox
-paywall success. An isolated test-app entitlement/finalization flow and device
-sign-off remain pending. Never point a production client at testing trust roots.
+the separate private `sandboxEntitlements` namespace and never update production
+Premium. A sandbox build reads its own authenticated UID through the same
+App-Check-protected `validateReceipt` endpoint using
+`action:get_apple_entitlement`; billing collections remain unreadable through
+Firestore rules. The client accepts that response only when UID, Firebase
+project, Apple environment and entitlement scope match the build.
+
+The build contract is explicit and fail-closed. `Production` is the default.
+For sandbox, `APPLE_IAP_ENVIRONMENT=Sandbox`,
+`FIREBASE_ENVIRONMENT=Sandbox`, `IAP_ENTITLEMENT_SOURCE=apple_sandbox`, the
+Firebase project ID and the canonical validation endpoint must agree. Missing
+Firebase app values, the production project in a sandbox build, a custom host,
+or mixed scopes disable Subscribe and Restore before StoreKit opens. Prepare
+and validation send the same contract; the server compares it with its trusted
+deployment configuration instead of inferring an environment from JWS input.
+
+A successful sandbox StoreKit transaction is completed only after the signed
+transaction was applied for the current UID and an immediate entitlement read
+confirms the exact transaction/product, future expiry, `Sandbox` environment
+and sandbox scope. Production rejects sandbox proof and sandbox rejects
+production proof. Account/epoch guards, retry after outage and cold-start
+redelivery remain in force. Definitive rejection remains
+`transactionFinalization:not_safe`.
 
 Success must match current UID and the exact transaction/product, include future
 expiry and `transactionFinalization:verified_transaction`, and pass a fresh
@@ -145,6 +164,89 @@ finalization and device sign-off remain release blockers. A valid signature on a
 old JWS does not establish that no later refund occurred. Local verifier/emulator
 tests and green CI do not authorize public sales. No deploy, store settings,
 production secrets or Android sales flag were changed in this patch.
+
+### Apple Sandbox device runbook
+
+Code and emulator/CI checks do not configure the external services. Before a
+device run, an operator must do all of the following without changing the app's
+bundle ID:
+
+1. Create or select a dedicated **non-production Firebase project**. Register
+   its iOS app with `com.archedu.architectulaEducationApp`, enable the sign-in
+   providers needed by the test accounts, deploy this branch's Firestore rules
+   and Functions to that project, and set the Function environment to the real
+   `APPLE_BUNDLE_ID`, numeric `APPLE_APP_ID`, and exactly
+   `APPLE_ENVIRONMENT=Sandbox`. Configure the declared Function secrets before
+   deployment. No test project ID or App Store numeric ID is stored in Git.
+   Firebase documents separate projects as the normal way to support distinct
+   [development and production environments](https://firebase.google.com/docs/projects/multiprojects).
+2. Register that Firebase iOS app for App Check with DeviceCheck (or App Attest
+   with an intentional code change and review), then enforce App Check for the
+   test Function. The checked-in app uses DeviceCheck on Apple devices. Do not
+   commit or ship a Firebase App Check debug token. Firebase documents that the
+   debug provider is only for controlled development environments and its token
+   must remain secret. See Firebase's [Flutter App Check provider setup](https://firebase.google.com/docs/app-check/flutter/default-providers)
+   and [debug-provider warning](https://firebase.google.com/docs/app-check/flutter/debug-provider).
+3. Confirm the App Store Connect app uses the same bundle ID and has
+   `are_coach_monthly` and `are_coach_yearly` configured. Accept the required
+   agreements and create dedicated Sandbox Apple Accounts. Apple states that
+   development-signed and TestFlight apps use the sandbox with real App Store
+   Connect products and Apple-signed JWS transactions. Follow Apple's current
+   [sandbox preparation and sign-in guide](https://developer.apple.com/documentation/storekit/testing-in-app-purchases-with-sandbox).
+4. On a Mac with the repository, current Flutter, Xcode, an Apple Developer
+   team, signing/provisioning for the existing bundle ID, and an iPhone/iPad in
+   Developer Mode, create the ignored local file:
+
+   ```bash
+   cp config/apple_sandbox.example.json config/apple_sandbox.local.json
+   # Replace every REPLACE_* value with the dedicated test-project values.
+   flutter run -d <IOS_DEVICE_UDID> \
+     --dart-define-from-file=config/apple_sandbox.local.json
+   ```
+
+   The canonical URL must be
+   `https://us-central1-<TEST_PROJECT_ID>.cloudfunctions.net/validateReceipt`.
+   `config/*.local.json` is ignored. Do not alter `PRODUCT_BUNDLE_IDENTIFIER`.
+   A release-signed artifact can be built, but not uploaded by this task:
+
+   ```bash
+   flutter build ipa --release \
+     --dart-define-from-file=config/apple_sandbox.local.json
+   ```
+
+   TestFlight is an alternate device path after a separately authorized upload.
+   Apple says TestFlight purchases use sandbox. For sandbox controls, use a
+   dedicated test device/account and follow Apple's current Media & Purchases
+   and Settings > Developer > Sandbox Apple Account steps.
+
+Record the app build SHA, test Firebase project ID, device/iOS version, Sandbox
+Apple Account alias (never its password), product, transaction ID, server result
+scope, entitlement expiry and StoreKit completion for each case:
+
+| Scenario | Steps | Expected evidence |
+| --- | --- | --- |
+| Purchase | Sign in as app account A and buy monthly, then yearly with a fresh sandbox history/account as needed. | Store sheet identifies Sandbox; server returns matching sandbox proof; paywall closes only after completion; no production `users/{uid}` entitlement is written. |
+| Cancel | Start checkout and cancel Apple's sheet. | Paywall remains actionable, no entitlement and no successful completion. |
+| Restore | Reopen paywall and Restore as the same app account. | Existing signed transaction is revalidated; current sandbox entitlement survives restart and is shown until expiry. |
+| Empty Restore | Use a new Sandbox Apple Account or clear sandbox purchase history, then Restore. | Visible “No matching purchases” state; Subscribe becomes available. |
+| Restart/cold start | Terminate after a delivered transaction, relaunch, sign in and Restore if StoreKit does not redeliver automatically. | No early Premium; exact server proof recovers and a verified pending transaction completes once. |
+| Account switch | Interrupt validation for app account A, sign in as B, then return to A and Restore. | B never receives or completes A's transaction; A can recover it. |
+| Expiry | Set the tester's renewal rate in App Store Connect/Sandbox settings and wait past the returned expiry. | Client role becomes free at expiry; a fresh endpoint read remains non-active. Apple documents [accelerated sandbox renewal rates and a finite renewal count](https://developer.apple.com/help/app-store-connect/test-in-app-purchases/manage-sandbox-apple-account-settings). |
+| Outage | Make the **test** endpoint temporarily unavailable before validation, then restore it and Restore Purchases. | No grant/completion during outage; retry succeeds without a duplicate entitlement. Do not touch production. |
+
+The sandbox entitlement currently unlocks client-side Premium surfaces such as
+paywall state and the Premium UI hook. Server functions such as `askCoach` still
+use their project's production-style `users/{uid}` entitlement decision, so a
+sandbox purchase does not raise that server quota. Record this limitation in
+device evidence. Renewal/refund notifications and periodic reconciliation are
+not implemented; accelerated expiry is enforced, but a renewal or early refund
+is not promised to appear until another verified transaction/restore reaches
+the backend.
+
+Status for this patch: code and local/CI checks are performed as listed in
+`RECOVERY_ROADMAP.md`; Firebase/App Store configuration and device testing are
+not performed. Creating resources, changing secrets/store settings, uploading
+to TestFlight and enabling Android sales require separate authorization.
 
 ## Android (Google Play)
 
@@ -229,14 +331,14 @@ read and completion each have a 15-second limit; store operations have a
 spinner. No success appears until server validation, entitlement refresh and any
 required completion succeed for the same account.
 
-The Apple verdict is still account-receipt level: the request does not bind the
-incoming `PurchaseDetails.purchaseID` to a transaction proven by the response.
-Accordingly, the server labels transaction finalization `not_safe`, and the
-client does not call `completePurchase` after rejection. It removes the rejected
-item from its in-session retry gate so an expired restore does not block a new
-purchase; StoreKit may redeliver the unfinished item. Safe rejected-transaction
-finalization depends on the separate StoreKit transport/transaction-identity
-patch and sandbox/device evidence.
+The legacy Apple receipt verdict is account-level and cannot bind an incoming
+`PurchaseDetails.purchaseID`. StoreKit 2 success does bind the signed transaction
+and can return `verified_transaction`, but rejection still remains
+`transactionFinalization:not_safe`; the client does not call `completePurchase`
+after rejection. It removes the rejected item from its in-session retry gate so
+an expired restore does not block a new purchase; StoreKit may redeliver the
+unfinished item. Safe rejected-transaction finalization needs a separate policy
+and device evidence.
 
 The installed Android adapter (0.4.0+10) returns a `BillingResultWrapper` for
 acknowledgment, although the generic API exposes `Future<void>`. The follow-up

@@ -1,10 +1,12 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
+const { Worker } = require("node:worker_threads");
+const path = require("node:path");
 const { SignedDataVerifier } = require("@apple/app-store-server-library");
 const { fixtures } = require("./signed_fixtures.cjs");
 const { handleAppleRequest } = require("../lib/apple_transactions");
 const { verifyAppleTransaction } = require("../lib/apple_verifier");
-const config = { bundleId: "com.example.coach", environment: "Production", appAppleId: 123 };
+const config = { bundleId: "com.example.coach", environment: "Production", appAppleId: 123, firebaseProjectId: "test-project" };
 let pki, verifier;
 before(() => { pki = fixtures(); verifier = new SignedDataVerifier([pki.root], false, config.environment, config.bundleId, config.appAppleId); });
 after(() => pki?.close());
@@ -12,6 +14,15 @@ function payload() { const now = Date.now(); return { bundleId: config.bundleId,
   productId: "are_coach_monthly", type: "Auto-Renewable Subscription", transactionId: "123", originalTransactionId: "100",
   purchaseDate: now - 1000, signedDate: now, expiresDate: now + 100000, inAppOwnershipType: "PURCHASED",
   appAccountToken: "00112233-4455-4677-8899-aabbccddeeff" }; }
+function runWorker(jws, workerConfig) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, "../lib/apple_verifier_worker.js"), {
+      workerData: { jws, config: workerConfig },
+    });
+    worker.once("message", resolve);
+    worker.once("error", reject);
+  });
+}
 test("real verifier accepts test-signed ES256 chain and correct transaction", async () => {
   const p = payload();
   assert.deepEqual(await verifier.verifyAndDecodeTransaction(pki.signed(p)), p);
@@ -30,12 +41,32 @@ test("endpoint applies policy after real signature verification", async () => {
     repository: { apply: async () => { writes++; return { status: 200 }; } } };
   for (const patch of [{ productId: "other" }, { transactionId: "999" }, { appAccountToken: undefined }, { expiresDate: null }]) {
     const result = await handleAppleRequest({ receiptFormat: "storekit2_jws", receiptData: pki.signed({ ...payload(), ...patch }),
-      transactionId: "123", productId: "are_coach_monthly" }, "A", deps);
+      transactionId: "123", productId: "are_coach_monthly", appleEnvironment: "Production",
+      firebaseProjectId: config.firebaseProjectId, entitlementSource: "production" }, "A", deps);
     assert.equal(result.status, 503);
   }
   assert.equal(writes, 0);
 });
 test("production worker cannot trust the test root or enable LocalTesting", async () => {
-  await assert.rejects(verifyAppleTransaction(pki.signed(payload()), config));
-  await assert.rejects(verifyAppleTransaction(pki.signed({ ...payload(), environment: "LocalTesting" }), { ...config, environment: "LocalTesting" }));
+  await assert.rejects(verifyAppleTransaction(pki.signed(payload()), config),
+    error => error.verificationStage === "signature");
+  await assert.rejects(verifyAppleTransaction(pki.signed({ ...payload(), environment: "LocalTesting" }),
+    { ...config, environment: "LocalTesting" }), error => error.verificationStage === "configuration");
+});
+
+test("worker bootstrap carries trusted project configuration into Production and Sandbox verification", async () => {
+  for (const environment of ["Production", "Sandbox"]) {
+    const workerConfig = { ...config, environment };
+    const jws = pki.signed({ ...payload(), environment });
+    await assert.rejects(verifyAppleTransaction(jws, workerConfig), error => {
+      assert.equal(error.message, "apple_verification_unavailable");
+      assert.equal(error.verificationStage, "signature");
+      return true;
+    });
+  }
+});
+
+test("worker independently rejects serialized configuration without a Firebase project", async () => {
+  const result = await runWorker(pki.signed(payload()), { ...config, firebaseProjectId: undefined });
+  assert.deepEqual(result, { ok: false, stage: "configuration" });
 });
