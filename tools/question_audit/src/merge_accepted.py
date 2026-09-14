@@ -12,19 +12,23 @@ Usage (from tools/question_audit/):
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 from pathlib import Path
 
 from src import config
 from src.generated_approval import ApprovalError, load_candidates, read_review_workbook
 from src.generated_import import (
+    BankImportLock,
     ImportSafetyError,
     apply_import_plan,
+    bank_import_lock,
     build_import_plan,
     load_bank,
     load_journal,
     pending_transaction_state,
     recover_pending_transaction,
     transaction_pointer_for,
+    verify_bank_journal_consistency,
 )
 
 
@@ -46,6 +50,33 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reviewed", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
+    args.bank = args.bank.resolve()
+    args.journal = args.journal.resolve()
+    try:
+        # Take ownership BEFORE inspecting pending state; keep it until every
+        # recovery, plan, write, cleanup and error-state inspection has finished.
+        with bank_import_lock(args.bank) if args.apply else nullcontext(None) as lock:
+            return _run(args, lock)
+    except (ImportSafetyError, OSError) as exc:
+        print(f"REFUSED: {exc}")
+        return 2
+
+
+def _report_current_state(bank_path: Path, journal_path: Path, pointer: Path) -> None:
+    try:
+        pending = pending_transaction_state(pointer)
+        if pending:
+            print(f"Pending transaction: {pending}.")
+            print("Re-run --apply to attempt recovery only after both targets and prepared images validate.")
+            return
+        bank, journal = load_bank(bank_path), load_journal(journal_path)
+        verify_bank_journal_consistency(bank, journal)
+        print(f"Current bank/journal are consistent: {len(bank)} questions, {len(journal['imports'])} recorded imports; no pending transaction.")
+    except (ImportSafetyError, OSError, ValueError) as exc:
+        print(f"Current state cannot be verified: {exc}. Preserve transaction evidence for manual recovery.")
+
+
+def _run(args: argparse.Namespace, lock: BankImportLock | None) -> int:
     source_path = _reports_path(args.input)
     review_path = _reports_path(args.review_book)
     bank_path = args.bank.resolve()
@@ -65,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
                 transaction_pointer,
                 expected_bank_path=bank_path,
                 expected_journal_path=journal_path,
+                lock=lock,
             )
             print("RECOVERY: bank and provenance journal now match the staged transaction.")
 
@@ -73,45 +105,41 @@ def main(argv: list[str] | None = None) -> int:
         bank = load_bank(bank_path)
         journal = load_journal(journal_path)
         plan = build_import_plan(bank, journal, review, review_path=review_path)
-    except (ApprovalError, ImportSafetyError, OSError) as exc:
-        print(f"REFUSED: {exc}")
-        print("No candidate was added.")
-        return 2
 
-    print(
-        "Human review: "
-        f"{len(plan.additions)} to add, {len(plan.already_imported)} already imported, "
-        f"{len(plan.blocked)} blocked."
-    )
-    for item in plan.items:
-        if item.status == "add":
-            print(f"  ADD {item.candidate_id} -> {item.bank_id}: {item.reason}")
-        elif item.status == "already_imported":
-            print(f"  ALREADY {item.candidate_id} -> {item.bank_id}: {item.reason}")
-        else:
-            print(f"  BLOCK {item.candidate_id}: {item.reason}")
+        print(
+            "Human review: "
+            f"{len(plan.additions)} to add, {len(plan.already_imported)} already imported, "
+            f"{len(plan.blocked)} blocked."
+        )
+        for item in plan.items:
+            if item.status == "add":
+                print(f"  ADD {item.candidate_id} -> {item.bank_id}: {item.reason}")
+            elif item.status == "already_imported":
+                print(f"  ALREADY {item.candidate_id} -> {item.bank_id}: {item.reason}")
+            else:
+                print(f"  BLOCK {item.candidate_id}: {item.reason}")
 
-    if not args.apply:
-        print("DRY-RUN - bank, provenance journal and review workbook were not changed.")
-        return 0
-    if not plan.additions:
-        print("Nothing new to import; no files were changed.")
-        return 0
+        if not args.apply:
+            print("DRY-RUN - bank, provenance journal and review workbook were not changed.")
+            return 0
+        if not plan.additions:
+            print("No additional candidates to import.")
+            return 0
 
-    try:
         transaction_dir = apply_import_plan(
             plan,
             bank_path=bank_path,
             journal_path=journal_path,
             backups_dir=args.backups_dir.resolve(),
             transaction_pointer=transaction_pointer,
+            lock=lock,
         )
-    except (ImportSafetyError, OSError) as exc:
-        pending = pending_transaction_state(transaction_pointer)
-        print(f"IMPORT INTERRUPTED: {exc}")
-        if pending:
-            print(f"Detected recoverable state: {pending}")
-            print("Re-run the same --apply command to complete verified recovery.")
+    except (ApprovalError, ImportSafetyError, OSError, ValueError) as exc:
+        print(f"REFUSED / INTERRUPTED: {exc}")
+        if args.apply:
+            _report_current_state(bank_path, journal_path, transaction_pointer)
+        else:
+            print("DRY-RUN: no data was changed; recovery was not attempted.")
         return 2
 
     print(

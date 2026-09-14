@@ -111,9 +111,25 @@ replacement fails, the pending marker records before/after hashes and the ignore
 `backups/generated_import_transactions/` directory retains recovery evidence. Re-run
 the same `--apply` command to roll a verified partial transaction forward. Dry-run only
 reports a pending transaction and never changes it. Reapplying an already recorded
-candidate version reports `ALREADY` and creates no duplicate. An exclusive pending
-marker rejects an overlapping `--apply`; stale target hashes are refused instead of
-overwriting another import.
+candidate version reports `ALREADY` and creates no duplicate. An OS lock on the
+normalized bank path covers pending inspection, recovery, planning, commit and
+cleanup. An overlapping `--apply` exits with code 2 and can be retried after the
+owner exits. Windows uses `msvcrt.locking`; Linux uses `fcntl.flock`. The adjacent
+`.questions_ny.json.generated-import.lock` file remains on disk: the kernel releases
+ownership on close or process termination. Never delete it to clear a lock.
+
+Recovery validates both target states, every prepared after-image still needed,
+and bank/journal cross-references before replacing either target. Unknown contents
+or damaged staged files stop recovery before any replacement. The manifest stays
+immutable; a crash before pending-marker cleanup leaves enough evidence for an
+idempotent retry. Error output describes the current pending/verified state, since
+recovery may already have written data before a later validation failure.
+
+The lock coordinates cooperating processes on one host using a local filesystem.
+It is not a distributed lock for separate machines, cloud-sync replicas, or editors
+that bypass this importer. Dry-run does not create/acquire a lock or recover data.
+See [recovery regression evidence](../../docs/GENERATED_IMPORT_RECOVERY_EVIDENCE.md)
+for fault boundaries, subprocess tests and platform coverage.
 
 ⚠️ `corpus/` ships with a tiny **public-fact sample** (ADA, NYC codes) to prove the
 pipeline. Replace/expand with real sources for full coverage. Do **not** ingest full

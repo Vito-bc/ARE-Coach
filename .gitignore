@@ -59,3 +59,5 @@ functions/coach_index.json
 # Incomplete generated-question import marker. Recovery evidence belongs in the
 # ignored question-audit backups directory; never publish an in-flight marker.
 assets/seeds/.questions_ny.provenance.json.pending.json
+# Persistent OS-lock inode; ownership is released by closing the handle, not unlink.
+assets/seeds/.questions_ny.json.generated-import.lock

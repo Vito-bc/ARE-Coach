@@ -42,8 +42,16 @@ jobs:
         run: flutter test --no-pub
 
   content:
-    name: Content checks
-    runs-on: ubuntu-latest
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Content checks
+          - os: windows-latest
+            name: Content checks (Windows)
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out repository

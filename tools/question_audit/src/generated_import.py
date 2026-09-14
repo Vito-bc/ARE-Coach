@@ -5,11 +5,13 @@ import hashlib
 import json
 import os
 import re
+import threading
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, BinaryIO, Callable, Iterator
 
 from src.generated_approval import ReviewDecision, ReviewResult, candidate_fingerprint
 from src.schema import Question
@@ -41,6 +43,58 @@ SOURCE_PROVENANCE_FIELDS = (
 
 class ImportSafetyError(RuntimeError):
     """An import invariant failed; no new import should proceed."""
+
+
+def _normalized_path(path: Path) -> Path:
+    # Resolve relative paths, '..', symlinks/junctions, and Windows case aliases.
+    return Path(os.path.normcase(path.resolve()))
+
+
+@dataclass(frozen=True)
+class BankImportLock:
+    bank_path: Path
+    stream: BinaryIO
+    owner: tuple[int, int]
+
+    def check(self, bank_path: Path) -> None:
+        if (self.stream.closed or self.bank_path != _normalized_path(bank_path)
+                or self.owner != (os.getpid(), threading.get_ident())):
+            raise ImportSafetyError("an active lock for this bank and caller is required")
+
+
+@contextmanager
+def bank_import_lock(
+    bank_path: Path, held: BankImportLock | None = None,
+) -> Iterator[BankImportLock]:
+    """Nonblocking OS lock, held across recovery, planning, commit and cleanup.
+
+    The separate lock file is permanent: unlinking it could let another process
+    lock a different inode. Closing the descriptor (including process death)
+    releases ownership. Its existence or age never means a lock is held.
+    """
+    bank_path = _normalized_path(bank_path)
+    if held is not None:
+        held.check(bank_path)
+        yield held
+        return
+    lock_path = bank_path.with_name(f".{bank_path.name}.generated-import.lock")
+    with lock_path.open("a+b") as stream:
+        try:
+            if os.name == "nt":
+                import msvcrt
+                stream.seek(0)
+                # Windows permits a byte-range lock beyond EOF; no initialization
+                # write is needed, even when concurrent openers create the file.
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise ImportSafetyError(
+                f"cannot acquire bank import lock {lock_path}: {exc}; "
+                "retry after the current owner exits; do not delete the lock file"
+            ) from exc
+        yield BankImportLock(bank_path, stream, (os.getpid(), threading.get_ident()))
 
 
 @dataclass(frozen=True)
@@ -424,9 +478,15 @@ def _write_new(path: Path, data: bytes) -> None:
 def _load_manifest(pointer_path: Path) -> tuple[Path, dict[str, Any]]:
     try:
         pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+        if not isinstance(pointer, dict) or not isinstance(pointer.get("manifest_path"), str):
+            raise ValueError("pending pointer must name a manifest")
         manifest_path = Path(pointer["manifest_path"])
+        if not manifest_path.is_absolute():
+            raise ValueError("manifest path must be absolute")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, KeyError, json.JSONDecodeError) as exc:
+        if not isinstance(manifest, dict):
+            raise ValueError("manifest must be an object")
+    except (OSError, ValueError) as exc:
         raise ImportSafetyError(f"invalid pending import transaction {pointer_path}: {exc}") from exc
     if manifest.get("schema") != "are-coach.generated-import-transaction.v1":
         raise ImportSafetyError(f"unsupported pending transaction schema: {manifest_path}")
@@ -443,6 +503,20 @@ def _load_manifest(pointer_path: Path) -> tuple[Path, dict[str, Any]]:
     missing = sorted(required - set(manifest))
     if missing:
         raise ImportSafetyError(f"pending transaction is missing fields: {missing}")
+    paths = [pointer_path, manifest_path]
+    for field in ("bank_path", "journal_path", "bank_staged_path", "journal_staged_path"):
+        value = manifest[field]
+        if not isinstance(value, str) or not value or not Path(value).is_absolute():
+            raise ImportSafetyError(f"invalid transaction path: {field}")
+        paths.append(Path(value))
+    if len({_normalized_path(path) for path in paths}) != len(paths):
+        raise ImportSafetyError("transaction target, staged, manifest and pointer paths must be distinct")
+    for field in ("bank_before_sha256", "journal_before_sha256", "bank_after_sha256", "journal_after_sha256"):
+        value = manifest[field]
+        if field == "journal_before_sha256" and value is None:
+            continue
+        if not isinstance(value, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", value):
+            raise ImportSafetyError(f"invalid transaction hash: {field}")
     return manifest_path, manifest
 
 
@@ -469,40 +543,77 @@ def recover_pending_transaction(
     expected_bank_path: Path | None = None,
     expected_journal_path: Path | None = None,
     replace_target: Callable[[str | Path, str | Path], Any] = os.replace,
+    lock: BankImportLock | None = None,
 ) -> bool:
     """Roll a known partial transaction forward; reject unknown target states."""
     if not pointer_path.exists():
         return False
-    manifest_path, manifest = _load_manifest(pointer_path)
-    bank_path = Path(manifest["bank_path"])
-    journal_path = Path(manifest["journal_path"])
-    if expected_bank_path is not None and bank_path.resolve() != expected_bank_path.resolve():
+    if expected_bank_path is None:
+        _, manifest = _load_manifest(pointer_path)
+        expected_bank_path = Path(manifest["bank_path"])
+    with bank_import_lock(expected_bank_path, lock):
+        return _recover_pending_transaction_locked(
+            pointer_path, expected_bank_path=expected_bank_path,
+            expected_journal_path=expected_journal_path, replace_target=replace_target,
+        )
+
+
+def _recover_pending_transaction_locked(
+    pointer_path: Path, *, expected_bank_path: Path,
+    expected_journal_path: Path | None,
+    replace_target: Callable[[str | Path, str | Path], Any],
+) -> bool:
+    if not pointer_path.exists():
+        return False
+    _, manifest = _load_manifest(pointer_path)
+    bank_path = _normalized_path(Path(manifest["bank_path"]))
+    journal_path = _normalized_path(Path(manifest["journal_path"]))
+    if _normalized_path(bank_path) != _normalized_path(expected_bank_path):
         raise ImportSafetyError("pending transaction points to an unexpected bank path")
-    if expected_journal_path is not None and journal_path.resolve() != expected_journal_path.resolve():
+    if expected_journal_path is not None and _normalized_path(journal_path) != _normalized_path(expected_journal_path):
         raise ImportSafetyError("pending transaction points to an unexpected journal path")
 
-    def finish_target(name: str, target: Path) -> None:
+    # Preflight BOTH targets and every after-image still needed, before the
+    # first mutation. Completed replacements consumed their staged file, so in
+    # that case the hash-verified target itself supplies the prepared image.
+    replacements: list[tuple[str, Path, Path, str]] = []
+    prepared: dict[str, Any] = {}
+    for name, target in (("bank", bank_path), ("journal", journal_path)):
         before = manifest[f"{name}_before_sha256"]
         after = manifest[f"{name}_after_sha256"]
         current = _file_hash(target)
         if current == after:
-            return
-        if current != before:
+            image = target
+        elif current == before:
+            image = Path(manifest[f"{name}_staged_path"])
+            replacements.append((name, image, target, after))
+        else:
             raise ImportSafetyError(
                 f"cannot recover {name}: current target matches neither before nor after hash"
             )
-        staged = Path(manifest[f"{name}_staged_path"])
-        if _file_hash(staged) != after:
+        try:
+            data = image.read_bytes()
+        except OSError as exc:
+            raise ImportSafetyError(f"cannot recover {name}: prepared image is unavailable: {exc}") from exc
+        if _hash_bytes(data) != after:
             raise ImportSafetyError(f"cannot recover {name}: staged file is missing or changed")
+        try:
+            prepared[name] = json.loads(data.decode("utf-8-sig"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ImportSafetyError(f"cannot recover {name}: invalid prepared JSON: {exc}") from exc
+
+    prepared_bank = _validate_bank(prepared["bank"])
+    prepared_journal = _validate_journal(prepared["journal"])
+    verify_bank_journal_consistency(prepared_bank, prepared_journal)
+
+    for name, staged, target, after in replacements:
         target.parent.mkdir(parents=True, exist_ok=True)
         replace_target(staged, target)
         if _file_hash(target) != after:
             raise ImportSafetyError(f"recovered {name} did not match expected hash")
 
-    finish_target("bank", bank_path)
-    finish_target("journal", journal_path)
-    manifest["status"] = "complete"
-    manifest_path.write_bytes(_pretty_json(manifest))
+    # Keep the prepared manifest immutable. If cleanup fails or the process
+    # dies, the next owner verifies both after-hashes and retries only unlink.
     pointer_path.unlink()
     return True
 
@@ -515,10 +626,24 @@ def apply_import_plan(
     backups_dir: Path,
     transaction_pointer: Path | None = None,
     replace_target: Callable[[str | Path, str | Path], Any] = os.replace,
+    lock: BankImportLock | None = None,
 ) -> Path | None:
     """Stage bank+journal together and commit with a recoverable marker."""
     if not plan.additions:
         return None
+    with bank_import_lock(bank_path, lock) as held:
+        return _apply_import_plan_locked(
+            plan, bank_path=bank_path, journal_path=journal_path,
+            backups_dir=backups_dir, transaction_pointer=transaction_pointer,
+            replace_target=replace_target, lock=held,
+        )
+
+
+def _apply_import_plan_locked(
+    plan: ImportPlan, *, bank_path: Path, journal_path: Path, backups_dir: Path,
+    transaction_pointer: Path | None,
+    replace_target: Callable[[str | Path, str | Path], Any], lock: BankImportLock,
+) -> Path:
     transaction_pointer = transaction_pointer or transaction_pointer_for(journal_path)
     if transaction_pointer.exists():
         raise ImportSafetyError(
@@ -578,6 +703,7 @@ def apply_import_plan(
         expected_bank_path=bank_path,
         expected_journal_path=journal_path,
         replace_target=replace_target,
+        lock=lock,
     )
 
     # Read back both targets and re-check their cross-reference after the commit.

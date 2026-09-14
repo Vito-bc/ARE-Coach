@@ -347,7 +347,7 @@ class GeneratedImportTest(unittest.TestCase):
         worker = threading.Thread(target=first_apply, daemon=True)
         worker.start()
         self.assertTrue(bank_replace_entered.wait(timeout=10))
-        with self.assertRaisesRegex(ImportSafetyError, "pending import transaction exists"):
+        with self.assertRaisesRegex(ImportSafetyError, "bank import lock"):
             apply_import_plan(
                 plan,
                 bank_path=self.bank,
