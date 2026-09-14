@@ -1,6 +1,162 @@
 # ARE Coach recovery roadmap
 
-## Current iteration: StoreKit 2 and Apple account binding
+## Current iteration: RAG/content recovery
+
+Updated 2026-09-14. PR #53 is merged; verified local `origin/main` and the
+remote main ref both point to `d5e192c856986fa8c145647f2a56bc896e3ac0af`.
+The current bounded task is RAG/content recovery. Inventory and the first
+architect packet are complete; the current implementation protects import of
+new generated candidates. **The payment phase is not fully complete.**
+
+The owner currently has neither a Mac nor Apple Developer Program membership.
+iOS device testing is deferred until closed-beta preparation. This is a schedule
+decision, not device sign-off or removal of payment release blockers.
+
+### Verified content inventory and immediate work
+
+See [RAG_RECOVERY_INVENTORY.md](RAG_RECOVERY_INVENTORY.md) for search boundaries,
+counts, editions, pipeline findings and preservation evidence. The full 18-item
+architect packet is local-only under
+`build/maryana-review-batch-01-20260914/`; question text and review materials
+must not be published in Git.
+
+- Found all 26 registered PDFs, plus two starter MD sources. Read-only extraction
+  counted 3,441 chunks (3,440 unique texts); the saved Coach index has 1,503 rows
+  (1,502 unique texts). Its entries match current source chunks; it omits BC Ch.08.
+- The local NCARB file is **September 2022 ARE 5.0 Guidelines**, despite its
+  `handbook` filename. It does not establish the bank's April 2026 citations.
+  AIA, AHPP and CSI source files were not found in the bounded local/backup search.
+  Source edition/provenance recovery remains necessary before further generation.
+- Current bank: 1,082 unique IDs. Generated reports: 40 unique candidates,
+  28 accepted by the automated gate, with no recorded human approval. Historical
+  1,100-row audit/snapshot counts are not the size of the current bank.
+- RED remains **127 unresolved unique IDs**, all present and content-matching
+  in the bank. No verdict, notes or Excel comments were found in any review-book
+  version or backup. These are review candidates, not 127 established errors.
+  The two 692-row worklist versions have the same IDs/common values; `_new`
+  lacks `priority`. Do not regenerate or overwrite any existing workbook.
+- **Next concrete action:** architect reviews the proposed 18 IDs in the existing
+  RED workbook, recording verdict and source edition/section in notes. Missing
+  exact sources remain explicit blockers to those decisions. No automated
+  verdict, question-bank edit or quarantine is part of this inventory.
+
+### Completed protection for generated-candidate import
+
+The generated-question CLI now enforces the following controls. This completion
+applies to generated-candidate import only; it does not approve candidates or
+change the bank.
+
+1. `merge_accepted` requires a readable versioned review workbook in every mode.
+   Only an explicit `Approve` on the exact candidate can pass. Blank, `Reject`,
+   `Needs edit`, invalid verdicts, missing/legacy books and duplicate/conflicting
+   IDs fail closed. Omitting the legacy `--reviewed` flag cannot bypass review.
+2. The review workbook binds each row and the full input snapshot to reproducible
+   SHA-256 fingerprints. Import rechecks the visible question, options, answer,
+   explanation and source cells; editing candidate JSON or those Excel cells
+   requires a new workbook and new human approval. Existing workbooks are never
+   overwritten and legacy books receive no automatic approval or migration.
+3. On a future real apply, the separate non-Flutter provenance journal records
+   candidate ID → `gen_qN`, the reviewed fingerprint, complete candidate snapshot,
+   human-review evidence, `grounded_on`, every available source field and an
+   explicit missing-field list. Reapplying the same approved version is idempotent.
+4. Bank and journal updates use staged before/after hashes and a pending marker.
+   Partial target replacement is detected and can be rolled forward from retained
+   transaction evidence; unknown target content blocks automatic recovery.
+
+No real review workbook, RED/worklist file, architect packet, generated candidate,
+provenance journal or question-bank row was changed while implementing this gate.
+Audit-driven edits/removals still require an equivalent explicit human-approval
+path before they may be applied.
+
+### Open source-provenance and recovery work
+
+1. **Page-aware ingestion:** preserve physical PDF page, stable chunk identity and
+   source SHA-256 during extraction/indexing instead of recovering page data later.
+2. **Edition and applicability control:** carry edition/revision as structured data
+   and require an explicit applicability decision before substituting NYC material
+   or a newer edition for an ARE-cited source.
+3. **Provenance completeness:** propagate document identity, edition, page, chunk
+   and source hash through generation and review. The import journal now exposes
+   missing fields but cannot supply metadata absent from the candidate snapshot.
+4. **Independent backup:** back up corpus, source manifest, review workbook,
+   candidate-to-bank journal, provenance, index and bank snapshot outside this
+   disk/sync boundary, then verify restoration. The destination has not been
+   selected; this task remains open and no external backup is claimed.
+
+The payment release blockers below remain open and unchanged in status while
+this content work continues.
+
+### Preservation and independent backup requirement
+
+New work uses `codex/rag-content-recovery-20260913` in
+`build/rag-recovery-worktree`, created clean from the verified main SHA.
+The original `codex/iap-lifecycle-followup` checkout retains all 25 local changes.
+Its prior snapshot and ZIP were hash-verified and preserved; an additional
+25-file ZIP, manifest, status and binary diff were saved in a local temporary
+preservation archive outside this worktree.
+
+The same-disk corpus backup was checked against its manifest: all **4,464 files /
+115,050,139 bytes** match both the backup and current sources. This remains a
+temporary safeguard. **Independent,
+durable corpus backup is required:** separate storage/account, access controls,
+source/review/index/bank manifests and a verified restore. Destination is not yet
+specified; no external copy is claimed. OneDrive sync alone is not this evidence.
+
+The current review set contains Python CLI, tests and documentation only. PDFs,
+private notes, workbook contents, extracted text, secrets and indexes stay
+local/ignored. No generation, embedding, index rebuild, real bank mutation,
+reset/clean, push, merge, deployment or store changes were performed. Payment
+code and runtime payment tests were not touched for this content task.
+
+### Remaining payment release blockers (separate workstream)
+
+PR #52 implemented StoreKit 2/JWS verification and atomic Apple account ownership;
+PR #53 added isolated Apple Sandbox purchase/restore and worker-bootstrap fixes.
+Those implementation changes are merged. Historical statements below describing
+missing JWS transport or an open draft are superseded, not reopened as new work.
+Implementation and previous local/CI evidence do not establish release readiness.
+
+1. **Apple external setup and signed beta artifacts:** Mac access, Apple Developer
+   Program, app/bundle/numeric app IDs, products/subscription groups, signing and
+   provisioning, Sandbox accounts, dedicated non-production Firebase project/app,
+   Auth, App Check, Functions configuration/secrets and canonical endpoint.
+   Independently verify environment agreement before the device run.
+2. **Deferred iOS device/Sandbox sign-off:** purchase, restore, cancellation,
+   pending/Ask-to-Buy, interrupted checkout/finishing, restart/cold start,
+   expiry/renewal/refund and A/B account-switch/replay scenarios. Resume during
+   closed-beta preparation; signed-device/TestFlight evidence is still absent.
+3. **Lifecycle synchronization:** App Store Server Notifications v2 and Play RTDN
+   or an explicitly justified alternative, retries and periodic reconciliation.
+   Old signed proof alone does not reveal a later refund/revocation.
+4. **Rejected/unsupported transaction finalization:** separate delivery/finalization
+   policy and device evidence; rejected transactions remain `not_safe`, and unknown
+   paid products need an explicit fulfillment/migration policy.
+5. **Historical ownership recovery:** safe support/migration for legacy receipts,
+   missing/mismatched appAccountToken and family sharing. First receipt claimant
+   must not become owner automatically. Preserve cross-account/replay protection.
+6. **Android release:** verify Play app/service-account/API and subscription/base-plan
+   configuration, license-tester purchase/restore, interrupted acknowledgment and
+   device recovery. Confirm receipt/token ownership and concurrent replay behavior
+   for Play separately; Apple binding is not evidence for Play. New Android sales
+   remain default-off until release approval and store evidence.
+7. **Release review:** recheck dependency findings for the actual release tree
+   (historical eight moderate findings are not a current security count), store
+   disclosures/configuration, signed artifacts, exact release CI and explicit
+   sales enablement approval. No external settings were inspected or changed here.
+8. **Platform/product limits:** web checkout is unimplemented and full Flutter web
+   integration sign-off remains absent (historical CanvasKit limitation).
+   Sandbox Premium is private to its environment; Coach quota/server features
+   reading production `users/{uid}` are not proof of sandbox payment integration.
+
+Use [MONETIZATION_PREP.md](MONETIZATION_PREP.md) for the existing device runbook
+and evidence fields. Payments, Android and web stay on the roadmap while current
+work proceeds on content recovery.
+
+## Archived evidence: StoreKit 2 and Apple account binding
+
+The following records describe previous iterations. Their then-current branches,
+draft status, authorizations and future steps are historical. The current scope,
+main SHA, deferred device schedule and release blockers above take precedence.
 
 Updated 2026-09-13. PR [#51](https://github.com/Vito-bc/ARE-Coach/pull/51)
 is **merged**, squash/main `bab1534524c545ce8d9e13dadac378174cb6ec67`.

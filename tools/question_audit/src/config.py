@@ -18,5 +18,10 @@ QUESTIONS_PATH = REPO_ROOT / "assets" / "seeds" / "questions_ny.json"
 # Where every report is written.
 REPORTS_DIR = TOOL_DIR / "reports"
 
+# Generated-question imports keep their provenance outside the Flutter asset
+# manifest.  The journal must be reviewed and committed with any real bank
+# change so candidate IDs remain traceable after allocation of gen_qN IDs.
+GENERATED_IMPORT_JOURNAL = REPO_ROOT / "assets" / "seeds" / "questions_ny.provenance.json"
+
 # Fixed seed so the 50-item sample (and any sampling) is reproducible.
 RANDOM_SEED = 42

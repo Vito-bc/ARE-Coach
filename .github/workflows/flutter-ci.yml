@@ -54,10 +54,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      # check_bank only needs pydantic — don't drag the grader/embedding stack
-      # (anthropic, sentence-transformers, torch) into every PR.
+      # Keep the content gate small: schema checks need pydantic and the
+      # generated-candidate approval regressions need openpyxl. Do not install
+      # the grader/embedding stack (anthropic, sentence-transformers, torch).
       - name: Install dependencies
-        run: pip install "pydantic==2.9.2"
+        run: pip install "pydantic==2.9.2" "openpyxl==3.1.5"
 
       # Guards the question bank and flashcards against defects that have each
       # already reached main once: broken encoding, citations to a superseded
@@ -66,6 +67,10 @@ jobs:
       - name: Check question bank
         working-directory: tools/question_audit
         run: python -m src.check_bank
+
+      - name: Test generated-candidate approval gate
+        working-directory: tools/question_audit
+        run: python -m unittest discover -s tests -v
 
   functions:
     name: Cloud Functions tests
