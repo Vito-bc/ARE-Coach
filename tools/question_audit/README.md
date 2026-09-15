@@ -68,19 +68,68 @@ improving distractors, verifying citations — need the architect, via `maryana_
 ## Phase 2 — Generate (grow the bank with RAG)
 
 Pipeline: **retrieve source chunk → generate a grounded question → 5-grader gate →
-distractor-repair → dedup vs bank.** Only strong items survive; a human reviews a sample.
+distractor-repair → dedup vs bank → explicit human approval of the exact candidate
+version.** The automated gate only creates review candidates; it never authorizes import.
 
 ```bash
 # put source files (.md/.txt/.pdf) in corpus/ first (see corpus/README.md, SOURCES.md)
 python -m src.corpus --query "accessible route width"           # test retrieval (free)
 python -m src.generate --grounded --n 40 --repair-attempts 2    # RAG-generate + auto-filter
-python -m src.review_generated                                  # -> generated_review.xlsx (architect approves)
-python -m src.merge_accepted --reviewed --apply                 # append only Approve'd rows -> bank
+python -m src.review_generated --output generated_review_YYYYMMDD.xlsx
+# architect fills REVIEW: verdict; do not edit candidate content in the workbook
+python -m src.merge_accepted --review-book generated_review_YYYYMMDD.xlsx
+python -m src.merge_accepted --review-book generated_review_YYYYMMDD.xlsx --apply
 ```
 
 The gate is strict (judgment, distractor avg ≥3.3 with no throwaway, consistent, no
 leakage, not a duplicate). Distractor-repair regenerates only weak distractors instead
 of discarding a good question — **yield ~80%, ~$0.07 per accepted question.**
+
+`review_generated` refuses to overwrite an existing workbook. Choose a new `--output`
+name for every review snapshot. Each row contains a hidden SHA-256 fingerprint of the
+complete candidate record, and the workbook contains a hash of the complete candidate
+snapshot. `merge_accepted` also compares the visible question, options, correct answer,
+explanation and source cells with that snapshot. A candidate change or a manual content
+edit in Excel therefore requires a new workbook and a new human verdict.
+
+Human approval is mandatory even when `--reviewed` is omitted (the old flag is retained
+only as a command-line compatibility no-op). Only an exact `Approve` can pass. Blank,
+`Reject`, `Needs edit`, invalid verdicts, missing/legacy workbooks, duplicate IDs and
+fingerprint mismatches fail closed. Legacy review books have no trustworthy fingerprint
+and are not migrated or approved automatically.
+
+Dry-run remains the default and prints `ADD`, `BLOCK` and `ALREADY` decisions without
+writing. On `--apply`, the assigned `gen_qN` mapping, reviewed fingerprint, complete
+candidate snapshot, `grounded_on`, all available source fields and an explicit list of
+missing source fields are written to
+`assets/seeds/questions_ny.provenance.json`. This sidecar is outside the Flutter asset
+manifest; review it and commit it together with any real bank update. Review notes are
+represented by presence and SHA-256, not copied into the journal.
+
+The bank and provenance journal are staged as one recoverable transaction. If either
+replacement fails, the pending marker records before/after hashes and the ignored
+`backups/generated_import_transactions/` directory retains recovery evidence. Re-run
+the same `--apply` command to roll a verified partial transaction forward. Dry-run only
+reports a pending transaction and never changes it. Reapplying an already recorded
+candidate version reports `ALREADY` and creates no duplicate. An OS lock on the
+normalized bank path covers pending inspection, recovery, planning, commit and
+cleanup. An overlapping `--apply` exits with code 2 and can be retried after the
+owner exits. Windows uses `msvcrt.locking`; Linux uses `fcntl.flock`. The adjacent
+`.questions_ny.json.generated-import.lock` file remains on disk: the kernel releases
+ownership on close or process termination. Never delete it to clear a lock.
+
+Recovery validates both target states, every prepared after-image still needed,
+and bank/journal cross-references before replacing either target. Unknown contents
+or damaged staged files stop recovery before any replacement. The manifest stays
+immutable; a crash before pending-marker cleanup leaves enough evidence for an
+idempotent retry. Error output describes the current pending/verified state, since
+recovery may already have written data before a later validation failure.
+
+The lock coordinates cooperating processes on one host using a local filesystem.
+It is not a distributed lock for separate machines, cloud-sync replicas, or editors
+that bypass this importer. Dry-run does not create/acquire a lock or recover data.
+See [recovery regression evidence](../../docs/GENERATED_IMPORT_RECOVERY_EVIDENCE.md)
+for fault boundaries, subprocess tests and platform coverage.
 
 ⚠️ `corpus/` ships with a tiny **public-fact sample** (ADA, NYC codes) to prove the
 pipeline. Replace/expand with real sources for full coverage. Do **not** ingest full
@@ -99,7 +148,10 @@ src/
   validate.py  run_audit.py  run_batch.py   # audit
   dedupe.py  worklist.py                     # dedup + architect worklist
   fix_positions.py  remove_dups.py           # remediation
-  corpus.py  generate.py  merge_accepted.py  # RAG generation
+  corpus.py  generate.py                       # RAG generation
+  generated_approval.py  generated_import.py   # exact-version review + provenance
+  review_generated.py  merge_accepted.py       # protected human-review import
+tests/              generated-candidate approval/transaction regressions
 reports/           generated CSV/JSON/XLSX (git-ignored)
 corpus/            source documents for RAG
 backups/           question-bank safety copies (git-ignored)

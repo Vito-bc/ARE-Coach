@@ -1,116 +1,153 @@
-"""Phase 2 — merge accepted generated questions into the bank.
+"""Import generated candidates only after version-matched human approval.
 
-Reads reports/generated_accepted.json (candidates that passed the auto gate),
-assigns fresh 'gen_qN' ids, keeps only the schema fields, validates each, and
-appends to questions_ny.json. Backs up first; dry-run by default.
-
-INTENDED FLOW: generate -> gate -> a HUMAN (architect) reviews the accepted
-sample -> merge. Only run --apply on questions a human has approved.
+Dry-run is the default.  Human review is mandatory in every mode; the legacy
+``--reviewed`` switch is accepted only for command compatibility and never
+changes the approval requirement.
 
 Usage (from tools/question_audit/):
-    python -m src.merge_accepted            # dry-run
-    python -m src.merge_accepted --apply
+    python -m src.merge_accepted
+    python -m src.merge_accepted --review-book generated_review_20260914.xlsx
+    python -m src.merge_accepted --review-book generated_review_20260914.xlsx --apply
 """
 from __future__ import annotations
 
 import argparse
-import json
-import re
-import shutil
-from datetime import datetime
+from contextlib import nullcontext
+from pathlib import Path
 
 from src import config
-from src.schema import Question, load_questions
-
-_FIELDS = [
-    "id", "state", "section", "difficulty", "question", "options",
-    "correctOption", "explanation", "codeReference", "examWeight", "topic",
-]
-
-
-def _gen_ids(existing: set[str]):
-    """Yield fresh, non-colliding gen_qN ids continuing past any existing ones."""
-    n = max((int(m.group(1)) for i in existing if (m := re.fullmatch(r"gen_q(\d+)", i))), default=0)
-    while True:
-        n += 1
-        yield f"gen_q{n}"
-
-
-def _approved_ids() -> set[str]:
-    """Read generated_review.xlsx and return the ids marked 'Approve'."""
-    from openpyxl import load_workbook
-
-    path = config.REPORTS_DIR / "generated_review.xlsx"
-    if not path.exists():
-        print(f"No {path.name} — run `python -m src.review_generated` and have the architect fill it.")
-        return set()
-    ws = load_workbook(path, read_only=True).active
-    header = [c.value for c in next(ws.iter_rows(max_row=1))]
-    vcol, icol = header.index("REVIEW: verdict"), header.index("id")
-    approved = set()
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        if row[vcol] and str(row[vcol]).strip().lower() == "approve":
-            approved.add(row[icol])
-    return approved
+from src.generated_approval import ApprovalError, load_candidates, read_review_workbook
+from src.generated_import import (
+    BankImportLock,
+    ImportSafetyError,
+    apply_import_plan,
+    bank_import_lock,
+    build_import_plan,
+    load_bank,
+    load_journal,
+    pending_transaction_state,
+    recover_pending_transaction,
+    transaction_pointer_for,
+    verify_bank_journal_consistency,
+)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--apply", action="store_true")
-    ap.add_argument("--input", default="generated_accepted.json")
-    ap.add_argument("--reviewed", action="store_true",
-                    help="merge only rows marked 'Approve' in generated_review.xlsx")
-    args = ap.parse_args()
+def _reports_path(value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else config.REPORTS_DIR / path
 
-    src_path = config.REPORTS_DIR / args.input
-    accepted = json.loads(src_path.read_text(encoding="utf-8")) if src_path.exists() else []
-    if not accepted:
-        print(f"No accepted candidates in {src_path.name}.")
-        return
 
-    if args.reviewed:
-        approved = _approved_ids()
-        before = len(accepted)
-        accepted = [r for r in accepted if r.get("id") in approved]
-        print(f"Human review: {len(approved)} marked Approve -> {len(accepted)}/{before} candidates pass.")
-        if not accepted:
-            print("Nothing approved to merge.")
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--input", default="generated_accepted.json")
+    parser.add_argument("--review-book", default="generated_review.xlsx")
+    parser.add_argument("--bank", type=Path, default=config.QUESTIONS_PATH, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--journal", type=Path, default=config.GENERATED_IMPORT_JOURNAL, help=argparse.SUPPRESS
+    )
+    parser.add_argument("--backups-dir", type=Path, default=config.TOOL_DIR / "backups", help=argparse.SUPPRESS)
+    parser.add_argument("--reviewed", action="store_true", help=argparse.SUPPRESS)
+    args = parser.parse_args(argv)
+
+    args.bank = args.bank.resolve()
+    args.journal = args.journal.resolve()
+    try:
+        # Take ownership BEFORE inspecting pending state; keep it until every
+        # recovery, plan, write, cleanup and error-state inspection has finished.
+        with bank_import_lock(args.bank) if args.apply else nullcontext(None) as lock:
+            return _run(args, lock)
+    except (ImportSafetyError, OSError) as exc:
+        print(f"REFUSED: {exc}")
+        return 2
+
+
+def _report_current_state(bank_path: Path, journal_path: Path, pointer: Path) -> None:
+    try:
+        pending = pending_transaction_state(pointer)
+        if pending:
+            print(f"Pending transaction: {pending}.")
+            print("Re-run --apply to attempt recovery only after both targets and prepared images validate.")
             return
+        bank, journal = load_bank(bank_path), load_journal(journal_path)
+        verify_bank_journal_consistency(bank, journal)
+        print(f"Current bank/journal are consistent: {len(bank)} questions, {len(journal['imports'])} recorded imports; no pending transaction.")
+    except (ImportSafetyError, OSError, ValueError) as exc:
+        print(f"Current state cannot be verified: {exc}. Preserve transaction evidence for manual recovery.")
 
-    bank = json.loads(config.QUESTIONS_PATH.read_text(encoding="utf-8-sig"))
-    ids = _gen_ids({q["id"] for q in bank})
 
-    new_rows = []
-    for rec in accepted:
-        row = {k: rec.get(k) for k in _FIELDS}
-        row["id"], row["state"] = next(ids), "NY"
-        try:
-            Question(**row)  # validate against the schema
-        except Exception as e:
-            print(f"  SKIP invalid candidate ({e})")
-            continue
-        new_rows.append(row)
+def _run(args: argparse.Namespace, lock: BankImportLock | None) -> int:
+    source_path = _reports_path(args.input)
+    review_path = _reports_path(args.review_book)
+    bank_path = args.bank.resolve()
+    journal_path = args.journal.resolve()
+    transaction_pointer = transaction_pointer_for(journal_path)
 
-    print(f"Bank {len(bank)} + {len(new_rows)} accepted -> {len(bank) + len(new_rows)}")
-    for r in new_rows:
-        print(f"  + {r['id']} [{r['section']}] {r['question'][:60]}")
-    print("\nNOTE: these passed the AUTO gate only — a human (architect) should review before shipping.")
+    try:
+        pending = pending_transaction_state(transaction_pointer)
+        if pending:
+            if not args.apply:
+                raise ImportSafetyError(
+                    f"pending bank/journal transaction detected ({pending}); dry-run will not mutate it. "
+                    "Run the same command with --apply to complete verified recovery."
+                )
+            print(f"RECOVERY: {pending}")
+            recover_pending_transaction(
+                transaction_pointer,
+                expected_bank_path=bank_path,
+                expected_journal_path=journal_path,
+                lock=lock,
+            )
+            print("RECOVERY: bank and provenance journal now match the staged transaction.")
 
-    if args.apply:
-        backups = config.TOOL_DIR / "backups"
-        backups.mkdir(exist_ok=True)
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        bak = backups / f"questions_ny_{ts}_premerge.json"
-        shutil.copy2(config.QUESTIONS_PATH, bak)
-        config.QUESTIONS_PATH.write_text(
-            json.dumps(bank + new_rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        candidates = load_candidates(source_path)
+        review = read_review_workbook(candidates, review_path, source_path=source_path)
+        bank = load_bank(bank_path)
+        journal = load_journal(journal_path)
+        plan = build_import_plan(bank, journal, review, review_path=review_path)
+
+        print(
+            "Human review: "
+            f"{len(plan.additions)} to add, {len(plan.already_imported)} already imported, "
+            f"{len(plan.blocked)} blocked."
         )
-        res = load_questions(config.QUESTIONS_PATH)
-        print(f"BACKED UP -> backups/{bak.name}; wrote {len(bank) + len(new_rows)}. "
-              f"Valid: {len(res.valid)}, invalid: {len(res.errors)}")
-    else:
-        print("DRY-RUN — nothing written. Re-run with --apply.")
+        for item in plan.items:
+            if item.status == "add":
+                print(f"  ADD {item.candidate_id} -> {item.bank_id}: {item.reason}")
+            elif item.status == "already_imported":
+                print(f"  ALREADY {item.candidate_id} -> {item.bank_id}: {item.reason}")
+            else:
+                print(f"  BLOCK {item.candidate_id}: {item.reason}")
+
+        if not args.apply:
+            print("DRY-RUN - bank, provenance journal and review workbook were not changed.")
+            return 0
+        if not plan.additions:
+            print("No additional candidates to import.")
+            return 0
+
+        transaction_dir = apply_import_plan(
+            plan,
+            bank_path=bank_path,
+            journal_path=journal_path,
+            backups_dir=args.backups_dir.resolve(),
+            transaction_pointer=transaction_pointer,
+            lock=lock,
+        )
+    except (ApprovalError, ImportSafetyError, OSError, ValueError) as exc:
+        print(f"REFUSED / INTERRUPTED: {exc}")
+        if args.apply:
+            _report_current_state(bank_path, journal_path, transaction_pointer)
+        else:
+            print("DRY-RUN: no data was changed; recovery was not attempted.")
+        return 2
+
+    print(
+        f"Imported {len(plan.additions)} question(s). Bank and provenance journal verified. "
+        f"Recovery evidence: {transaction_dir}"
+    )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
