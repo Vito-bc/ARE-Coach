@@ -31,6 +31,20 @@ const PUBLIC_SOURCE_FIELDS = Object.freeze([
   "source_revision",
   "source_missing_metadata",
   "source_not_applicable_metadata",
+  "source_policy_schema",
+  "source_family_id",
+  "source_title",
+  "source_issuing_authority",
+  "source_jurisdictions",
+  "source_scope",
+  "source_exam_divisions",
+  "source_applicability_status",
+  "source_applicability_evidence",
+  "source_usage_permission_status",
+  "source_permitted_uses",
+  "source_usage_permission_note",
+  "source_policy_profiles",
+  "source_policy_decisions",
 ]);
 
 function selectFields(value, fields) {

@@ -23,6 +23,26 @@ const CORPUS = [
     source_revision: null,
     source_missing_metadata: ["source_revision"],
     source_not_applicable_metadata: [],
+    source_policy_schema: "are-coach.source-policy.v1",
+    source_family_id: "nyc.building-code",
+    source_title: "New York City Building Code",
+    source_issuing_authority: "NYC Department of Buildings",
+    source_jurisdictions: ["NYC"],
+    source_scope: "NYC Building Code requirements in the reviewed chapters",
+    source_exam_divisions: ["NYC Building Codes"],
+    source_applicability_status: "approved",
+    source_applicability_evidence: "Synthetic owner-reviewed evidence",
+    source_usage_permission_status: "approved",
+    source_permitted_uses: ["human_review", "coach_index"],
+    source_usage_permission_note: "Synthetic fixture may be indexed",
+    source_policy_profiles: ["are-coach.nyc-2026.v1"],
+    source_policy_decisions: [
+      {
+        schema: "are-coach.source-policy-decision.v1",
+        outcome: "eligible",
+        reasons: [],
+      },
+    ],
     sections: ["1005.3", "1005.3.1"],
     text:
       "The capacity, in inches, of means of egress stairways shall be calculated by " +
@@ -164,8 +184,16 @@ test("returned passages preserve versioned source provenance", () => {
   assert.equal(top.source_page, 17);
   assert.equal(top.source_chunk_id, "chunk:synthetic-egress-page-17");
   assert.deepEqual(top.source_missing_metadata, ["source_revision"]);
+  assert.equal(top.source_policy_schema, "are-coach.source-policy.v1");
+  assert.equal(top.source_family_id, "nyc.building-code");
+  assert.deepEqual(top.source_jurisdictions, ["NYC"]);
+  assert.equal(top.source_scope, "NYC Building Code requirements in the reviewed chapters");
+  assert.deepEqual(top.source_permitted_uses, ["human_review", "coach_index"]);
+  assert.equal(top.source_policy_decisions[0].outcome, "eligible");
   const publicSource = sourceProvenance(top);
   assert.equal(publicSource.source_chunk_id, "chunk:synthetic-egress-page-17");
+  assert.equal(publicSource.source_family_id, "nyc.building-code");
+  assert.deepEqual(publicSource.source_policy_profiles, ["are-coach.nyc-2026.v1"]);
   assert.ok(!("text" in publicSource));
   assert.ok(!("sections" in publicSource));
   assert.ok(!("score" in publicSource));

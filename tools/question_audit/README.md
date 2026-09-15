@@ -71,7 +71,7 @@ Pipeline: **retrieve source chunk → generate a grounded question → 5-grader 
 distractor-repair → dedup vs bank → explicit human approval of the exact candidate
 version.** The automated gate only creates review candidates; it never authorizes import.
 
-### Page-aware source provenance
+### Page-aware provenance and fail-closed source policy
 
 Newly ingested chunks carry `source_metadata_schema=are-coach.corpus-chunk.v1`
 alongside the existing `source`, `ref`, and `text` fields. The versioned metadata is:
@@ -88,41 +88,106 @@ alongside the existing `source`, `ref`, and `text` fields. The versioned metadat
 - `source_missing_metadata` and `source_not_applicable_metadata`: explicit unknown
   and non-applicable fields.
 
+The chunk identity contract remains `are-coach.corpus-chunk.v1`: adding or editing
+policy metadata does not change the source hash, document ID, physical PDF page,
+locator, or chunk ID. Source policy is a separate versioned dimension. A governed
+chunk carries `source_policy_schema=are-coach.source-policy.v1` plus:
+
+- `source_family_id`, `source_title`, and `source_issuing_authority`;
+- explicit `source_jurisdictions`, `source_scope`, and `source_exam_divisions`;
+- `source_applicability_status` with owner-supplied evidence;
+- `source_usage_permission_status`, `source_permitted_uses`, and an owner note;
+- `source_policy_profiles`, which bind the reviewed edition/revision and
+  applicability declaration to an explicit target policy.
+
+Applicability and permission are independent. The code does not decide whether a
+source is licensed; it enforces the status recorded by the owner. Missing, unknown,
+pending, malformed, or mismatched metadata never becomes permission for generation
+or indexing. Permission for `human_review` does not imply permission for
+`question_generation` or `coach_index`.
+
 PDF pages are extracted and chunked independently. Empty or unextractable pages emit
 an `are-coach.corpus-ingestion-diagnostic.v1` diagnostic at their unchanged physical
 page number; OCR is not attempted. A physical PDF page is not a printed page number.
 Long single paragraphs are split deterministically and never exceed `max_len`.
 
-Optional explicit edition/revision metadata belongs in local
+Explicit version and policy metadata belongs in local
 `corpus/source_metadata.json`:
 
 ```json
 {
-  "schema": "are-coach.corpus-source-metadata.v1",
+  "schema": "are-coach.corpus-source-metadata.v2",
   "sources": {
     "codes/example.pdf": {
-      "edition": "Explicit edition label",
-      "revision": null
+      "family_id": "publisher.document-family",
+      "title": "Owner-verified document title",
+      "issuing_authority": "Owner-verified authority",
+      "edition": "2021",
+      "revision": "R2",
+      "jurisdictions": ["ARE"],
+      "scope": "Owner-verified scope and limitations",
+      "exam_divisions": ["Practice Management"],
+      "applicability_status": "approved",
+      "applicability_evidence": "Owner-reviewed evidence or decision reference",
+      "usage_permission_status": "approved",
+      "permitted_uses": ["human_review", "question_generation"],
+      "usage_permission_note": "Owner-recorded permission basis",
+      "policy_profiles": ["are-coach.are5-2026.v1"]
     }
   }
 }
 ```
 
-Paths must match the corpus-relative path exactly. No edition or revision is inferred
-from a filename. The metadata is propagated to grounded candidate JSON, the visible
-v2 review workbook, the generated-import provenance journal, Coach index rows, and
-retrieved source responses. Existing v1 review books and legacy index rows keep their
-existing contract and receive no guessed page or edition.
+Every v2 entry must contain every documented key; use `null` or the explicit
+`unknown`/`pending` status where the owner has not completed a decision. Paths must
+match the corpus-relative path exactly. Edition, revision, jurisdiction,
+applicability, and usage permission are never inferred from a filename. The old
+`are-coach.corpus-source-metadata.v1` edition/revision sidecar remains readable for
+inventory and review, but it has no policy permission and is ineligible for generation
+and indexing. Policy candidates use `are-coach.generated-review.v3`; page-aware v2
+and legacy v1 review books keep their existing shapes and never gain inferred policy.
 
 ```bash
 # put source files (.md/.txt/.pdf) in corpus/ first (see corpus/README.md, SOURCES.md)
 python -m src.corpus --query "accessible route width"           # test retrieval (free)
-python -m src.generate --grounded --n 40 --repair-attempts 2    # RAG-generate + auto-filter
+python -m src.generate --grounded --source-policy-profile are-coach.are5-2026.v1 --n 40 --repair-attempts 2
 python -m src.review_generated --output generated_review_YYYYMMDD.xlsx
 # architect fills REVIEW: verdict; do not edit candidate content in the workbook
 python -m src.merge_accepted --review-book generated_review_YYYYMMDD.xlsx
 python -m src.merge_accepted --review-book generated_review_YYYYMMDD.xlsx --apply
 ```
+
+Grounded generation chooses the target division first and then selects only an
+eligible chunk for that division, jurisdiction, and policy profile. If any requested
+division has no eligible source, it exits with code 2 before loading an embedding
+model or creating an API client. There is no fallback to legacy or unverified text.
+The exact `are-coach.source-policy-decision.v1` is stored in candidate JSON, shown in
+the v3 review workbook, and retained in the provenance journal; distractor repair
+cannot replace it.
+
+Coach index construction uses the same policy independently:
+
+```bash
+python -m src.build_coach_index \
+  --division "Practice Management" \
+  --jurisdiction ARE \
+  --policy-profile are-coach.are5-2026.v1
+# inspect the deterministic dry-run report, then repeat with --apply
+```
+
+Dry-run never writes `functions/coach_index.json` or a report file. `--apply` writes
+the deterministic policy report, but refuses to replace the index if metadata is
+invalid or no eligible rows remain. Typical machine-readable reasons include
+`source_policy_missing`, `usage_permission_missing`, `purpose_not_permitted`,
+`applicability_pending`, `jurisdiction_mismatch`, `division_mismatch`,
+`policy_profile_mismatch`, `edition_unknown`, `edition_mismatch`, and
+`metadata_field_invalid:<field>`.
+
+This slice does **not** populate or approve the real source manifest, decide legal
+rights, declare supersession/equivalence between editions, add provenance to the
+Coach prompt or Flutter UI, recover short pages filtered by `min_len`, add OCR, make
+an independent external backup, complete Maryana's review, or address payment
+release blockers. Those remain explicit owner/recovery tasks.
 
 The gate is strict (judgment, distractor avg ≥3.3 with no throwaway, consistent, no
 leakage, not a duplicate). Distractor-repair regenerates only weak distractors instead
