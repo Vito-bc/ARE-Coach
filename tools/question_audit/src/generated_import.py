@@ -338,7 +338,7 @@ def _source_provenance(candidate: dict[str, Any]) -> dict[str, Any]:
     # In the current ingestion contract only a physical PDF page can be
     # inapplicable (for MD/TXT). Required provenance cannot be hidden from the
     # completeness report by candidate-controlled metadata.
-    not_applicable = {"source_page"}.intersection(declared_not_applicable)
+    not_applicable = {field for field in declared_not_applicable if field == "source_page"}
     missing = [
         field
         for field, value in source_values.items()

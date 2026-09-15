@@ -327,6 +327,52 @@ class GeneratedImportTest(unittest.TestCase):
         self.assertIn("source_edition", provenance["missing_fields"])
         self.assertFalse(provenance["complete"])
 
+    def test_invalid_not_applicable_entries_do_not_crash_dry_run_cli(self):
+        self.review.unlink()
+        self.candidates[0].update(
+            {
+                "source_metadata_schema": "are-coach.corpus-chunk.v1",
+                "source_document": "doc:synthetic",
+                "source_sha256": "sha256:" + "a" * 64,
+                "source_path": "nested/example.pdf",
+                "source_page": 4,
+                "source_locator": "pdf-page:4:section:1:piece:1",
+                "source_chunk_id": "chunk:synthetic",
+                "source_extraction_version": "are-coach.pypdf-page-chunker.v1;min_len=80;max_len=1200",
+                "source_edition": None,
+                "source_revision": None,
+                "source_missing_metadata": ["source_edition", "source_revision"],
+                "source_not_applicable_metadata": [
+                    {"source_page": True},
+                    ["source_page"],
+                ],
+            }
+        )
+        self.source.write_text(json.dumps(self.candidates), encoding="utf-8")
+        write_review_workbook(self.candidates, self.review, source_path=self.source)
+        self._edit_review(**{"REVIEW: verdict": "Approve"})
+        before_bank = self.bank.read_bytes()
+
+        result = merge_main(
+            [
+                "--input",
+                str(self.source),
+                "--review-book",
+                str(self.review),
+                "--bank",
+                str(self.bank),
+                "--journal",
+                str(self.journal),
+                "--backups-dir",
+                str(self.backups),
+            ]
+        )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(self.bank.read_bytes(), before_bank)
+        self.assertFalse(self.journal.exists())
+        self.assertFalse(self.backups.exists())
+
     def test_candidate_change_after_review_requires_new_approval(self):
         self._edit_review(**{"REVIEW: verdict": "Approve"})
         changed = copy.deepcopy(self.candidates)
