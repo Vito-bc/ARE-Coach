@@ -19,6 +19,7 @@ from src.generated_approval import (
 )
 from src.generated_import import (
     ImportSafetyError,
+    _source_provenance,
     apply_import_plan,
     build_import_plan,
     load_bank,
@@ -228,6 +229,149 @@ class GeneratedImportTest(unittest.TestCase):
         )
         self.assertEqual(len(load_bank(self.bank)), 2)
         self.assertEqual(len(load_journal(self.journal)["imports"]), 1)
+
+    def test_page_aware_metadata_is_preserved_in_import_journal(self):
+        self.review.unlink()
+        self.candidates[0].update(
+            {
+                "source_metadata_schema": "are-coach.corpus-chunk.v1",
+                "source_document": "doc:synthetic",
+                "source_path": "nested/example.pdf",
+                "source_page": 4,
+                "source_locator": "pdf-page:4:section:1:piece:2",
+                "source_chunk_id": "chunk:synthetic",
+                "source_extraction_version": "are-coach.pypdf-page-chunker.v1;min_len=80;max_len=1200",
+                "source_edition": None,
+                "source_revision": None,
+                "source_sha256": "sha256:" + "a" * 64,
+                "source_missing_metadata": ["source_edition", "source_revision"],
+                "source_not_applicable_metadata": [],
+            }
+        )
+        self.source.write_text(json.dumps(self.candidates), encoding="utf-8")
+        write_review_workbook(self.candidates, self.review, source_path=self.source)
+        self._edit_review(**{"REVIEW: verdict": "Approve"})
+
+        plan = self._plan()
+        provenance = plan.additions[0].journal_entry["source_provenance"]
+        self.assertEqual(provenance["source_document"], "doc:synthetic")
+        self.assertEqual(provenance["source_path"], "nested/example.pdf")
+        self.assertEqual(provenance["source_page"], 4)
+        self.assertEqual(provenance["source_chunk_id"], "chunk:synthetic")
+        self.assertEqual(
+            provenance["missing_fields"], ["source_edition", "source_revision"]
+        )
+
+    def test_candidate_cannot_mark_required_provenance_not_applicable(self):
+        candidate = {
+            "grounded_on": None,
+            "source_metadata_schema": None,
+            "source_document": None,
+            "source_sha256": None,
+            "source_path": None,
+            "source_page": None,
+            "source_locator": None,
+            "source_chunk_id": None,
+            "source_extraction_version": None,
+            "source_edition": None,
+            "source_revision": None,
+            "source_missing_metadata": None,
+            "source_not_applicable_metadata": [
+                "grounded_on",
+                "source_metadata_schema",
+                "source_document",
+                "source_sha256",
+                "source_path",
+                "source_page",
+                "source_locator",
+                "source_chunk_id",
+                "source_extraction_version",
+                "source_edition",
+                "source_revision",
+                "source_missing_metadata",
+            ],
+        }
+
+        provenance = _source_provenance(candidate)
+
+        self.assertFalse(provenance["complete"])
+        self.assertIn("grounded_on", provenance["missing_fields"])
+        self.assertIn("source_document", provenance["missing_fields"])
+        self.assertIn("source_path", provenance["missing_fields"])
+        self.assertNotIn("source_page", provenance["missing_fields"])
+
+    def test_partial_v2_candidate_records_every_missing_v2_field(self):
+        candidate = {
+            "grounded_on": "example.pdf :: physical PDF page 3",
+            "source_metadata_schema": "are-coach.corpus-chunk.v1",
+            "source_document": "doc:synthetic",
+            "source_sha256": "sha256:" + "a" * 64,
+            "source_page": 3,
+            "source_edition": None,
+        }
+
+        provenance = _source_provenance(candidate)
+
+        for field in (
+            "source_path",
+            "source_locator",
+            "source_chunk_id",
+            "source_extraction_version",
+            "source_revision",
+            "source_missing_metadata",
+            "source_not_applicable_metadata",
+        ):
+            self.assertIn(field, provenance)
+            self.assertIsNone(provenance[field])
+            self.assertIn(field, provenance["missing_fields"])
+        self.assertIn("source_edition", provenance["missing_fields"])
+        self.assertFalse(provenance["complete"])
+
+    def test_invalid_not_applicable_entries_do_not_crash_dry_run_cli(self):
+        self.review.unlink()
+        self.candidates[0].update(
+            {
+                "source_metadata_schema": "are-coach.corpus-chunk.v1",
+                "source_document": "doc:synthetic",
+                "source_sha256": "sha256:" + "a" * 64,
+                "source_path": "nested/example.pdf",
+                "source_page": 4,
+                "source_locator": "pdf-page:4:section:1:piece:1",
+                "source_chunk_id": "chunk:synthetic",
+                "source_extraction_version": "are-coach.pypdf-page-chunker.v1;min_len=80;max_len=1200",
+                "source_edition": None,
+                "source_revision": None,
+                "source_missing_metadata": ["source_edition", "source_revision"],
+                "source_not_applicable_metadata": [
+                    {"source_page": True},
+                    ["source_page"],
+                ],
+            }
+        )
+        self.source.write_text(json.dumps(self.candidates), encoding="utf-8")
+        write_review_workbook(self.candidates, self.review, source_path=self.source)
+        self._edit_review(**{"REVIEW: verdict": "Approve"})
+        before_bank = self.bank.read_bytes()
+
+        result = merge_main(
+            [
+                "--input",
+                str(self.source),
+                "--review-book",
+                str(self.review),
+                "--bank",
+                str(self.bank),
+                "--journal",
+                str(self.journal),
+                "--backups-dir",
+                str(self.backups),
+            ]
+        )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(self.bank.read_bytes(), before_bank)
+        self.assertFalse(self.journal.exists())
+        self.assertFalse(self.backups.exists())
 
     def test_candidate_change_after_review_requires_new_approval(self):
         self._edit_review(**{"REVIEW: verdict": "Approve"})

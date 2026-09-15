@@ -16,7 +16,7 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const logger = require("firebase-functions/logger");
 
-const { retrieve } = require("./retrieval");
+const { retrieve, sourceProvenance } = require("./retrieval");
 
 // Opus 4.8: do NOT send temperature / top_p / top_k / budget_tokens -- all are
 // rejected with a 400 on this model.
@@ -134,7 +134,10 @@ async function askCoach(prompt, apiKey) {
     answer,
     model: MODEL,
     grounded,
-    sources: passages.map((p) => ({ source: p.source, ref: p.ref })),
+    // Keep provenance added by the index while excluding retrieved text and
+    // scoring internals from the API response. Legacy rows still yield the
+    // original {source, ref} shape.
+    sources: passages.map(sourceProvenance),
     inputTokens: message.usage?.input_tokens ?? null,
     outputTokens: message.usage?.output_tokens ?? null,
   };

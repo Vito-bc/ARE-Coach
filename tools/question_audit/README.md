@@ -71,6 +71,49 @@ Pipeline: **retrieve source chunk → generate a grounded question → 5-grader 
 distractor-repair → dedup vs bank → explicit human approval of the exact candidate
 version.** The automated gate only creates review candidates; it never authorizes import.
 
+### Page-aware source provenance
+
+Newly ingested chunks carry `source_metadata_schema=are-coach.corpus-chunk.v1`
+alongside the existing `source`, `ref`, and `text` fields. The versioned metadata is:
+
+- `source_document`: deterministic document identity derived from the corpus-relative
+  path and SHA-256 of the exact source bytes;
+- `source_sha256` and `source_path`: the tagged source hash and POSIX path relative to
+  `corpus/`, so equal basenames in different directories do not collide;
+- `source_page`: the 1-based physical PDF page, or `null` for MD/TXT;
+- `source_locator` and `source_chunk_id`: deterministic location and identity within
+  that document and processing version;
+- `source_extraction_version`: extractor/chunker version plus `min_len`/`max_len`;
+- `source_edition` and `source_revision`: values from explicit metadata only;
+- `source_missing_metadata` and `source_not_applicable_metadata`: explicit unknown
+  and non-applicable fields.
+
+PDF pages are extracted and chunked independently. Empty or unextractable pages emit
+an `are-coach.corpus-ingestion-diagnostic.v1` diagnostic at their unchanged physical
+page number; OCR is not attempted. A physical PDF page is not a printed page number.
+Long single paragraphs are split deterministically and never exceed `max_len`.
+
+Optional explicit edition/revision metadata belongs in local
+`corpus/source_metadata.json`:
+
+```json
+{
+  "schema": "are-coach.corpus-source-metadata.v1",
+  "sources": {
+    "codes/example.pdf": {
+      "edition": "Explicit edition label",
+      "revision": null
+    }
+  }
+}
+```
+
+Paths must match the corpus-relative path exactly. No edition or revision is inferred
+from a filename. The metadata is propagated to grounded candidate JSON, the visible
+v2 review workbook, the generated-import provenance journal, Coach index rows, and
+retrieved source responses. Existing v1 review books and legacy index rows keep their
+existing contract and receive no guessed page or edition.
+
 ```bash
 # put source files (.md/.txt/.pdf) in corpus/ first (see corpus/README.md, SOURCES.md)
 python -m src.corpus --query "accessible route width"           # test retrieval (free)

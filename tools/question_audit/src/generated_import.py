@@ -39,6 +39,16 @@ SOURCE_PROVENANCE_FIELDS = (
     "source_page",
     "source_sha256",
 )
+OPTIONAL_SOURCE_PROVENANCE_FIELDS = (
+    "source_metadata_schema",
+    "source_path",
+    "source_locator",
+    "source_chunk_id",
+    "source_extraction_version",
+    "source_revision",
+    "source_missing_metadata",
+    "source_not_applicable_metadata",
+)
 
 
 class ImportSafetyError(RuntimeError):
@@ -314,7 +324,26 @@ def _source_provenance(candidate: dict[str, Any]) -> dict[str, Any]:
         "grounded_on": candidate.get("grounded_on"),
         **{field: candidate.get(field) for field in SOURCE_PROVENANCE_FIELDS},
     }
-    missing = [field for field, value in source_values.items() if value in (None, "")]
+    is_v2 = candidate.get("source_metadata_schema") is not None
+    source_values.update(
+        {
+            field: candidate.get(field)
+            for field in OPTIONAL_SOURCE_PROVENANCE_FIELDS
+            if is_v2 or field in candidate
+        }
+    )
+    declared_not_applicable = candidate.get("source_not_applicable_metadata", [])
+    if not isinstance(declared_not_applicable, list):
+        declared_not_applicable = []
+    # In the current ingestion contract only a physical PDF page can be
+    # inapplicable (for MD/TXT). Required provenance cannot be hidden from the
+    # completeness report by candidate-controlled metadata.
+    not_applicable = {field for field in declared_not_applicable if field == "source_page"}
+    missing = [
+        field
+        for field, value in source_values.items()
+        if value in (None, "") and field not in not_applicable
+    ]
     return {
         **source_values,
         "complete": not missing,
