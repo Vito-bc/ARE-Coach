@@ -324,16 +324,21 @@ def _source_provenance(candidate: dict[str, Any]) -> dict[str, Any]:
         "grounded_on": candidate.get("grounded_on"),
         **{field: candidate.get(field) for field in SOURCE_PROVENANCE_FIELDS},
     }
+    is_v2 = candidate.get("source_metadata_schema") is not None
     source_values.update(
         {
             field: candidate.get(field)
             for field in OPTIONAL_SOURCE_PROVENANCE_FIELDS
-            if field in candidate
+            if is_v2 or field in candidate
         }
     )
-    not_applicable = candidate.get("source_not_applicable_metadata", [])
-    if not isinstance(not_applicable, list):
-        not_applicable = []
+    declared_not_applicable = candidate.get("source_not_applicable_metadata", [])
+    if not isinstance(declared_not_applicable, list):
+        declared_not_applicable = []
+    # In the current ingestion contract only a physical PDF page can be
+    # inapplicable (for MD/TXT). Required provenance cannot be hidden from the
+    # completeness report by candidate-controlled metadata.
+    not_applicable = {"source_page"}.intersection(declared_not_applicable)
     missing = [
         field
         for field, value in source_values.items()

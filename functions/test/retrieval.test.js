@@ -170,3 +170,23 @@ test("returned passages preserve versioned source provenance", () => {
   assert.ok(!("sections" in publicSource));
   assert.ok(!("score" in publicSource));
 });
+
+test("index-only fields cannot escape through passages or public sources", () => {
+  const injected = prepareIndex([
+    {
+      ...CORPUS[0],
+      internal_note: "DO NOT PUBLISH",
+      raw_page_text: "full copyrighted page text",
+      license: "restricted",
+    },
+    ...filler,
+  ]);
+
+  const [top] = search(injected, "egress stairway capacity per occupant", 1);
+  const publicSource = sourceProvenance(top);
+  for (const field of ["internal_note", "raw_page_text", "license"]) {
+    assert.ok(!(field in top), `${field} must not leave the prepared index row`);
+    assert.ok(!(field in publicSource), `${field} must not enter the HTTP source`);
+  }
+  assert.equal(publicSource.source_chunk_id, "chunk:synthetic-egress-page-17");
+});

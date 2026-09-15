@@ -16,6 +16,30 @@ const path = require("path");
 const K1 = 1.5; // term-frequency saturation
 const B = 0.75; // length normalisation
 const MIN_SCORE = 10; // below this the "match" is noise, not a source
+const PUBLIC_SOURCE_FIELDS = Object.freeze([
+  "source",
+  "ref",
+  "source_metadata_schema",
+  "source_document",
+  "source_sha256",
+  "source_path",
+  "source_page",
+  "source_locator",
+  "source_chunk_id",
+  "source_extraction_version",
+  "source_edition",
+  "source_revision",
+  "source_missing_metadata",
+  "source_not_applicable_metadata",
+]);
+
+function selectFields(value, fields) {
+  const selected = {};
+  for (const field of fields) {
+    if (Object.prototype.hasOwnProperty.call(value, field)) selected[field] = value[field];
+  }
+  return selected;
+}
 
 // Words that carry no retrieval signal in this domain.
 const STOP = new Set([
@@ -122,9 +146,13 @@ function search(idx, query, k = 5) {
     .filter((s) => s.score >= best * 0.35 && s.matched >= needed)
     .slice(0, k)
     .map((s) => {
-      // Preserve every serialized source-provenance field while keeping the
-      // scorer's internal term-frequency data out of the public passage.
-      const { tf: _tf, len: _len, ...passage } = s.doc;
+      // Only fields needed by the prompt or explicitly approved provenance may
+      // leave the prepared index. New index-only fields stay private by default.
+      const passage = selectFields(s.doc, [
+        ...PUBLIC_SOURCE_FIELDS,
+        "text",
+        "sections",
+      ]);
       return {
         ...passage,
         sections: passage.sections || [],
@@ -141,10 +169,9 @@ function retrieve(query, k = 5) {
   return search(getIndex(), query, k);
 }
 
-/** Removes passage text/scoring while retaining legacy and provenance fields. */
+/** Returns the explicit public source contract; index-only fields stay private. */
 function sourceProvenance(passage) {
-  const { text: _text, sections: _sections, score: _score, ...source } = passage;
-  return source;
+  return selectFields(passage, PUBLIC_SOURCE_FIELDS);
 }
 
 module.exports = { retrieve, tokenize, getIndex, prepareIndex, search, sourceProvenance };
