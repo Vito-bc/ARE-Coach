@@ -10,8 +10,14 @@ from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from src.build_coach_index import build_index_rows
-from src.corpus import SOURCE_METADATA_SCHEMA, IngestionDiagnostic, load_chunks
+from src.corpus import (
+    LEGACY_SOURCE_METADATA_SCHEMA,
+    SOURCE_METADATA_SCHEMA,
+    IngestionDiagnostic,
+    load_chunks,
+)
 from src.generated_approval import read_review_workbook, write_review_workbook
+from src.source_policy import PURPOSE_COACH_INDEX, PolicyRequest
 
 
 def _write_pdf(path: Path, pages: list[str | None]) -> None:
@@ -129,7 +135,7 @@ class CorpusProvenanceTest(unittest.TestCase):
         (self.corpus / "source_metadata.json").write_text(
             json.dumps(
                 {
-                    "schema": SOURCE_METADATA_SCHEMA,
+                    "schema": LEGACY_SOURCE_METADATA_SCHEMA,
                     "sources": {
                         "notes/guide_2099.md": {"edition": "Explicit 2024", "revision": "R2"}
                     },
@@ -166,6 +172,32 @@ class CorpusProvenanceTest(unittest.TestCase):
         source = self.corpus / "docs" / "source.pdf"
         source.parent.mkdir()
         _write_pdf(source, ["traceable source text " * 10])
+        (self.corpus / "source_metadata.json").write_text(
+            json.dumps(
+                {
+                    "schema": SOURCE_METADATA_SCHEMA,
+                    "sources": {
+                        "docs/source.pdf": {
+                            "family_id": "synthetic.standard",
+                            "title": "Synthetic Standard",
+                            "issuing_authority": "Synthetic Authority",
+                            "edition": "2026",
+                            "revision": "R1",
+                            "jurisdictions": ["ARE"],
+                            "scope": "Synthetic test scope",
+                            "exam_divisions": ["Practice Management"],
+                            "applicability_status": "approved",
+                            "applicability_evidence": "Owner-reviewed synthetic fixture",
+                            "usage_permission_status": "approved",
+                            "permitted_uses": ["human_review", "coach_index"],
+                            "usage_permission_note": "Synthetic fixture may be indexed",
+                            "policy_profiles": ["are-2026"],
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         chunk = load_chunks(min_len=1, corpus_dir=self.corpus)[0]
         source_fields = chunk.candidate_source_metadata()
         candidate = _candidate(source_fields, chunk.grounding_label())
@@ -199,7 +231,17 @@ class CorpusProvenanceTest(unittest.TestCase):
         self.assertFalse(changed_review.decisions[0].approved)
         self.assertIn("source_page", changed_review.decisions[0].reason or "")
 
-        rows = build_index_rows([chunk])
+        rows = build_index_rows(
+            [chunk],
+            [
+                PolicyRequest(
+                    PURPOSE_COACH_INDEX,
+                    "Practice Management",
+                    "ARE",
+                    "are-2026",
+                )
+            ],
+        )
         serialized = json.loads(json.dumps(rows))
         for key, value in source_fields.items():
             self.assertEqual(serialized[0][key], value)

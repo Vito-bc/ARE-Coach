@@ -15,12 +15,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.corpus import SOURCE_METADATA_FIELDS
+from src.corpus import PAGE_AWARE_SOURCE_METADATA_FIELDS, SOURCE_METADATA_FIELDS
 
 
 FINGERPRINT_SCHEMA = "are-coach.generated-candidate.v1"
 WORKBOOK_SCHEMA = "are-coach.generated-review.v1"
 PROVENANCE_WORKBOOK_SCHEMA = "are-coach.generated-review.v2"
+POLICY_WORKBOOK_SCHEMA = "are-coach.generated-review.v3"
 REVIEW_SHEET = "review"
 METADATA_SHEET = "_metadata"
 VERDICTS = ("Approve", "Reject", "Needs edit")
@@ -53,7 +54,8 @@ VISIBLE_CANDIDATE_COLUMNS = [
     "repaired",
     "dup_sim",
 ]
-PROVENANCE_REVIEW_COLUMNS = list(SOURCE_METADATA_FIELDS)
+PROVENANCE_REVIEW_COLUMNS = list(PAGE_AWARE_SOURCE_METADATA_FIELDS)
+POLICY_REVIEW_COLUMNS = [*SOURCE_METADATA_FIELDS, "source_policy_decision"]
 
 
 class ApprovalError(ValueError):
@@ -176,7 +178,7 @@ def review_row(candidate: dict[str, Any]) -> dict[str, Any]:
         "repaired": candidate.get("repaired", False),
         "dup_sim": candidate.get("dup_sim", ""),
     }
-    for field in PROVENANCE_REVIEW_COLUMNS:
+    for field in POLICY_REVIEW_COLUMNS:
         value = candidate.get(field, "")
         if isinstance(value, (dict, list, tuple)):
             value = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -185,6 +187,17 @@ def review_row(candidate: dict[str, Any]) -> dict[str, Any]:
 
 
 def _workbook_contract(candidates: list[dict[str, Any]]) -> tuple[str, list[str], list[str]]:
+    carries_policy = any(
+        candidate.get("source_policy_schema") is not None
+        or "source_policy_decision" in candidate
+        for candidate in candidates
+    )
+    if carries_policy:
+        return (
+            POLICY_WORKBOOK_SCHEMA,
+            [*REVIEW_COLUMNS, *POLICY_REVIEW_COLUMNS],
+            [*VISIBLE_CANDIDATE_COLUMNS, *POLICY_REVIEW_COLUMNS],
+        )
     carries_provenance = any(
         candidate.get("source_metadata_schema") is not None
         for candidate in candidates
@@ -265,6 +278,20 @@ def write_review_workbook(
         "source_revision": 20,
         "source_missing_metadata": 30,
         "source_not_applicable_metadata": 30,
+        "source_policy_schema": 24,
+        "source_family_id": 24,
+        "source_title": 30,
+        "source_issuing_authority": 24,
+        "source_jurisdictions": 24,
+        "source_scope": 30,
+        "source_exam_divisions": 34,
+        "source_applicability_status": 20,
+        "source_applicability_evidence": 34,
+        "source_usage_permission_status": 20,
+        "source_permitted_uses": 34,
+        "source_usage_permission_note": 34,
+        "source_policy_profiles": 30,
+        "source_policy_decision": 42,
     }
     wrap_columns = {
         "REVIEW: notes",
@@ -274,7 +301,7 @@ def write_review_workbook(
         "explanation",
         "codeReference",
         "grounded_on",
-        *PROVENANCE_REVIEW_COLUMNS,
+        *POLICY_REVIEW_COLUMNS,
     }
     last_row = len(candidates) + 1
     sheet.freeze_panes = "C2"
@@ -365,7 +392,11 @@ def read_review_workbook(
         metadata = _metadata(workbook[METADATA_SHEET])
         workbook_schema = metadata.get("workbook_schema")
         expected_schema, review_columns, visible_columns = _workbook_contract(candidates)
-        if workbook_schema not in (WORKBOOK_SCHEMA, PROVENANCE_WORKBOOK_SCHEMA):
+        if workbook_schema not in (
+            WORKBOOK_SCHEMA,
+            PROVENANCE_WORKBOOK_SCHEMA,
+            POLICY_WORKBOOK_SCHEMA,
+        ):
             raise ApprovalError("unsupported or missing review workbook schema")
         if workbook_schema != expected_schema:
             raise ApprovalError(

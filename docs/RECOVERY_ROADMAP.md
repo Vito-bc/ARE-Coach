@@ -2,11 +2,12 @@
 
 ## Current iteration: RAG/content recovery
 
-Updated 2026-09-15. PR #54 is merged as
-`a3529bbd584de2590d0bb25cfb8fce8d355edd62`. The current bounded follow-up adds
-page-aware ingestion and source identity without running generation, embeddings,
-index rebuilding, or any real content import. Inventory and the first architect
-packet remain unchanged. **The payment phase is not fully complete.**
+Updated 2026-09-15. PR #55 is squash-merged as
+`890dd1a9860ede3696a07e5af7791bf36f839036`. The current bounded follow-up adds
+fail-closed source-edition, applicability, and usage-eligibility policy without
+running generation, embeddings, index rebuilding, extraction of the real corpus,
+or any real content import. Inventory and the first architect packet remain
+unchanged. **The payment phase is not fully complete.**
 
 The owner currently has neither a Mac nor Apple Developer Program membership.
 iOS device testing is deferred until closed-beta preparation. This is a schedule
@@ -68,6 +69,38 @@ provenance journal or question-bank row was changed while implementing this gate
 Audit-driven edits/removals still require an equivalent explicit human-approval
 path before they may be applied.
 
+### Source policy gate in the current bounded follow-up
+
+The local source sidecar now has a strict
+`are-coach.corpus-source-metadata.v2` shape. It records stable family/title,
+issuing authority, explicit edition and revision, jurisdiction, applicable exam
+divisions, applicability status/evidence, policy profiles, and a separate owner
+status/note for the permitted uses `human_review`, `question_generation`, and
+`coach_index`. The implementation does not decide source rights; it only enforces
+the explicitly recorded owner status. Missing, unknown, pending, malformed, or
+mismatched metadata is never upgraded to approval.
+
+The pure selector returns `eligible`, `excluded`, or `invalid_metadata`, with
+deterministic machine-readable reasons. Human review may see explicitly permitted
+sources whose applicability is pending, but the restriction remains in the report.
+Generation and Coach indexing require their own explicit use permission, approved
+applicability, matching division/jurisdiction/profile, known identity, edition, and
+revision. NYC-only material does not feed the six ARE divisions; model-code material
+does not become NYC authority without an explicit dual declaration. A newer edition
+is not an automatic substitute for an expected older one.
+
+Grounded generation now selects the target division before the chunk and refuses
+before API/embedding setup when a requested division has no eligible source. The
+policy decision is carried through candidate JSON, versioned v3 review workbook,
+and the import journal; distractor repair preserves it. The Coach indexer applies
+the independent `coach_index` policy, defaults to dry-run, emits a deterministic
+exclusion report, and refuses to replace an index for invalid metadata or an empty
+eligible set. Existing page/hash/page-locator/chunk identities remain unchanged.
+Legacy v1/v2 review shapes remain readable but gain no inferred eligibility.
+
+No real manifest was populated or human-verified in this implementation. The real
+Coach index remains unchanged; all tests use synthetic metadata and PDF/MD/TXT data.
+
 ### Open source-provenance and recovery work
 
 1. **Page-aware ingestion (implemented in this draft):** new chunks preserve the
@@ -78,13 +111,13 @@ path before they may be applied.
    not applicable. Metadata flows through grounded candidate JSON, v2 review books,
    the import journal and Coach index/retrieval serialization. Existing candidates,
    v1 review books and saved index rows receive no guessed metadata.
-2. **Edition and applicability control:** this draft carries only explicitly declared
-   edition/revision values from a versioned local sidecar. A missing value stays
-   explicit and filenames are not evidence. Full applicability and jurisdiction
-   decisions remain open before substituting NYC material or a newer edition for an
-   ARE-cited source.
-3. **Source rights:** establish permission for each source before any distribution
-   or production ingestion. Existing corpus rules are not a rights audit.
+2. **Real metadata decisions:** the schema and fail-closed enforcement are implemented,
+   but the owner still must populate and human-verify the real manifest. Filenames
+   remain non-evidence; no NYC/model-code dual applicability, edition equivalence, or
+   supersession is inferred.
+3. **Source rights:** establish and record permission for each source before any
+   generation, distribution, or production indexing. Existing corpus rules and the
+   policy engine are not a rights audit or legal determination.
 4. **Provenance completeness:** later source additions still need complete reviewed
    metadata; the pipeline cannot supply values absent from the source declaration.
 5. **Independent backup:** back up corpus, source manifest, review workbook,

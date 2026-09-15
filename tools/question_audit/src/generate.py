@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
+from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel
@@ -21,6 +23,12 @@ from src.graders import GRADER_SPECS
 from src.llm import Usage, grade, make_client
 from src.run_audit import load_env
 from src.schema import Question, load_questions
+from src.source_policy import (
+    PURPOSE_QUESTION_GENERATION,
+    PolicyDecision,
+    PolicyRequest,
+    select_sources,
+)
 
 DIVISIONS = [
     "Practice Management",
@@ -31,6 +39,11 @@ DIVISIONS = [
     "Construction & Evaluation",
     "NYC Building Codes",
 ]
+ARE_DIVISIONS = tuple(DIVISIONS[:-1])
+DIVISION_JURISDICTIONS = {
+    **{division: "ARE" for division in ARE_DIVISIONS},
+    "NYC Building Codes": "NYC",
+}
 
 # Acceptance thresholds. Bank average distractor plausibility is ~2.2, so 3.3
 # with no throwaway (each >= 2) is clearly above the existing bank.
@@ -39,6 +52,81 @@ MIN_DISTRACTOR_EACH = 2
 MAX_DUP_SIM = 0.85
 
 SPEC_BY_NAME = {s.name: s for s in GRADER_SPECS}
+
+
+@dataclass(frozen=True)
+class GroundingAssignment:
+    candidate_number: int
+    division: str
+    chunk: object
+    decision: PolicyDecision
+
+
+@dataclass(frozen=True)
+class GroundingPlan:
+    assignments: tuple[GroundingAssignment, ...]
+    refusals: tuple[dict, ...]
+
+
+def plan_grounded_generation(
+    chunks: list,
+    *,
+    n: int,
+    seed: int,
+    policy_profile: str,
+    expected_edition: str | None = None,
+    expected_revision: str | None = None,
+) -> GroundingPlan:
+    """Choose a division first, then a policy-eligible substantive chunk."""
+    pools: dict[str, list[tuple[object, PolicyDecision]]] = {}
+    refusal_by_division: dict[str, dict] = {}
+    assignments: list[GroundingAssignment] = []
+    for candidate_number in range(n):
+        division = DIVISIONS[candidate_number % len(DIVISIONS)]
+        if division not in pools:
+            request = PolicyRequest(
+                PURPOSE_QUESTION_GENERATION,
+                division,
+                DIVISION_JURISDICTIONS[division],
+                policy_profile,
+                expected_edition,
+                expected_revision,
+            )
+            selected = select_sources(chunks, request)
+            substantive = [item for item in selected.eligible if len(item[0].text) > 400]
+            substantive.sort(
+                key=lambda item: (
+                    item[0].source_path or "",
+                    item[0].source_chunk_id or "",
+                )
+            )
+            random.Random(f"{seed}:{division}").shuffle(substantive)
+            pools[division] = substantive
+            if not substantive:
+                reasons = sorted(
+                    {
+                        reason
+                        for _, decision in (*selected.excluded, *selected.invalid_metadata)
+                        for reason in decision.reasons
+                    }
+                )
+                if selected.eligible:
+                    reasons.append("eligible_chunks_too_short")
+                refusal_by_division[division] = {
+                    "division": division,
+                    "jurisdiction": DIVISION_JURISDICTIONS[division],
+                    "reasons": reasons or ["no_source_chunks"],
+                    "excluded": len(selected.excluded),
+                    "invalid_metadata": len(selected.invalid_metadata),
+                }
+        pool = pools[division]
+        if pool:
+            chunk, decision = pool[candidate_number % len(pool)]
+            assignments.append(
+                GroundingAssignment(candidate_number, division, chunk, decision)
+            )
+    refusals = tuple(refusal_by_division[key] for key in sorted(refusal_by_division))
+    return GroundingPlan(tuple(assignments), refusals)
 
 
 class GenQuestion(BaseModel):
@@ -139,35 +227,93 @@ def repair_distractors(client, model: str, q: Question, dverdict: dict) -> tuple
     return newq, u
 
 
-def main() -> None:
+def candidate_record(
+    q: Question,
+    *,
+    section: str,
+    grounded_on: str | None,
+    source_metadata: dict,
+    repaired: bool,
+    verdicts: dict,
+    dup_sim: float,
+    accepted: bool,
+    reject_reasons: list[str],
+) -> dict:
+    """Serialize a candidate without letting question repair rewrite provenance."""
+    return {
+        "id": q.id,
+        "section": section,
+        "difficulty": q.difficulty,
+        "question": q.question,
+        "options": q.options,
+        "correctOption": q.correctOption,
+        "explanation": q.explanation,
+        "codeReference": q.codeReference,
+        "examWeight": q.examWeight,
+        "topic": q.topic,
+        "state": "NY",
+        "grounded_on": grounded_on,
+        **source_metadata,
+        "repaired": repaired,
+        "verdicts": verdicts,
+        "dup_sim": round(dup_sim, 3),
+        "accepted": accepted,
+        "reject_reasons": reject_reasons,
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=7)
     ap.add_argument("--model", default="claude-opus-4-8")
     ap.add_argument("--grounded", action="store_true", help="RAG: ground each question in a corpus chunk")
     ap.add_argument("--repair-attempts", type=int, default=1, help="repair weak distractors (0 = off)")
     ap.add_argument("--seed", type=int, default=config.RANDOM_SEED)
-    args = ap.parse_args()
+    ap.add_argument("--source-policy-profile")
+    ap.add_argument("--expected-source-edition")
+    ap.add_argument("--expected-source-revision")
+    args = ap.parse_args(argv)
+
+    grounding_plan: GroundingPlan | None = None
+    if args.grounded:
+        from src.corpus import (
+            CorpusMetadataError,
+            IngestionDiagnostic,
+            load_chunks,
+            print_ingestion_diagnostics,
+        )
+
+        if not args.source_policy_profile:
+            print("REFUSED: --grounded requires --source-policy-profile; no source was selected.")
+            return 2
+
+        ingestion_diagnostics: list[IngestionDiagnostic] = []
+        try:
+            corpus_chunks = load_chunks(diagnostics=ingestion_diagnostics)
+        except (CorpusMetadataError, OSError, ValueError) as exc:
+            print(f"REFUSED: invalid source metadata or corpus input: {exc}")
+            return 2
+        print_ingestion_diagnostics(ingestion_diagnostics)
+        grounding_plan = plan_grounded_generation(
+            corpus_chunks,
+            n=args.n,
+            seed=args.seed,
+            policy_profile=args.source_policy_profile,
+            expected_edition=args.expected_source_edition,
+            expected_revision=args.expected_source_revision,
+        )
+        if grounding_plan.refusals:
+            print("REFUSED: no policy-eligible source for one or more target divisions.")
+            print(json.dumps(grounding_plan.refusals, indent=2, ensure_ascii=False, sort_keys=True))
+            print("No model, embedding, generation, or report output was started.")
+            return 2
+        print(
+            f"RAG mode: {len(grounding_plan.assignments)} division-first, "
+            "policy-eligible grounding assignments."
+        )
 
     load_env()
     client = make_client()
-
-    corpus_chunks = []
-    if args.grounded:
-        import random as _random
-
-        from src.corpus import IngestionDiagnostic, load_chunks, print_ingestion_diagnostics
-
-        # Keep substantive chunks (skip short front-matter/TOC), shuffle for variety.
-        ingestion_diagnostics: list[IngestionDiagnostic] = []
-        corpus_chunks = [
-            c for c in load_chunks(diagnostics=ingestion_diagnostics) if len(c.text) > 400
-        ]
-        print_ingestion_diagnostics(ingestion_diagnostics)
-        _random.Random(args.seed).shuffle(corpus_chunks)
-        if not corpus_chunks:
-            print("Corpus is empty — add sources to corpus/ or drop --grounded.")
-            return
-        print(f"RAG mode: grounding on {len(corpus_chunks)} substantive corpus chunks.")
 
     import numpy as np
     from sentence_transformers import SentenceTransformer
@@ -195,13 +341,20 @@ def main() -> None:
         grounded_on = None
         source_metadata: dict = {}
         if args.grounded:
-            chunk = corpus_chunks[i % len(corpus_chunks)]
+            assert grounding_plan is not None
+            assignment = grounding_plan.assignments[i]
+            section = assignment.division
+            chunk = assignment.chunk
             grounded_on = chunk.grounding_label()
-            source_metadata = chunk.candidate_source_metadata()
+            source_metadata = {
+                **chunk.candidate_source_metadata(),
+                "source_policy_decision": assignment.decision.to_dict(),
+            }
             sys_prompt = _GROUNDED_SYS
             payload = (
                 f"SOURCE ({grounded_on}):\n{chunk.text}\n\n"
-                "Write ONE judgment-style ARE 5.0 question grounded in this source — a realistic "
+                f"Division: {section}. Write ONE judgment-style ARE 5.0 question grounded in "
+                "this source — a realistic "
                 "scenario where an architect must apply this requirement and decide what to do."
             )
         else:
@@ -216,6 +369,22 @@ def main() -> None:
             total += u
         except Exception as e:
             print(f"  [{i + 1}/{args.n}]: generation failed ({e})")
+            continue
+        if args.grounded and gen.section != section:
+            print(
+                f"  [{i + 1}/{args.n}] {section}: REJECT division-mismatch "
+                f"(model returned {gen.section})"
+            )
+            _emit(
+                {
+                    "id": f"gen_{i}",
+                    "section": section,
+                    "accepted": False,
+                    "reject_reasons": ["division-mismatch"],
+                    "grounded_on": grounded_on,
+                    **source_metadata,
+                }
+            )
             continue
         section = gen.section
 
@@ -264,15 +433,17 @@ def main() -> None:
                     break
 
         _emit(
-            {
-                "id": q.id, "section": section, "difficulty": q.difficulty,
-                "question": q.question, "options": q.options, "correctOption": q.correctOption,
-                "explanation": q.explanation, "codeReference": q.codeReference,
-                "examWeight": q.examWeight, "topic": q.topic, "state": "NY",
-                "grounded_on": grounded_on, **source_metadata, "repaired": repaired,
-                "verdicts": verdicts, "dup_sim": round(dup_sim, 3),
-                "accepted": ok, "reject_reasons": reasons,
-            }
+            candidate_record(
+                q,
+                section=section,
+                grounded_on=grounded_on,
+                source_metadata=source_metadata,
+                repaired=repaired,
+                verdicts=verdicts,
+                dup_sim=dup_sim,
+                accepted=ok,
+                reject_reasons=reasons,
+            )
         )
         if ok:
             accepted_emb.append(emb)
@@ -301,7 +472,8 @@ def main() -> None:
     cost = total.cost(args.model)
     print(f"COST: ${cost:.2f}  (~${cost / n:.3f}/candidate)  |  ~${cost / max(len(accepted),1):.3f}/accepted")
     print("Reports: generated_candidates.json, generated_accepted.json")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

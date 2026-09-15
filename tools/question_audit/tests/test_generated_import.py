@@ -262,6 +262,71 @@ class GeneratedImportTest(unittest.TestCase):
             provenance["missing_fields"], ["source_edition", "source_revision"]
         )
 
+    def test_policy_v3_candidate_review_and_journal_preserve_decision(self):
+        self.review.unlink()
+        decision = {
+            "schema": "are-coach.source-policy-decision.v1",
+            "outcome": "eligible",
+            "reasons": [],
+            "restrictions": [],
+            "request": {
+                "purpose": "question_generation",
+                "target_division": "Practice Management",
+                "target_jurisdiction": "ARE",
+                "policy_profile": "are-coach.are5-2026.v1",
+                "expected_edition": "2021",
+                "expected_revision": "R2",
+            },
+            "source_path": "nested/example.pdf",
+            "source_document": "doc:synthetic",
+            "source_chunk_id": "chunk:synthetic",
+        }
+        self.candidates[0].update(
+            {
+                "source_metadata_schema": "are-coach.corpus-chunk.v1",
+                "source_document": "doc:synthetic",
+                "source_sha256": "sha256:" + "a" * 64,
+                "source_path": "nested/example.pdf",
+                "source_page": 4,
+                "source_locator": "pdf-page:4:section:1:piece:1",
+                "source_chunk_id": "chunk:synthetic",
+                "source_extraction_version": "synthetic.v1",
+                "source_edition": "2021",
+                "source_revision": "R2",
+                "source_missing_metadata": [],
+                "source_not_applicable_metadata": [],
+                "source_policy_schema": "are-coach.source-policy.v1",
+                "source_family_id": "model.standard",
+                "source_title": "Synthetic Standard",
+                "source_issuing_authority": "Synthetic Authority",
+                "source_jurisdictions": ["ARE"],
+                "source_scope": "Synthetic test scope",
+                "source_exam_divisions": ["Practice Management"],
+                "source_applicability_status": "approved",
+                "source_applicability_evidence": "Synthetic evidence",
+                "source_usage_permission_status": "approved",
+                "source_permitted_uses": ["human_review", "question_generation"],
+                "source_usage_permission_note": "Synthetic permission",
+                "source_policy_profiles": ["are-coach.are5-2026.v1"],
+                "source_policy_decision": decision,
+            }
+        )
+        self.source.write_text(json.dumps(self.candidates), encoding="utf-8")
+        write_review_workbook(self.candidates, self.review, source_path=self.source)
+        workbook = load_workbook(self.review)
+        sheet = workbook["review"]
+        headings = {cell.value: cell.column for cell in sheet[1]}
+        self.assertIn("source_policy_decision", headings)
+        sheet.cell(row=2, column=headings["REVIEW: verdict"], value="Approve")
+        workbook.save(self.review)
+        workbook.close()
+
+        provenance = self._plan().additions[0].journal_entry["source_provenance"]
+        self.assertEqual(provenance["source_policy_decision"], decision)
+        self.assertEqual(provenance["source_family_id"], "model.standard")
+        self.assertTrue(provenance["complete"])
+        self.assertEqual(provenance["missing_fields"], [])
+
     def test_candidate_cannot_mark_required_provenance_not_applicable(self):
         candidate = {
             "grounded_on": None,
