@@ -1,6 +1,5 @@
-"""Phase 2a — generate NEW candidate questions, then AUTO-FILTER each through the
-SAME 5 graders + a dedup check against the bank. No RAG yet (grounds on the
-model's own knowledge); retrieval from a real corpus is added in phase 2b.
+"""Phase 2 — generate NEW candidate questions, optionally grounded in the corpus,
+then AUTO-FILTER each through the SAME 5 graders + a dedup check against the bank.
 
 Only candidates that pass every gate survive; a human reviews a sample of those.
 COSTS MONEY (1 generation + 4 grader calls per candidate).
@@ -156,10 +155,14 @@ def main() -> None:
     if args.grounded:
         import random as _random
 
-        from src.corpus import load_chunks
+        from src.corpus import IngestionDiagnostic, load_chunks, print_ingestion_diagnostics
 
         # Keep substantive chunks (skip short front-matter/TOC), shuffle for variety.
-        corpus_chunks = [c for c in load_chunks() if len(c.text) > 400]
+        ingestion_diagnostics: list[IngestionDiagnostic] = []
+        corpus_chunks = [
+            c for c in load_chunks(diagnostics=ingestion_diagnostics) if len(c.text) > 400
+        ]
+        print_ingestion_diagnostics(ingestion_diagnostics)
         _random.Random(args.seed).shuffle(corpus_chunks)
         if not corpus_chunks:
             print("Corpus is empty — add sources to corpus/ or drop --grounded.")
@@ -190,9 +193,11 @@ def main() -> None:
     print(f"Generating {args.n} candidates with {args.model}, gating each ...")
     for i in range(args.n):
         grounded_on = None
+        source_metadata: dict = {}
         if args.grounded:
             chunk = corpus_chunks[i % len(corpus_chunks)]
-            grounded_on = f"{chunk.source} :: {chunk.ref}"
+            grounded_on = chunk.grounding_label()
+            source_metadata = chunk.candidate_source_metadata()
             sys_prompt = _GROUNDED_SYS
             payload = (
                 f"SOURCE ({grounded_on}):\n{chunk.text}\n\n"
@@ -220,7 +225,8 @@ def main() -> None:
         except Exception as e:
             print(f"  [{i + 1}/{args.n}] {section}: REJECT malformed ({e})")
             _emit({"id": f"gen_{i}", "section": section, "accepted": False,
-                   "reject_reasons": ["malformed"], "error": str(e)})
+                   "reject_reasons": ["malformed"], "error": str(e),
+                   "grounded_on": grounded_on, **source_metadata})
             continue
 
         verdicts = {}
@@ -263,7 +269,7 @@ def main() -> None:
                 "question": q.question, "options": q.options, "correctOption": q.correctOption,
                 "explanation": q.explanation, "codeReference": q.codeReference,
                 "examWeight": q.examWeight, "topic": q.topic, "state": "NY",
-                "grounded_on": grounded_on, "repaired": repaired,
+                "grounded_on": grounded_on, **source_metadata, "repaired": repaired,
                 "verdicts": verdicts, "dup_sim": round(dup_sim, 3),
                 "accepted": ok, "reject_reasons": reasons,
             }

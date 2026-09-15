@@ -229,6 +229,38 @@ class GeneratedImportTest(unittest.TestCase):
         self.assertEqual(len(load_bank(self.bank)), 2)
         self.assertEqual(len(load_journal(self.journal)["imports"]), 1)
 
+    def test_page_aware_metadata_is_preserved_in_import_journal(self):
+        self.review.unlink()
+        self.candidates[0].update(
+            {
+                "source_metadata_schema": "are-coach.corpus-chunk.v1",
+                "source_document": "doc:synthetic",
+                "source_path": "nested/example.pdf",
+                "source_page": 4,
+                "source_locator": "pdf-page:4:section:1:piece:2",
+                "source_chunk_id": "chunk:synthetic",
+                "source_extraction_version": "are-coach.pypdf-page-chunker.v1;min_len=80;max_len=1200",
+                "source_edition": None,
+                "source_revision": None,
+                "source_sha256": "sha256:" + "a" * 64,
+                "source_missing_metadata": ["source_edition", "source_revision"],
+                "source_not_applicable_metadata": [],
+            }
+        )
+        self.source.write_text(json.dumps(self.candidates), encoding="utf-8")
+        write_review_workbook(self.candidates, self.review, source_path=self.source)
+        self._edit_review(**{"REVIEW: verdict": "Approve"})
+
+        plan = self._plan()
+        provenance = plan.additions[0].journal_entry["source_provenance"]
+        self.assertEqual(provenance["source_document"], "doc:synthetic")
+        self.assertEqual(provenance["source_path"], "nested/example.pdf")
+        self.assertEqual(provenance["source_page"], 4)
+        self.assertEqual(provenance["source_chunk_id"], "chunk:synthetic")
+        self.assertEqual(
+            provenance["missing_fields"], ["source_edition", "source_revision"]
+        )
+
     def test_candidate_change_after_review_requires_new_approval(self):
         self._edit_review(**{"REVIEW: verdict": "Approve"})
         changed = copy.deepcopy(self.candidates)

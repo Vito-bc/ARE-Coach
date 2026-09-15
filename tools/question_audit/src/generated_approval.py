@@ -15,9 +15,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from src.corpus import SOURCE_METADATA_FIELDS
+
 
 FINGERPRINT_SCHEMA = "are-coach.generated-candidate.v1"
 WORKBOOK_SCHEMA = "are-coach.generated-review.v1"
+PROVENANCE_WORKBOOK_SCHEMA = "are-coach.generated-review.v2"
 REVIEW_SHEET = "review"
 METADATA_SHEET = "_metadata"
 VERDICTS = ("Approve", "Reject", "Needs edit")
@@ -50,6 +53,7 @@ VISIBLE_CANDIDATE_COLUMNS = [
     "repaired",
     "dup_sim",
 ]
+PROVENANCE_REVIEW_COLUMNS = list(SOURCE_METADATA_FIELDS)
 
 
 class ApprovalError(ValueError):
@@ -157,7 +161,7 @@ def review_row(candidate: dict[str, Any]) -> dict[str, Any]:
         options_text = "\n".join(
             f"{'>>' if option == correct else '  '} {option}" for option in options
         )
-    return {
+    row = {
         "REVIEW: verdict": "",
         "REVIEW: notes": "",
         "id": candidate.get("id", ""),
@@ -172,6 +176,26 @@ def review_row(candidate: dict[str, Any]) -> dict[str, Any]:
         "repaired": candidate.get("repaired", False),
         "dup_sim": candidate.get("dup_sim", ""),
     }
+    for field in PROVENANCE_REVIEW_COLUMNS:
+        value = candidate.get(field, "")
+        if isinstance(value, (dict, list, tuple)):
+            value = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        row[field] = "" if value is None else value
+    return row
+
+
+def _workbook_contract(candidates: list[dict[str, Any]]) -> tuple[str, list[str], list[str]]:
+    carries_provenance = any(
+        candidate.get("source_metadata_schema") is not None
+        for candidate in candidates
+    )
+    if carries_provenance:
+        return (
+            PROVENANCE_WORKBOOK_SCHEMA,
+            [*REVIEW_COLUMNS, *PROVENANCE_REVIEW_COLUMNS],
+            [*VISIBLE_CANDIDATE_COLUMNS, *PROVENANCE_REVIEW_COLUMNS],
+        )
+    return WORKBOOK_SCHEMA, REVIEW_COLUMNS, VISIBLE_CANDIDATE_COLUMNS
 
 
 def write_review_workbook(
@@ -194,14 +218,15 @@ def write_review_workbook(
             f"review workbook already exists: {output_path}; choose a new --output path"
         )
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    workbook_schema, review_columns, _ = _workbook_contract(candidates)
 
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = REVIEW_SHEET
-    sheet.append(REVIEW_COLUMNS)
+    sheet.append(review_columns)
     for candidate in candidates:
         values = review_row(candidate)
-        sheet.append([values[column] for column in REVIEW_COLUMNS])
+        sheet.append([values[column] for column in review_columns])
 
     dark = PatternFill("solid", fgColor="1F2937")
     yellow = PatternFill("solid", fgColor="F2B807")
@@ -228,6 +253,18 @@ def write_review_workbook(
         "grounded_on": 30,
         "repaired": 9,
         "dup_sim": 8,
+        "source_metadata_schema": 24,
+        "source_document": 24,
+        "source_sha256": 24,
+        "source_path": 34,
+        "source_page": 12,
+        "source_locator": 28,
+        "source_chunk_id": 24,
+        "source_extraction_version": 34,
+        "source_edition": 20,
+        "source_revision": 20,
+        "source_missing_metadata": 30,
+        "source_not_applicable_metadata": 30,
     }
     wrap_columns = {
         "REVIEW: notes",
@@ -237,11 +274,12 @@ def write_review_workbook(
         "explanation",
         "codeReference",
         "grounded_on",
+        *PROVENANCE_REVIEW_COLUMNS,
     }
     last_row = len(candidates) + 1
     sheet.freeze_panes = "C2"
-    sheet.auto_filter.ref = f"A1:{get_column_letter(len(REVIEW_COLUMNS))}{last_row}"
-    for number, heading in enumerate(REVIEW_COLUMNS, 1):
+    sheet.auto_filter.ref = f"A1:{get_column_letter(len(review_columns))}{last_row}"
+    for number, heading in enumerate(review_columns, 1):
         letter = get_column_letter(number)
         sheet.column_dimensions[letter].width = widths.get(heading, 16)
         if heading in wrap_columns:
@@ -250,7 +288,7 @@ def write_review_workbook(
     fingerprint_letter = get_column_letter(REVIEW_COLUMNS.index(FINGERPRINT_COLUMN) + 1)
     sheet.column_dimensions[fingerprint_letter].hidden = True
 
-    helper_column = len(REVIEW_COLUMNS) + 3
+    helper_column = len(review_columns) + 3
     helper_letter = get_column_letter(helper_column)
     for index, verdict in enumerate(VERDICTS, start=2):
         sheet.cell(row=index, column=helper_column, value=verdict)
@@ -267,7 +305,7 @@ def write_review_workbook(
     metadata.sheet_state = "hidden"
     source_sha = sha256_file(source_path)
     metadata_rows = [
-        ("workbook_schema", WORKBOOK_SCHEMA),
+        ("workbook_schema", workbook_schema),
         ("fingerprint_schema", FINGERPRINT_SCHEMA),
         ("candidate_snapshot_fingerprint", candidate_snapshot_fingerprint(candidates)),
         ("candidate_count", len(candidates)),
@@ -325,8 +363,15 @@ def read_review_workbook(
             )
         sheet = workbook[REVIEW_SHEET]
         metadata = _metadata(workbook[METADATA_SHEET])
-        if metadata.get("workbook_schema") != WORKBOOK_SCHEMA:
+        workbook_schema = metadata.get("workbook_schema")
+        expected_schema, review_columns, visible_columns = _workbook_contract(candidates)
+        if workbook_schema not in (WORKBOOK_SCHEMA, PROVENANCE_WORKBOOK_SCHEMA):
             raise ApprovalError("unsupported or missing review workbook schema")
+        if workbook_schema != expected_schema:
+            raise ApprovalError(
+                "review workbook schema does not match candidate provenance; create a new "
+                "workbook and obtain fresh approval"
+            )
         if metadata.get("fingerprint_schema") != FINGERPRINT_SCHEMA:
             raise ApprovalError("unsupported or missing candidate fingerprint schema")
         expected_snapshot = candidate_snapshot_fingerprint(candidates)
@@ -346,10 +391,10 @@ def read_review_workbook(
         except StopIteration as exc:
             raise ApprovalError("review sheet is empty") from exc
         headers = [_cell_value(value) for value in header_values]
-        for required in REVIEW_COLUMNS:
+        for required in review_columns:
             if headers.count(required) != 1:
                 raise ApprovalError(f"review sheet must contain exactly one {required!r} column")
-        indexes = {heading: headers.index(heading) for heading in REVIEW_COLUMNS}
+        indexes = {heading: headers.index(heading) for heading in review_columns}
 
         rows_by_id: dict[str, tuple[int, tuple[Any, ...]]] = {}
         for row_number, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
@@ -380,7 +425,7 @@ def read_review_workbook(
             expected = review_row(candidate)
             mismatches = [
                 column
-                for column in VISIBLE_CANDIDATE_COLUMNS
+                for column in visible_columns
                 if value(column) != _cell_value(expected[column])
             ]
             expected_fingerprint = candidate_fingerprint(candidate)

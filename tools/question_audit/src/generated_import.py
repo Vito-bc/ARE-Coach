@@ -39,6 +39,16 @@ SOURCE_PROVENANCE_FIELDS = (
     "source_page",
     "source_sha256",
 )
+OPTIONAL_SOURCE_PROVENANCE_FIELDS = (
+    "source_metadata_schema",
+    "source_path",
+    "source_locator",
+    "source_chunk_id",
+    "source_extraction_version",
+    "source_revision",
+    "source_missing_metadata",
+    "source_not_applicable_metadata",
+)
 
 
 class ImportSafetyError(RuntimeError):
@@ -314,7 +324,21 @@ def _source_provenance(candidate: dict[str, Any]) -> dict[str, Any]:
         "grounded_on": candidate.get("grounded_on"),
         **{field: candidate.get(field) for field in SOURCE_PROVENANCE_FIELDS},
     }
-    missing = [field for field, value in source_values.items() if value in (None, "")]
+    source_values.update(
+        {
+            field: candidate.get(field)
+            for field in OPTIONAL_SOURCE_PROVENANCE_FIELDS
+            if field in candidate
+        }
+    )
+    not_applicable = candidate.get("source_not_applicable_metadata", [])
+    if not isinstance(not_applicable, list):
+        not_applicable = []
+    missing = [
+        field
+        for field, value in source_values.items()
+        if value in (None, "") and field not in not_applicable
+    ]
     return {
         **source_values,
         "complete": not missing,

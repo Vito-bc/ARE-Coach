@@ -121,13 +121,16 @@ function search(idx, query, k = 5) {
   return scored
     .filter((s) => s.score >= best * 0.35 && s.matched >= needed)
     .slice(0, k)
-    .map((s) => ({
-      source: s.doc.source,
-      ref: s.doc.ref,
-      text: s.doc.text,
-      sections: s.doc.sections || [],
-      score: Number(s.score.toFixed(2)),
-    }));
+    .map((s) => {
+      // Preserve every serialized source-provenance field while keeping the
+      // scorer's internal term-frequency data out of the public passage.
+      const { tf: _tf, len: _len, ...passage } = s.doc;
+      return {
+        ...passage,
+        sections: passage.sections || [],
+        score: Number(s.score.toFixed(2)),
+      };
+    });
 }
 
 /**
@@ -138,4 +141,10 @@ function retrieve(query, k = 5) {
   return search(getIndex(), query, k);
 }
 
-module.exports = { retrieve, tokenize, getIndex, prepareIndex, search };
+/** Removes passage text/scoring while retaining legacy and provenance fields. */
+function sourceProvenance(passage) {
+  const { text: _text, sections: _sections, score: _score, ...source } = passage;
+  return source;
+}
+
+module.exports = { retrieve, tokenize, getIndex, prepareIndex, search, sourceProvenance };

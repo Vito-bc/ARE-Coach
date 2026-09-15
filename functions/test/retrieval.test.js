@@ -3,7 +3,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { prepareIndex, search, tokenize } = require("../lib/retrieval");
+const { prepareIndex, search, sourceProvenance, tokenize } = require("../lib/retrieval");
 
 // A tiny stand-in corpus. Deterministic, so the anti-fabrication gates can be
 // asserted exactly without shipping the real 1,503-chunk index into CI.
@@ -11,6 +11,18 @@ const CORPUS = [
   {
     source: "nyc_bc_ch10_egress.pdf",
     ref: "1005.3",
+    source_metadata_schema: "are-coach.corpus-chunk.v1",
+    source_document: "doc:synthetic-egress",
+    source_sha256: "sha256:synthetic-egress",
+    source_path: "codes/nyc_bc_ch10_egress.pdf",
+    source_page: 17,
+    source_locator: "pdf-page:17:section:1:piece:1",
+    source_chunk_id: "chunk:synthetic-egress-page-17",
+    source_extraction_version: "are-coach.pypdf-page-chunker.v1;min_len=80;max_len=1200",
+    source_edition: "2022",
+    source_revision: null,
+    source_missing_metadata: ["source_revision"],
+    source_not_applicable_metadata: [],
     sections: ["1005.3", "1005.3.1"],
     text:
       "The capacity, in inches, of means of egress stairways shall be calculated by " +
@@ -143,4 +155,18 @@ test("returned passages carry the fields the coach prompt needs", () => {
   assert.ok(top.source && typeof top.text === "string");
   assert.ok(Array.isArray(top.sections));
   assert.equal(typeof top.score, "number");
+});
+
+test("returned passages preserve versioned source provenance", () => {
+  const [top] = search(IDX, "egress stairway capacity per occupant", 1);
+  assert.equal(top.source_document, "doc:synthetic-egress");
+  assert.equal(top.source_path, "codes/nyc_bc_ch10_egress.pdf");
+  assert.equal(top.source_page, 17);
+  assert.equal(top.source_chunk_id, "chunk:synthetic-egress-page-17");
+  assert.deepEqual(top.source_missing_metadata, ["source_revision"]);
+  const publicSource = sourceProvenance(top);
+  assert.equal(publicSource.source_chunk_id, "chunk:synthetic-egress-page-17");
+  assert.ok(!("text" in publicSource));
+  assert.ok(!("sections" in publicSource));
+  assert.ok(!("score" in publicSource));
 });

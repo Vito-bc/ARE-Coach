@@ -2,11 +2,11 @@
 
 ## Current iteration: RAG/content recovery
 
-Updated 2026-09-14. PR #53 is merged; verified local `origin/main` and the
-remote main ref both point to `d5e192c856986fa8c145647f2a56bc896e3ac0af`.
-The current bounded task is RAG/content recovery. Inventory and the first
-architect packet are complete; the current implementation protects import of
-new generated candidates. **The payment phase is not fully complete.**
+Updated 2026-09-15. PR #54 is merged as
+`a3529bbd584de2590d0bb25cfb8fce8d355edd62`. The current bounded follow-up adds
+page-aware ingestion and source identity without running generation, embeddings,
+index rebuilding, or any real content import. Inventory and the first architect
+packet remain unchanged. **The payment phase is not fully complete.**
 
 The owner currently has neither a Mac nor Apple Developer Program membership.
 iOS device testing is deferred until closed-beta preparation. This is a schedule
@@ -70,21 +70,30 @@ path before they may be applied.
 
 ### Open source-provenance and recovery work
 
-1. **Page-aware ingestion:** preserve physical PDF page, stable chunk identity and
-   source SHA-256 during extraction/indexing instead of recovering page data later.
-2. **Edition and applicability control:** carry edition/revision as structured data
-   and require an explicit applicability decision before substituting NYC material
-   or a newer edition for an ARE-cited source.
-3. **Provenance completeness:** propagate document identity, edition, page, chunk
-   and source hash through generation and review. The import journal now exposes
-   missing fields but cannot supply metadata absent from the candidate snapshot.
-4. **Independent backup:** back up corpus, source manifest, review workbook,
+1. **Page-aware ingestion (implemented in this draft):** new chunks preserve the
+   corpus-relative path, exact source SHA-256, path-and-bytes document identity,
+   1-based physical PDF page, deterministic locator/chunk ID and processing version.
+   PDF chunks do not cross pages. Empty/unextractable pages retain their page number
+   in diagnostics and do not trigger OCR. MD/TXT keep `source_page=null` as explicitly
+   not applicable. Metadata flows through grounded candidate JSON, v2 review books,
+   the import journal and Coach index/retrieval serialization. Existing candidates,
+   v1 review books and saved index rows receive no guessed metadata.
+2. **Edition and applicability control:** this draft carries only explicitly declared
+   edition/revision values from a versioned local sidecar. A missing value stays
+   explicit and filenames are not evidence. Full applicability and jurisdiction
+   decisions remain open before substituting NYC material or a newer edition for an
+   ARE-cited source.
+3. **Source rights:** establish permission for each source before any distribution
+   or production ingestion. Existing corpus rules are not a rights audit.
+4. **Provenance completeness:** later source additions still need complete reviewed
+   metadata; the pipeline cannot supply values absent from the source declaration.
+5. **Independent backup:** back up corpus, source manifest, review workbook,
    candidate-to-bank journal, provenance, index and bank snapshot outside this
    disk/sync boundary, then verify restoration. The destination has not been
    selected; this task remains open and no external backup is claimed.
 
-The payment release blockers below remain open and unchanged in status while
-this content work continues.
+Maryana's RED review and the first architect packet remain pending human work. The
+payment release blockers below remain open and unchanged in status.
 
 ### Preservation and independent backup requirement
 
