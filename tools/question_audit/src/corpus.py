@@ -19,16 +19,25 @@ from pathlib import Path
 from typing import Any
 
 from src import config
+from src.source_policy import (
+    APPLICABILITY_STATUSES,
+    PERMISSION_STATUSES,
+    PIPELINE_PURPOSES,
+    POLICY_SOURCE_FIELDS,
+    SOURCE_POLICY_SCHEMA,
+    is_reserved_placeholder,
+)
 
 CORPUS_DIR = config.TOOL_DIR / "corpus"
-SOURCE_METADATA_SCHEMA = "are-coach.corpus-source-metadata.v1"
+LEGACY_SOURCE_METADATA_SCHEMA = "are-coach.corpus-source-metadata.v1"
+SOURCE_METADATA_SCHEMA = "are-coach.corpus-source-metadata.v2"
 CHUNK_METADATA_SCHEMA = "are-coach.corpus-chunk.v1"
 DIAGNOSTIC_SCHEMA = "are-coach.corpus-ingestion-diagnostic.v1"
 DOCUMENT_ID_SCHEMA = "are-coach.source-document.v1"
 PDF_PROCESSING_VERSION = "are-coach.pypdf-page-chunker.v1"
 TEXT_PROCESSING_VERSION = "are-coach.text-heading-chunker.v1"
 
-SOURCE_METADATA_FIELDS = (
+PAGE_AWARE_SOURCE_METADATA_FIELDS = (
     "source_metadata_schema",
     "source_document",
     "source_sha256",
@@ -41,6 +50,10 @@ SOURCE_METADATA_FIELDS = (
     "source_revision",
     "source_missing_metadata",
     "source_not_applicable_metadata",
+)
+SOURCE_METADATA_FIELDS = (
+    *PAGE_AWARE_SOURCE_METADATA_FIELDS,
+    *POLICY_SOURCE_FIELDS,
 )
 
 
@@ -61,14 +74,40 @@ class Chunk:
     source_revision: str | None = None
     source_missing_metadata: tuple[str, ...] = ()
     source_not_applicable_metadata: tuple[str, ...] = ()
+    source_policy_schema: str | None = None
+    source_family_id: str | None = None
+    source_title: str | None = None
+    source_issuing_authority: str | None = None
+    source_jurisdictions: tuple[str, ...] | None = None
+    source_scope: str | None = None
+    source_exam_divisions: tuple[str, ...] | None = None
+    source_applicability_status: str | None = None
+    source_applicability_evidence: str | None = None
+    source_usage_permission_status: str | None = None
+    source_permitted_uses: tuple[str, ...] | None = None
+    source_usage_permission_note: str | None = None
+    source_policy_profiles: tuple[str, ...] | None = None
 
     def candidate_source_metadata(self) -> dict[str, Any]:
         """Return JSON-safe, versioned provenance fields for a candidate/index row."""
-        result = {field: getattr(self, field) for field in SOURCE_METADATA_FIELDS}
+        result = {
+            field: getattr(self, field) for field in PAGE_AWARE_SOURCE_METADATA_FIELDS
+        }
+        if self.source_policy_schema is not None:
+            result.update({field: getattr(self, field) for field in POLICY_SOURCE_FIELDS})
         result["source_missing_metadata"] = list(self.source_missing_metadata)
         result["source_not_applicable_metadata"] = list(
             self.source_not_applicable_metadata
         )
+        for field in (
+            "source_jurisdictions",
+            "source_exam_divisions",
+            "source_permitted_uses",
+            "source_policy_profiles",
+        ):
+            if field in result:
+                value = result[field]
+                result[field] = list(value) if value is not None else None
         return result
 
     def grounding_label(self) -> str:
@@ -128,7 +167,34 @@ def _identity(prefix: str, schema: str, payload: dict[str, Any]) -> str:
     return f"{prefix}:{digest}"
 
 
-def _load_source_metadata(corpus_dir: Path, metadata_path: Path | None) -> dict[str, dict[str, str | None]]:
+_POLICY_MANIFEST_FIELDS = {
+    "family_id",
+    "title",
+    "issuing_authority",
+    "edition",
+    "revision",
+    "jurisdictions",
+    "scope",
+    "exam_divisions",
+    "applicability_status",
+    "applicability_evidence",
+    "usage_permission_status",
+    "permitted_uses",
+    "usage_permission_note",
+    "policy_profiles",
+}
+# Free-text fields that stand in for the source's identity/version, where the
+# literal word "unknown" or "pending" would silently pass as a real value.
+# Evidence/note fields are deliberately excluded -- they are audit text, not
+# identity, and legitimately may discuss why something is still undecided.
+_POLICY_IDENTITY_MANIFEST_FIELDS = frozenset(
+    {"family_id", "title", "issuing_authority", "scope", "edition", "revision"}
+)
+
+
+def _load_source_metadata(
+    corpus_dir: Path, metadata_path: Path | None
+) -> dict[str, dict[str, Any]]:
     path = metadata_path or corpus_dir / "source_metadata.json"
     if not path.exists():
         return {}
@@ -136,12 +202,16 @@ def _load_source_metadata(corpus_dir: Path, metadata_path: Path | None) -> dict[
         raw = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
         raise CorpusMetadataError(f"cannot read source metadata {path}: {exc}") from exc
-    if not isinstance(raw, dict) or raw.get("schema") != SOURCE_METADATA_SCHEMA:
+    if not isinstance(raw, dict) or raw.get("schema") not in {
+        LEGACY_SOURCE_METADATA_SCHEMA,
+        SOURCE_METADATA_SCHEMA,
+    }:
         raise CorpusMetadataError(f"unsupported or missing source metadata schema: {path}")
+    schema = raw["schema"]
     sources = raw.get("sources")
     if not isinstance(sources, dict):
         raise CorpusMetadataError("source metadata must contain an object named 'sources'")
-    result: dict[str, dict[str, str | None]] = {}
+    result: dict[str, dict[str, Any]] = {}
     for source_path, values in sources.items():
         if not isinstance(source_path, str) or not source_path or "\\" in source_path:
             raise CorpusMetadataError("source metadata paths must be non-empty POSIX relative paths")
@@ -150,17 +220,97 @@ def _load_source_metadata(corpus_dir: Path, metadata_path: Path | None) -> dict[
             raise CorpusMetadataError(f"invalid source metadata path: {source_path!r}")
         if not isinstance(values, dict):
             raise CorpusMetadataError(f"source metadata for {source_path!r} must be an object")
-        unknown_fields = sorted(set(values) - {"edition", "revision"})
-        if unknown_fields:
-            raise CorpusMetadataError(
-                f"unknown source metadata fields for {source_path!r}: {unknown_fields}"
+        expected_fields = (
+            {"edition", "revision"}
+            if schema == LEGACY_SOURCE_METADATA_SCHEMA
+            else _POLICY_MANIFEST_FIELDS
+        )
+        unknown_fields = sorted(set(values) - expected_fields)
+        if schema == LEGACY_SOURCE_METADATA_SCHEMA:
+            # v1 keeps its original, more permissive contract: an omitted
+            # edition/revision key defaults to None below, exactly as before
+            # this PR. Only a genuinely unrecognized key is rejected.
+            if unknown_fields:
+                raise CorpusMetadataError(
+                    f"unknown source metadata fields for {source_path!r}: {unknown_fields}"
+                )
+        else:
+            missing_fields = sorted(expected_fields - set(values))
+            if unknown_fields or missing_fields:
+                raise CorpusMetadataError(
+                    f"source metadata fields for {source_path!r} do not match {schema}; "
+                    f"missing={missing_fields}, unknown={unknown_fields}"
+                )
+        entry: dict[str, Any] = {"manifest_schema": schema}
+        string_fields = (
+            ("edition", "revision")
+            if schema == LEGACY_SOURCE_METADATA_SCHEMA
+            else (
+                "family_id",
+                "title",
+                "issuing_authority",
+                "scope",
+                "edition",
+                "revision",
+                "applicability_evidence",
+                "usage_permission_note",
             )
-        entry: dict[str, str | None] = {}
-        for field in ("edition", "revision"):
+        )
+        for field in string_fields:
             value = values.get(field)
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise CorpusMetadataError(f"{field} for {source_path!r} must be a non-empty string or null")
+            if (
+                schema == SOURCE_METADATA_SCHEMA
+                and field in _POLICY_IDENTITY_MANIFEST_FIELDS
+                and is_reserved_placeholder(value)
+            ):
+                raise CorpusMetadataError(
+                    f"{field} for {source_path!r} cannot be the reserved placeholder "
+                    f"{value.strip()!r}; use null for an unknown value"
+                )
             entry[field] = value.strip() if isinstance(value, str) else None
+        if schema == SOURCE_METADATA_SCHEMA:
+            for field in ("jurisdictions", "exam_divisions", "permitted_uses", "policy_profiles"):
+                value = values[field]
+                if value is not None and (
+                    not isinstance(value, list)
+                    or any(not isinstance(item, str) or not item.strip() for item in value)
+                    or len(set(value)) != len(value)
+                ):
+                    raise CorpusMetadataError(
+                        f"{field} for {source_path!r} must be a unique list of non-empty strings or null"
+                    )
+                entry[field] = tuple(value) if value is not None else None
+            applicability = values["applicability_status"]
+            if applicability not in APPLICABILITY_STATUSES:
+                raise CorpusMetadataError(
+                    f"applicability_status for {source_path!r} must be one of {APPLICABILITY_STATUSES}"
+                )
+            permission = values["usage_permission_status"]
+            if permission not in PERMISSION_STATUSES:
+                raise CorpusMetadataError(
+                    f"usage_permission_status for {source_path!r} must be one of {PERMISSION_STATUSES}"
+                )
+            permitted = entry["permitted_uses"]
+            if permitted is not None and any(item not in PIPELINE_PURPOSES for item in permitted):
+                raise CorpusMetadataError(
+                    f"permitted_uses for {source_path!r} contains an unsupported purpose"
+                )
+            if applicability == "approved" and entry["applicability_evidence"] is None:
+                raise CorpusMetadataError(
+                    f"approved applicability for {source_path!r} requires applicability_evidence"
+                )
+            if permission == "approved" and entry["usage_permission_note"] is None:
+                raise CorpusMetadataError(
+                    f"approved usage permission for {source_path!r} requires usage_permission_note"
+                )
+            if permission == "approved" and not permitted:
+                raise CorpusMetadataError(
+                    f"approved usage permission for {source_path!r} requires permitted_uses"
+                )
+            entry["applicability_status"] = applicability
+            entry["usage_permission_status"] = permission
         result[source_path] = entry
     return result
 
@@ -273,6 +423,7 @@ def load_chunks(
         explicit = declared.get(source_path, {})
         edition = explicit.get("edition")
         revision = explicit.get("revision")
+        is_policy_v2 = explicit.get("manifest_schema") == SOURCE_METADATA_SCHEMA
         suffix = path.suffix.lower()
         base_version = PDF_PROCESSING_VERSION if suffix == ".pdf" else TEXT_PROCESSING_VERSION
         processing_version = f"{base_version};min_len={min_len};max_len={max_len}"
@@ -360,6 +511,28 @@ def load_chunks(
                         )
                         if value is None
                     ]
+                    policy_values = {
+                        "source_policy_schema": SOURCE_POLICY_SCHEMA if is_policy_v2 else None,
+                        "source_family_id": explicit.get("family_id"),
+                        "source_title": explicit.get("title"),
+                        "source_issuing_authority": explicit.get("issuing_authority"),
+                        "source_jurisdictions": explicit.get("jurisdictions"),
+                        "source_scope": explicit.get("scope"),
+                        "source_exam_divisions": explicit.get("exam_divisions"),
+                        "source_applicability_status": explicit.get("applicability_status"),
+                        "source_applicability_evidence": explicit.get("applicability_evidence"),
+                        "source_usage_permission_status": explicit.get("usage_permission_status"),
+                        "source_permitted_uses": explicit.get("permitted_uses"),
+                        "source_usage_permission_note": explicit.get("usage_permission_note"),
+                        "source_policy_profiles": explicit.get("policy_profiles"),
+                    }
+                    if is_policy_v2:
+                        missing.extend(
+                            field
+                            for field, value in policy_values.items()
+                            if field != "source_policy_schema"
+                            and (value is None or value == "unknown" or value == ())
+                        )
                     not_applicable = [] if page_number is not None else ["source_page"]
                     chunks.append(
                         Chunk(
@@ -378,6 +551,7 @@ def load_chunks(
                             source_revision=revision,
                             source_missing_metadata=tuple(missing),
                             source_not_applicable_metadata=tuple(not_applicable),
+                            **policy_values,
                         )
                     )
     return chunks

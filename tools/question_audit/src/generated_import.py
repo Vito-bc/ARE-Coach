@@ -49,6 +49,22 @@ OPTIONAL_SOURCE_PROVENANCE_FIELDS = (
     "source_missing_metadata",
     "source_not_applicable_metadata",
 )
+POLICY_SOURCE_PROVENANCE_FIELDS = (
+    "source_policy_schema",
+    "source_family_id",
+    "source_title",
+    "source_issuing_authority",
+    "source_jurisdictions",
+    "source_scope",
+    "source_exam_divisions",
+    "source_applicability_status",
+    "source_applicability_evidence",
+    "source_usage_permission_status",
+    "source_permitted_uses",
+    "source_usage_permission_note",
+    "source_policy_profiles",
+    "source_policy_decision",
+)
 
 
 class ImportSafetyError(RuntimeError):
@@ -330,6 +346,17 @@ def _source_provenance(candidate: dict[str, Any]) -> dict[str, Any]:
             field: candidate.get(field)
             for field in OPTIONAL_SOURCE_PROVENANCE_FIELDS
             if is_v2 or field in candidate
+        }
+    )
+    is_policy_v3 = (
+        candidate.get("source_policy_schema") is not None
+        or "source_policy_decision" in candidate
+    )
+    source_values.update(
+        {
+            field: candidate.get(field)
+            for field in POLICY_SOURCE_PROVENANCE_FIELDS
+            if is_policy_v3 or field in candidate
         }
     )
     declared_not_applicable = candidate.get("source_not_applicable_metadata", [])

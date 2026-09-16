@@ -16,11 +16,26 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from src import config
-from src.corpus import Chunk, IngestionDiagnostic, load_chunks, print_ingestion_diagnostics
+from src.corpus import (
+    Chunk,
+    CorpusMetadataError,
+    IngestionDiagnostic,
+    load_chunks,
+    print_ingestion_diagnostics,
+)
+from src.source_policy import (
+    PURPOSE_COACH_INDEX,
+    PolicyRequest,
+    evaluate_source,
+)
 
 # The Coach answers exam questions, so a chunk is only useful if it carries
 # substantive prose or a numbered requirement. Table-of-contents fragments and
@@ -42,12 +57,104 @@ def _useful(text: str) -> bool:
     return letters / len(text) > 0.55
 
 
-def build_index_rows(chunks: list[Chunk], max_chunks: int = 0) -> list[dict[str, Any]]:
-    """Build serializable rows without writing or loading embedding models."""
-    rows = []
+def _same_target(a: Path, b: Path) -> bool:
+    """True if `a` and `b` address the identical filesystem entry.
+
+    Catches the same literal path, a resolved alias (relative components,
+    ``..``), a Windows case-only alias (``os.path.normcase``), and -- once
+    both paths exist on disk -- a symlink or hardlink to the same underlying
+    file (``os.path.samefile``, which normcase comparison alone cannot see).
+    """
+    normalized_a = Path(os.path.normcase(str(a.resolve())))
+    normalized_b = Path(os.path.normcase(str(b.resolve())))
+    if normalized_a == normalized_b:
+        return True
+    try:
+        return a.exists() and b.exists() and os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write `text` to `path` without ever partially overwriting it.
+
+    The full content is serialized to a sibling temp file first (so a slow
+    write, a full disk, or a killed process cannot truncate the destination),
+    then swapped in with one platform-appropriate replace: ``os.replace`` is
+    atomic on both POSIX and Windows when source and destination share a
+    volume, which a same-directory temp file always does.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+@dataclass(frozen=True)
+class IndexPlan:
+    rows: tuple[dict[str, Any], ...]
+    report: dict[str, Any]
+
+
+def build_index_plan(
+    chunks: list[Chunk], requests: list[PolicyRequest], max_chunks: int = 0
+) -> IndexPlan:
+    """Build rows and an exclusion report without writing or loading models."""
+    if not requests or any(request.purpose != PURPOSE_COACH_INDEX for request in requests):
+        raise ValueError("Coach index requires at least one coach_index policy request")
+    rows: list[dict[str, Any]] = []
+    decisions: list[dict[str, Any]] = []
+    content_filtered = 0
     for chunk in chunks:
+        evaluated = [evaluate_source(chunk, request) for request in requests]
+        eligible = [decision for decision in evaluated if decision.eligible]
+        if not eligible:
+            outcome = (
+                "invalid_metadata"
+                if any(decision.outcome == "invalid_metadata" for decision in evaluated)
+                else "excluded"
+            )
+            decisions.append(
+                {
+                    "source_path": chunk.source_path,
+                    "source_document": chunk.source_document,
+                    "source_chunk_id": chunk.source_chunk_id,
+                    "outcome": outcome,
+                    "reasons": sorted(
+                        {
+                            reason
+                            for decision in evaluated
+                            for reason in decision.reasons
+                        }
+                    ),
+                    "requests": [decision.to_dict()["request"] for decision in evaluated],
+                }
+            )
+            continue
         text = " ".join(chunk.text.split())  # normalise whitespace; shrinks the file
         if not _useful(text):
+            content_filtered += 1
+            decisions.append(
+                {
+                    "source_path": chunk.source_path,
+                    "source_document": chunk.source_document,
+                    "source_chunk_id": chunk.source_chunk_id,
+                    "outcome": "excluded",
+                    "reasons": ["content_not_indexable"],
+                    "requests": [decision.to_dict()["request"] for decision in eligible],
+                }
+            )
             continue
         rows.append(
             {
@@ -59,36 +166,150 @@ def build_index_rows(chunks: list[Chunk], max_chunks: int = 0) -> list[dict[str,
                 # this is what makes fabricated citations impossible.
                 "sections": sorted(set(_SECTION_RE.findall(text)))[:8],
                 **chunk.candidate_source_metadata(),
+                "source_policy_decisions": [decision.to_dict() for decision in eligible],
             }
         )
 
     # Prefer chunks that actually carry section numbers -- those are what a
     # candidate needs cited back at them.
     rows.sort(key=lambda row: (-len(row["sections"]), -len(row["text"])))
-    return rows[:max_chunks] if max_chunks else rows
+    rows = rows[:max_chunks] if max_chunks else rows
+    decisions.sort(
+        key=lambda item: (
+            item["source_path"] or "",
+            item["source_chunk_id"] or "",
+        )
+    )
+    excluded_sources: dict[str, dict[str, Any]] = {}
+    for item in decisions:
+        key = item["source_path"] or "<unknown>"
+        aggregate = excluded_sources.setdefault(
+            key,
+            {
+                "source_path": item["source_path"],
+                "source_document": item["source_document"],
+                "outcome": item["outcome"],
+                "chunk_count": 0,
+                "reasons": set(),
+            },
+        )
+        aggregate["chunk_count"] += 1
+        aggregate["reasons"].update(item["reasons"])
+        if item["outcome"] == "invalid_metadata":
+            aggregate["outcome"] = "invalid_metadata"
+    source_rows = []
+    for key in sorted(excluded_sources):
+        item = excluded_sources[key]
+        item["reasons"] = sorted(item["reasons"])
+        source_rows.append(item)
+    report = {
+        "schema": "are-coach.coach-index-policy-report.v1",
+        "requests": [request.to_dict() for request in requests],
+        "counts": {
+            "input_chunks": len(chunks),
+            "eligible_index_rows": len(rows),
+            "excluded_chunks": sum(item["outcome"] == "excluded" for item in decisions),
+            "invalid_metadata_chunks": sum(
+                item["outcome"] == "invalid_metadata" for item in decisions
+            ),
+            "content_filtered_chunks": content_filtered,
+        },
+        "excluded_sources": source_rows,
+        "excluded_chunks": decisions,
+    }
+    return IndexPlan(tuple(rows), report)
 
 
-def main() -> None:
+def build_index_rows(
+    chunks: list[Chunk], requests: list[PolicyRequest], max_chunks: int = 0
+) -> list[dict[str, Any]]:
+    """Compatibility wrapper for callers that only need policy-approved rows."""
+    return list(build_index_plan(chunks, requests, max_chunks).rows)
+
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-chunks", type=int, default=0, help="0 = no cap")
-    args = ap.parse_args()
+    ap.add_argument("--division", action="append", required=True)
+    ap.add_argument("--jurisdiction", required=True)
+    ap.add_argument("--policy-profile", required=True)
+    ap.add_argument("--expected-edition")
+    ap.add_argument("--expected-revision")
+    ap.add_argument("--apply", action="store_true", help="write index and policy report")
+    ap.add_argument("--output", type=Path, default=config.REPO_ROOT / "functions" / "coach_index.json")
+    ap.add_argument(
+        "--report",
+        type=Path,
+        default=config.REPORTS_DIR / "coach_index_policy_report.json",
+    )
+    args = ap.parse_args(argv)
+
+    # Fail before touching disk: a refusal must never destroy the existing
+    # index just because --output and --report happen to name the same file
+    # (literally, via a resolved alias, a Windows case-only alias, or a
+    # symlink/hardlink to it).
+    if args.apply and _same_target(args.output, args.report):
+        print(
+            "REFUSED: --output and --report resolve to the same file "
+            f"({args.output}); choose distinct paths so a refusal can never "
+            "overwrite the existing Coach index with the policy report."
+        )
+        return 2
 
     diagnostics: list[IngestionDiagnostic] = []
-    chunks = load_chunks(diagnostics=diagnostics)
+    try:
+        chunks = load_chunks(diagnostics=diagnostics)
+    except (CorpusMetadataError, OSError, ValueError) as exc:
+        print(f"REFUSED: invalid source metadata or corpus input: {exc}")
+        return 2
     print_ingestion_diagnostics(diagnostics)
     print(f"corpus chunks: {len(chunks)}")
 
-    rows = build_index_rows(chunks, args.max_chunks)
+    requests = [
+        PolicyRequest(
+            PURPOSE_COACH_INDEX,
+            division,
+            args.jurisdiction,
+            args.policy_profile,
+            args.expected_edition,
+            args.expected_revision,
+        )
+        for division in args.division
+    ]
+    plan = build_index_plan(chunks, requests, args.max_chunks)
+    rows = list(plan.rows)
 
-    out = config.REPO_ROOT / "functions" / "coach_index.json"
-    out.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+    counts = plan.report["counts"]
+    print(
+        "policy: "
+        f"{counts['eligible_index_rows']} eligible, {counts['excluded_chunks']} excluded, "
+        f"{counts['invalid_metadata_chunks']} invalid metadata"
+    )
+    if not args.apply:
+        print(json.dumps(plan.report, indent=2, ensure_ascii=False, sort_keys=True))
+        print("DRY-RUN - Coach index and policy report were not changed.")
+        return 0 if rows and not counts["invalid_metadata_chunks"] else 2
+    _atomic_write_text(
+        args.report,
+        json.dumps(plan.report, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
+    )
+    if counts["invalid_metadata_chunks"]:
+        print(f"REFUSED: invalid source metadata; report written to {args.report}")
+        return 2
+    if not rows:
+        print(f"REFUSED: no eligible Coach index rows; report written to {args.report}")
+        return 2
 
-    size_mb = out.stat().st_size / 1_000_000
+    _atomic_write_text(args.output, json.dumps(rows, ensure_ascii=False))
+
+    size_mb = args.output.stat().st_size / 1_000_000
     with_sections = sum(1 for r in rows if r["sections"])
     print(f"kept {len(rows)} chunks ({with_sections} carry section numbers)")
-    print(f"wrote {out.relative_to(config.REPO_ROOT)} -- {size_mb:.1f} MB")
+    print(f"wrote {args.output} -- {size_mb:.1f} MB")
+    print(f"policy report: {args.report}")
     print("NOTE: git-ignored on purpose; `firebase deploy` still uploads it.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
