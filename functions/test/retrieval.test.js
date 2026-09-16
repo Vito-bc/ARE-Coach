@@ -192,8 +192,28 @@ test("returned passages preserve versioned source provenance", () => {
   assert.equal(top.source_policy_decisions[0].outcome, "eligible");
   const publicSource = sourceProvenance(top);
   assert.equal(publicSource.source_chunk_id, "chunk:synthetic-egress-page-17");
+  // Citation-safe policy fields are public.
+  assert.equal(publicSource.source_policy_schema, "are-coach.source-policy.v1");
   assert.equal(publicSource.source_family_id, "nyc.building-code");
-  assert.deepEqual(publicSource.source_policy_profiles, ["are-coach.nyc-2026.v1"]);
+  assert.equal(publicSource.source_title, "New York City Building Code");
+  assert.equal(publicSource.source_issuing_authority, "NYC Department of Buildings");
+  assert.deepEqual(publicSource.source_jurisdictions, ["NYC"]);
+  assert.equal(publicSource.source_scope, "NYC Building Code requirements in the reviewed chapters");
+  assert.deepEqual(publicSource.source_exam_divisions, ["NYC Building Codes"]);
+  // Internal policy governance/audit fields never reach the public source,
+  // even though the internal passage (top) legitimately carries them.
+  for (const field of [
+    "source_applicability_status",
+    "source_applicability_evidence",
+    "source_usage_permission_status",
+    "source_permitted_uses",
+    "source_usage_permission_note",
+    "source_policy_profiles",
+    "source_policy_decisions",
+  ]) {
+    assert.ok(field in top, `${field} should still be on the internal passage`);
+    assert.ok(!(field in publicSource), `${field} must not enter the HTTP source`);
+  }
   assert.ok(!("text" in publicSource));
   assert.ok(!("sections" in publicSource));
   assert.ok(!("score" in publicSource));
@@ -217,4 +237,76 @@ test("index-only fields cannot escape through passages or public sources", () =>
     assert.ok(!(field in publicSource), `${field} must not enter the HTTP source`);
   }
   assert.equal(publicSource.source_chunk_id, "chunk:synthetic-egress-page-17");
+});
+
+// Adversarial: source_policy_decisions is an allowlisted top-level field, but
+// selectFields() copies its value wholesale -- it does not look inside the
+// array. This proves internal audit content nested in there (and the whole
+// field itself) still never reaches an HTTP response, even though nothing
+// filters the nested shape specifically.
+test("internal policy audit data -- nested or top-level -- never reaches a public source", () => {
+  const adversarial = prepareIndex([
+    {
+      ...CORPUS[0],
+      source_applicability_evidence:
+        "Verbal permission from the author's estate pending a written contract; do not distribute publicly",
+      source_usage_permission_note:
+        "Licensed for internal training use only per vendor legal email dated 2024-06-01; do not republish outside the app",
+      source_policy_decisions: [
+        {
+          schema: "are-coach.source-policy-decision.v1",
+          outcome: "eligible",
+          reasons: [],
+          restrictions: [],
+          request: { purpose: "coach_index", target_division: "NYC Building Codes" },
+          source_path: "codes/nyc_bc_ch10_egress.pdf",
+          // Hypothetical future/nested fields a PolicyDecision.to_dict() (or
+          // any other code populating this key) might one day add. Nothing
+          // in the allowlist mechanism inspects this shape -- the whole
+          // field must simply never be public.
+          reviewer_internal_note:
+            "Legal flagged this chapter as disputed with the publisher; do not cite externally until settled",
+          reviewer_email: "legal-review@internal.are-coach.example",
+          vendor_license_terms:
+            "Per contract #4521 section 9(b), redistribution outside app UI is prohibited",
+        },
+      ],
+    },
+    ...filler,
+  ]);
+
+  const [top] = search(adversarial, "egress stairway capacity per occupant", 1);
+  const publicSource = sourceProvenance(top);
+
+  // The internal passage legitimately carries this data (for prompt-building
+  // or future server-side use) -- the point is it goes no further.
+  assert.ok(Array.isArray(top.source_policy_decisions));
+  assert.equal(top.source_applicability_evidence.includes("author's estate"), true);
+
+  assert.ok(!("source_policy_decisions" in publicSource), "the whole nested container must not be public");
+  assert.ok(!("source_applicability_evidence" in publicSource));
+  assert.ok(!("source_usage_permission_note" in publicSource));
+  assert.ok(!("source_applicability_status" in publicSource));
+  assert.ok(!("source_usage_permission_status" in publicSource));
+  assert.ok(!("source_permitted_uses" in publicSource));
+  assert.ok(!("source_policy_profiles" in publicSource));
+
+  const serialized = JSON.stringify(publicSource);
+  for (const leaked of [
+    "reviewer_internal_note",
+    "reviewer_email",
+    "vendor_license_terms",
+    "author's estate",
+    "vendor legal email",
+    "legal-review@internal.are-coach.example",
+    "contract #4521",
+  ]) {
+    assert.ok(!serialized.includes(leaked), `"${leaked}" must not appear anywhere in the public source`);
+  }
+
+  // Citation-safe fields are unaffected by any of the above.
+  assert.equal(publicSource.source_title, "New York City Building Code");
+  assert.equal(publicSource.source_issuing_authority, "NYC Department of Buildings");
+  assert.deepEqual(publicSource.source_jurisdictions, ["NYC"]);
+  assert.equal(publicSource.source_scope, "NYC Building Code requirements in the reviewed chapters");
 });

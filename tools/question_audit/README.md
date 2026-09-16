@@ -138,9 +138,30 @@ Explicit version and policy metadata belongs in local
 }
 ```
 
-Every v2 entry must contain every documented key; use `null` or the explicit
-`unknown`/`pending` status where the owner has not completed a decision. Paths must
-match the corpus-relative path exactly. Edition, revision, jurisdiction,
+Every v2 entry must contain every documented key. Two different kinds of field
+represent "not decided yet", and they are not interchangeable:
+
+- `applicability_status` and `usage_permission_status` are enums whose own
+  values include the explicit states `"unknown"` and `"pending"` -- use those
+  states, not `null`, to record that a decision has not been made yet.
+- Every other field -- `edition`, `revision`, `family_id`, `title`,
+  `issuing_authority`, `scope`, `jurisdictions`, `exam_divisions`,
+  `permitted_uses`, `policy_profiles` -- is free text or a structured value,
+  not a status enum. An unknown value there is recorded as JSON `null`, never
+  as the string `"unknown"` or `"pending"`. The loader rejects `edition`,
+  `revision`, `family_id`, `title`, `issuing_authority`, or `scope` set to
+  exactly (trimmed, case-insensitive) `"unknown"` or `"pending"` with a clean
+  `CorpusMetadataError` -- those two words are reserved placeholders that must
+  never be mistaken for a real value, and the policy selector independently
+  refuses to treat them as known even for a chunk built outside this loader.
+  Ordinary prose that merely contains one of those words (e.g. a scope
+  description) is unaffected -- only an exact, whole-field match is rejected.
+  `applicability_evidence` and `usage_permission_note` are audit prose, not
+  identity, and may legitimately discuss why something is still undecided
+  (including using the words "unknown"/"pending" in a sentence); they are not
+  subject to this placeholder check.
+
+Paths must match the corpus-relative path exactly. Edition, revision, jurisdiction,
 applicability, and usage permission are never inferred from a filename. The old
 `are-coach.corpus-source-metadata.v1` edition/revision sidecar remains readable for
 inventory and review, but it has no policy permission and is ineligible for generation
@@ -175,13 +196,20 @@ python -m src.build_coach_index \
 # inspect the deterministic dry-run report, then repeat with --apply
 ```
 
-Dry-run never writes `functions/coach_index.json` or a report file. `--apply` writes
-the deterministic policy report, but refuses to replace the index if metadata is
-invalid or no eligible rows remain. Typical machine-readable reasons include
+Dry-run never writes `functions/coach_index.json` or a report file. `--apply` refuses
+before writing anything if `--output` and `--report` resolve to the same file
+(literally, via a resolved/relative alias, a Windows case-only alias, or a
+symlink/hardlink) -- a refusal must never be able to replace an existing index with
+the policy report. Given distinct paths, `--apply` writes the deterministic policy
+report, but refuses to replace the index if metadata is invalid or no eligible rows
+remain; on every refusal path the existing index is left byte-for-byte unchanged.
+A successful replacement of either file is atomic (write to a sibling temp file,
+then one platform-appropriate rename) so a failed write cannot leave a truncated
+index or report behind. Typical machine-readable reasons include
 `source_policy_missing`, `usage_permission_missing`, `purpose_not_permitted`,
 `applicability_pending`, `jurisdiction_mismatch`, `division_mismatch`,
-`policy_profile_mismatch`, `edition_unknown`, `edition_mismatch`, and
-`metadata_field_invalid:<field>`.
+`policy_profile_mismatch`, `edition_unknown`, `revision_unknown`, `edition_mismatch`,
+`revision_mismatch`, and `metadata_field_invalid:<field>`.
 
 This slice does **not** populate or approve the real source manifest, decide legal
 rights, declare supersession/equivalence between editions, add provenance to the

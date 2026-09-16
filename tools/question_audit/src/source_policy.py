@@ -118,6 +118,26 @@ def _string_list(value: Any) -> bool:
     return isinstance(value, (list, tuple)) and all(_nonempty(item) for item in value)
 
 
+# "unknown" and "pending" are the two words this policy's own status enums
+# use for "not yet decided" (APPLICABILITY_STATUSES, PERMISSION_STATUSES).
+# A free-text identity field carrying that exact word -- edition, revision,
+# family id, title, issuing authority, scope -- is an owner writing the same
+# "not decided" signal into the wrong field, not a real value. Matched only
+# as a whole, trimmed, case-insensitive value: ordinary prose that merely
+# contains the word ("scope excludes unknown hazards") is unaffected.
+RESERVED_UNKNOWN_VALUES = frozenset({"unknown", "pending"})
+
+
+def is_reserved_placeholder(value: Any) -> bool:
+    """True if `value` is exactly a reserved "not decided" placeholder."""
+    return isinstance(value, str) and value.strip().casefold() in RESERVED_UNKNOWN_VALUES
+
+
+def _known(value: Any) -> bool:
+    """Non-empty and not a reserved "unknown"/"pending" placeholder value."""
+    return _nonempty(value) and not is_reserved_placeholder(value)
+
+
 def _invalid_metadata_reasons(chunk: Any) -> list[str]:
     schema = getattr(chunk, "source_policy_schema", None)
     if schema is None:
@@ -224,9 +244,9 @@ def evaluate_source(chunk: Any, request: PolicyRequest) -> PolicyDecision:
                 if applicability is None
                 else f"applicability_{applicability}"
             )
-        if not _nonempty(edition):
+        if not _known(edition):
             restrictions.append("edition_unknown")
-        if not _nonempty(revision):
+        if not _known(revision):
             restrictions.append("revision_unknown")
         for field, code in (
             ("source_family_id", "family_identity_unknown"),
@@ -234,7 +254,7 @@ def evaluate_source(chunk: Any, request: PolicyRequest) -> PolicyDecision:
             ("source_issuing_authority", "issuing_authority_unknown"),
             ("source_scope", "scope_unknown"),
         ):
-            if not _nonempty(getattr(chunk, field, None)):
+            if not _known(getattr(chunk, field, None)):
                 restrictions.append(code)
         if not isinstance(jurisdictions, (list, tuple)) or request.target_jurisdiction not in jurisdictions:
             restrictions.append("jurisdiction_not_confirmed")
@@ -253,17 +273,17 @@ def evaluate_source(chunk: Any, request: PolicyRequest) -> PolicyDecision:
                 if applicability is None
                 else f"applicability_{applicability}"
             )
-        if not _nonempty(getattr(chunk, "source_family_id", None)):
+        if not _known(getattr(chunk, "source_family_id", None)):
             reasons.append("family_identity_unknown")
-        if not _nonempty(getattr(chunk, "source_title", None)):
+        if not _known(getattr(chunk, "source_title", None)):
             reasons.append("source_title_unknown")
-        if not _nonempty(getattr(chunk, "source_issuing_authority", None)):
+        if not _known(getattr(chunk, "source_issuing_authority", None)):
             reasons.append("issuing_authority_unknown")
-        if not _nonempty(getattr(chunk, "source_scope", None)):
+        if not _known(getattr(chunk, "source_scope", None)):
             reasons.append("scope_unknown")
-        if not _nonempty(edition):
+        if not _known(edition):
             reasons.append("edition_unknown")
-        if not _nonempty(revision):
+        if not _known(revision):
             reasons.append("revision_unknown")
         if not isinstance(jurisdictions, (list, tuple)) or request.target_jurisdiction not in jurisdictions:
             reasons.append("jurisdiction_mismatch")

@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -53,6 +55,50 @@ def _useful(text: str) -> bool:
     # Needs some actual sentences, not just a column of numbers.
     letters = sum(ch.isalpha() for ch in text)
     return letters / len(text) > 0.55
+
+
+def _same_target(a: Path, b: Path) -> bool:
+    """True if `a` and `b` address the identical filesystem entry.
+
+    Catches the same literal path, a resolved alias (relative components,
+    ``..``), a Windows case-only alias (``os.path.normcase``), and -- once
+    both paths exist on disk -- a symlink or hardlink to the same underlying
+    file (``os.path.samefile``, which normcase comparison alone cannot see).
+    """
+    normalized_a = Path(os.path.normcase(str(a.resolve())))
+    normalized_b = Path(os.path.normcase(str(b.resolve())))
+    if normalized_a == normalized_b:
+        return True
+    try:
+        return a.exists() and b.exists() and os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write `text` to `path` without ever partially overwriting it.
+
+    The full content is serialized to a sibling temp file first (so a slow
+    write, a full disk, or a killed process cannot truncate the destination),
+    then swapped in with one platform-appropriate replace: ``os.replace`` is
+    atomic on both POSIX and Windows when source and destination share a
+    volume, which a same-directory temp file always does.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 @dataclass(frozen=True)
@@ -198,6 +244,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
 
+    # Fail before touching disk: a refusal must never destroy the existing
+    # index just because --output and --report happen to name the same file
+    # (literally, via a resolved alias, a Windows case-only alias, or a
+    # symlink/hardlink to it).
+    if args.apply and _same_target(args.output, args.report):
+        print(
+            "REFUSED: --output and --report resolve to the same file "
+            f"({args.output}); choose distinct paths so a refusal can never "
+            "overwrite the existing Coach index with the policy report."
+        )
+        return 2
+
     diagnostics: list[IngestionDiagnostic] = []
     try:
         chunks = load_chunks(diagnostics=diagnostics)
@@ -231,10 +289,9 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(plan.report, indent=2, ensure_ascii=False, sort_keys=True))
         print("DRY-RUN - Coach index and policy report were not changed.")
         return 0 if rows and not counts["invalid_metadata_chunks"] else 2
-    args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(
+    _atomic_write_text(
+        args.report,
         json.dumps(plan.report, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
     if counts["invalid_metadata_chunks"]:
         print(f"REFUSED: invalid source metadata; report written to {args.report}")
@@ -243,8 +300,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"REFUSED: no eligible Coach index rows; report written to {args.report}")
         return 2
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+    _atomic_write_text(args.output, json.dumps(rows, ensure_ascii=False))
 
     size_mb = args.output.stat().st_size / 1_000_000
     with_sections = sum(1 for r in rows if r["sections"])

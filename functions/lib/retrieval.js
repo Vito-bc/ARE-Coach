@@ -16,7 +16,14 @@ const path = require("path");
 const K1 = 1.5; // term-frequency saturation
 const B = 0.75; // length normalisation
 const MIN_SCORE = 10; // below this the "match" is noise, not a source
-const PUBLIC_SOURCE_FIELDS = Object.freeze([
+
+// Fields kept on the internal passage object used to build the Coach prompt.
+// Deliberately broader than PUBLIC_SOURCE_FIELDS below -- everything here is
+// filtered again by sourceProvenance() before it can reach an HTTP response,
+// so this list is where index-carried provenance (including internal policy
+// governance data) is allowed to live for prompt-building or future
+// server-side use, without that alone making it public.
+const PASSAGE_SOURCE_FIELDS = Object.freeze([
   "source",
   "ref",
   "source_metadata_schema",
@@ -45,6 +52,47 @@ const PUBLIC_SOURCE_FIELDS = Object.freeze([
   "source_usage_permission_note",
   "source_policy_profiles",
   "source_policy_decisions",
+]);
+
+// The public citation contract for askCoach's HTTP `sources` response. This
+// is intentionally a hand-written subset of PASSAGE_SOURCE_FIELDS, not a
+// derived one: a field only reaches a paying end user by being listed here
+// explicitly, so a future addition to the index row (or to nested content
+// under an already-listed key, e.g. source_policy_decisions) never becomes
+// public just by existing upstream.
+//
+// Excluded on purpose -- internal governance/audit data, not citation data:
+// source_applicability_status, source_applicability_evidence (owner's
+// reviewed evidence/decision reference), source_usage_permission_status,
+// source_permitted_uses, source_usage_permission_note (owner's recorded
+// permission basis), source_policy_profiles, and source_policy_decisions
+// (the full nested policy-decision objects, including internal reasons,
+// restrictions and the request that was evaluated). These may still appear
+// in the index row, generated candidates, review workbooks, the import
+// journal and the Python policy reports -- just never in a Coach HTTP
+// response.
+const PUBLIC_SOURCE_FIELDS = Object.freeze([
+  "source",
+  "ref",
+  "source_metadata_schema",
+  "source_document",
+  "source_sha256",
+  "source_path",
+  "source_page",
+  "source_locator",
+  "source_chunk_id",
+  "source_extraction_version",
+  "source_edition",
+  "source_revision",
+  "source_missing_metadata",
+  "source_not_applicable_metadata",
+  "source_policy_schema",
+  "source_family_id",
+  "source_title",
+  "source_issuing_authority",
+  "source_jurisdictions",
+  "source_scope",
+  "source_exam_divisions",
 ]);
 
 function selectFields(value, fields) {
@@ -162,8 +210,11 @@ function search(idx, query, k = 5) {
     .map((s) => {
       // Only fields needed by the prompt or explicitly approved provenance may
       // leave the prepared index. New index-only fields stay private by default.
+      // This is the broader PASSAGE list, not the public one: sourceProvenance()
+      // below is the actual HTTP boundary and filters again with the narrower,
+      // citation-safe PUBLIC_SOURCE_FIELDS.
       const passage = selectFields(s.doc, [
-        ...PUBLIC_SOURCE_FIELDS,
+        ...PASSAGE_SOURCE_FIELDS,
         "text",
         "sections",
       ]);
@@ -183,7 +234,13 @@ function retrieve(query, k = 5) {
   return search(getIndex(), query, k);
 }
 
-/** Returns the explicit public source contract; index-only fields stay private. */
+/**
+ * Returns the explicit public source contract for an askCoach HTTP response.
+ * Internal policy governance/audit fields (applicability/usage-permission
+ * status, permitted uses, permission notes/evidence, policy profiles, and
+ * the nested policy-decision objects) are never included, however they are
+ * shaped or nested on `passage` -- see PUBLIC_SOURCE_FIELDS above.
+ */
 function sourceProvenance(passage) {
   return selectFields(passage, PUBLIC_SOURCE_FIELDS);
 }

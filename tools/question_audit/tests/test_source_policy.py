@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -12,6 +14,7 @@ from unittest.mock import patch
 
 from src.build_coach_index import build_index_plan, main as index_main
 from src.corpus import (
+    LEGACY_SOURCE_METADATA_SCHEMA,
     SOURCE_METADATA_SCHEMA,
     Chunk,
     CorpusMetadataError,
@@ -125,11 +128,222 @@ class SourcePolicyTest(unittest.TestCase):
         self.assertIn("revision_mismatch", revision.reasons)
 
     def test_missing_or_unknown_edition_never_means_approved(self) -> None:
-        for edition in (None, ""):
+        # None and "" are the obviously-missing cases; "unknown"/"pending" (in
+        # any case, with incidental whitespace) are RESERVED PLACEHOLDERS an
+        # owner might type after seeing those exact words used for the status
+        # enums elsewhere in this same manifest -- they must fail exactly the
+        # same way, never be treated as a real edition.
+        for edition in (None, "", "unknown", " UNKNOWN ", "pending", " Pending "):
             with self.subTest(edition=edition):
                 decision = evaluate_source(_chunk(source_edition=edition), _request())
                 self.assertFalse(decision.eligible)
                 self.assertIn("edition_unknown", decision.reasons)
+
+    def test_missing_or_placeholder_revision_never_means_approved(self) -> None:
+        for revision in (None, "", "unknown", " UNKNOWN ", "pending", " Pending "):
+            with self.subTest(revision=revision):
+                decision = evaluate_source(_chunk(source_revision=revision), _request())
+                self.assertFalse(decision.eligible)
+                self.assertIn("revision_unknown", decision.reasons)
+
+    def test_placeholder_identity_fields_never_count_as_known(self) -> None:
+        # Same reserved-placeholder principle for the free-text identity
+        # fields: an owner writing "unknown"/"pending" instead of leaving the
+        # field null must not silently pass as a real family id, title,
+        # issuing authority, or scope.
+        cases = (
+            ("source_family_id", "family_identity_unknown"),
+            ("source_title", "source_title_unknown"),
+            ("source_issuing_authority", "issuing_authority_unknown"),
+            ("source_scope", "scope_unknown"),
+        )
+        for field, reason in cases:
+            for placeholder in ("unknown", " UNKNOWN ", "pending", " Pending "):
+                with self.subTest(field=field, placeholder=placeholder):
+                    decision = evaluate_source(_chunk(**{field: placeholder}), _request())
+                    self.assertFalse(decision.eligible)
+                    self.assertIn(reason, decision.reasons)
+
+    def test_ordinary_prose_containing_the_word_unknown_is_not_rejected(self) -> None:
+        # The placeholder check is an exact match, not a substring search --
+        # a scope that merely discusses "unknown" conditions is real prose,
+        # not a stand-in for "not decided", and must not be excluded by it.
+        decision = evaluate_source(
+            _chunk(source_scope="Covers known and unknown seismic hazard zones"),
+            _request(),
+        )
+        self.assertTrue(decision.eligible)
+        self.assertNotIn("scope_unknown", decision.reasons)
+
+    def test_manifest_rejects_reserved_placeholder_edition_and_revision(self) -> None:
+        # The loader is the first line of defense: prefer refusing the
+        # ambiguous input outright over silently accepting it and relying
+        # only on the pure selector downstream.
+        for field, placeholder in (
+            ("edition", "unknown"),
+            ("edition", " UNKNOWN "),
+            ("revision", "pending"),
+            ("revision", " Pending "),
+            ("family_id", "unknown"),
+            ("title", "pending"),
+            ("issuing_authority", "UNKNOWN"),
+            ("scope", "Pending"),
+        ):
+            with self.subTest(field=field, placeholder=placeholder):
+                with tempfile.TemporaryDirectory() as td:
+                    root = Path(td)
+                    (root / "source.txt").write_text("Synthetic text " * 30, encoding="utf-8")
+                    entry = _manifest_entry(**{field: placeholder})
+                    (root / "source_metadata.json").write_text(
+                        json.dumps({"schema": SOURCE_METADATA_SCHEMA, "sources": {"source.txt": entry}}),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(CorpusMetadataError, "reserved placeholder"):
+                        load_chunks(min_len=1, corpus_dir=root)
+
+    def test_manifest_does_not_reject_placeholder_in_evidence_or_note_fields(self) -> None:
+        # Evidence/note are audit prose, not identity -- "pending" legitimately
+        # describes their own review status and must not be rejected.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "source.txt").write_text("Synthetic text " * 30, encoding="utf-8")
+            entry = _manifest_entry(applicability_evidence="pending", usage_permission_note="unknown")
+            entry["applicability_status"] = "pending"
+            entry["usage_permission_status"] = "pending"
+            (root / "source_metadata.json").write_text(
+                json.dumps({"schema": SOURCE_METADATA_SCHEMA, "sources": {"source.txt": entry}}),
+                encoding="utf-8",
+            )
+            chunk = load_chunks(min_len=1, corpus_dir=root)[0]
+            self.assertEqual(chunk.source_applicability_evidence, "pending")
+            self.assertEqual(chunk.source_usage_permission_note, "unknown")
+
+    def test_manifest_prefers_null_for_unknown_edition_or_revision(self) -> None:
+        # Documents that null (not the loader's rejection) is the supported,
+        # eligibility-safe way to record an undecided edition/revision.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "source.txt").write_text("Synthetic text " * 30, encoding="utf-8")
+            entry = _manifest_entry(edition=None, revision=None)
+            (root / "source_metadata.json").write_text(
+                json.dumps({"schema": SOURCE_METADATA_SCHEMA, "sources": {"source.txt": entry}}),
+                encoding="utf-8",
+            )
+            chunk = load_chunks(min_len=1, corpus_dir=root)[0]
+            self.assertIsNone(chunk.source_edition)
+            self.assertIsNone(chunk.source_revision)
+            decision = evaluate_source(chunk, _request(edition=None, revision=None))
+            self.assertIn("edition_unknown", decision.reasons)
+            self.assertIn("revision_unknown", decision.reasons)
+
+    def test_legacy_v1_manifest_is_unaffected_by_the_placeholder_check(self) -> None:
+        # "Do not apply new strict requirements to legacy v1 entries; they
+        # have no policy eligibility in any case." A literal "unknown" in a
+        # v1 edition/revision is unchanged pre-existing behavior, not a new
+        # rejection -- and the resulting chunk still has zero eligibility.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "source.txt").write_text("Synthetic text " * 30, encoding="utf-8")
+            (root / "source_metadata.json").write_text(
+                json.dumps(
+                    {
+                        "schema": LEGACY_SOURCE_METADATA_SCHEMA,
+                        "sources": {"source.txt": {"edition": "unknown", "revision": "pending"}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            chunk = load_chunks(min_len=1, corpus_dir=root)[0]
+            self.assertEqual(chunk.source_edition, "unknown")
+            self.assertEqual(chunk.source_revision, "pending")
+            self.assertIsNone(chunk.source_policy_schema)
+            for purpose in (PURPOSE_HUMAN_REVIEW, PURPOSE_QUESTION_GENERATION, PURPOSE_COACH_INDEX):
+                decision = evaluate_source(chunk, _request(purpose))
+                self.assertEqual(decision.outcome, "excluded")
+                self.assertEqual(decision.reasons, ("source_policy_missing",))
+
+    # --- Legacy v1 manifest compatibility regression tests ------------------
+
+    def test_legacy_v1_manifest_accepts_edition_only(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "source.txt").write_text("Synthetic text " * 30, encoding="utf-8")
+            (root / "source_metadata.json").write_text(
+                json.dumps(
+                    {
+                        "schema": LEGACY_SOURCE_METADATA_SCHEMA,
+                        "sources": {"source.txt": {"edition": "Ed1"}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            chunk = load_chunks(min_len=1, corpus_dir=root)[0]
+            self.assertEqual(chunk.source_edition, "Ed1")
+            self.assertIsNone(chunk.source_revision)
+
+    def test_legacy_v1_manifest_accepts_revision_only(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "source.txt").write_text("Synthetic text " * 30, encoding="utf-8")
+            (root / "source_metadata.json").write_text(
+                json.dumps(
+                    {
+                        "schema": LEGACY_SOURCE_METADATA_SCHEMA,
+                        "sources": {"source.txt": {"revision": "R1"}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            chunk = load_chunks(min_len=1, corpus_dir=root)[0]
+            self.assertIsNone(chunk.source_edition)
+            self.assertEqual(chunk.source_revision, "R1")
+
+    def test_legacy_v1_manifest_accepts_empty_object(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "source.txt").write_text("Synthetic text " * 30, encoding="utf-8")
+            (root / "source_metadata.json").write_text(
+                json.dumps(
+                    {"schema": LEGACY_SOURCE_METADATA_SCHEMA, "sources": {"source.txt": {}}}
+                ),
+                encoding="utf-8",
+            )
+            chunk = load_chunks(min_len=1, corpus_dir=root)[0]
+            self.assertIsNone(chunk.source_edition)
+            self.assertIsNone(chunk.source_revision)
+
+    def test_legacy_v1_manifest_accepts_both_fields_null(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "source.txt").write_text("Synthetic text " * 30, encoding="utf-8")
+            (root / "source_metadata.json").write_text(
+                json.dumps(
+                    {
+                        "schema": LEGACY_SOURCE_METADATA_SCHEMA,
+                        "sources": {"source.txt": {"edition": None, "revision": None}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            chunk = load_chunks(min_len=1, corpus_dir=root)[0]
+            self.assertIsNone(chunk.source_edition)
+            self.assertIsNone(chunk.source_revision)
+
+    def test_legacy_v1_manifest_still_rejects_unknown_extra_key(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "source.txt").write_text("Synthetic text " * 30, encoding="utf-8")
+            (root / "source_metadata.json").write_text(
+                json.dumps(
+                    {
+                        "schema": LEGACY_SOURCE_METADATA_SCHEMA,
+                        "sources": {"source.txt": {"edition": "Ed1", "jurisdiction": "NYC"}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(CorpusMetadataError, "unknown source metadata fields"):
+                load_chunks(min_len=1, corpus_dir=root)
 
     def test_malformed_metadata_is_a_separate_outcome(self) -> None:
         decision = evaluate_source(
@@ -412,6 +626,145 @@ class SourcePolicyTest(unittest.TestCase):
             self.assertEqual(result, 2)
             self.assertEqual(output.read_text(encoding="utf-8"), "PRESERVE")
             self.assertFalse(report.exists())
+
+    # --- Coach index/report write-safety (--output/--report collisions and
+    # atomic replacement) ----------------------------------------------------
+
+    def _excluded_chunk(self) -> Chunk:
+        """A chunk with zero eligible purposes -- an "empty eligible corpus"."""
+        return _chunk(
+            source_path="blocked.pdf",
+            source_chunk_id="chunk:blocked",
+            source_permitted_uses=(PURPOSE_HUMAN_REVIEW,),
+        )
+
+    def _invalid_metadata_chunk(self) -> Chunk:
+        return _chunk(
+            source_path="bad.pdf",
+            source_chunk_id="chunk:bad",
+            source_permitted_uses=(PURPOSE_QUESTION_GENERATION, "not-a-real-purpose"),
+        )
+
+    def _eligible_chunk(self) -> Chunk:
+        return _chunk(source_path="good.pdf", source_chunk_id="chunk:good")
+
+    def _run_index_main(self, chunks, *, output: Path, report: Path, apply: bool = True):
+        argv = [
+            "--division", PCM,
+            "--jurisdiction", "ARE",
+            "--policy-profile", PROFILE,
+            "--output", str(output),
+            "--report", str(report),
+        ]
+        if apply:
+            argv.append("--apply")
+        with patch("src.build_coach_index.load_chunks", return_value=chunks), redirect_stdout(StringIO()):
+            return index_main(argv)
+
+    def test_same_output_report_path_refused_with_empty_eligible_corpus(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            same = Path(td) / "coach_index.json"
+            same.write_text("PRESERVE", encoding="utf-8")
+            result = self._run_index_main([self._excluded_chunk()], output=same, report=same)
+            self.assertEqual(result, 2)
+            self.assertEqual(same.read_text(encoding="utf-8"), "PRESERVE")
+
+    def test_same_output_report_path_refused_with_invalid_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            same = Path(td) / "coach_index.json"
+            same.write_text("PRESERVE", encoding="utf-8")
+            result = self._run_index_main([self._invalid_metadata_chunk()], output=same, report=same)
+            self.assertEqual(result, 2)
+            self.assertEqual(same.read_text(encoding="utf-8"), "PRESERVE")
+
+    def test_same_output_report_path_refused_before_a_successful_run_too(self) -> None:
+        # Even when every chunk WOULD be eligible, the collision must refuse
+        # before any work happens -- an existing index must never become a
+        # policy report just because the operator reused one path.
+        with tempfile.TemporaryDirectory() as td:
+            same = Path(td) / "coach_index.json"
+            same.write_text("PRESERVE", encoding="utf-8")
+            result = self._run_index_main([self._eligible_chunk()], output=same, report=same)
+            self.assertEqual(result, 2)
+            self.assertEqual(same.read_text(encoding="utf-8"), "PRESERVE")
+
+    def test_distinct_paths_write_refusal_report_but_preserve_index_on_invalid_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output = Path(td) / "coach_index.json"
+            report = Path(td) / "report.json"
+            output.write_text("PRESERVE", encoding="utf-8")
+            result = self._run_index_main([self._invalid_metadata_chunk()], output=output, report=report)
+            self.assertEqual(result, 2)
+            self.assertEqual(output.read_text(encoding="utf-8"), "PRESERVE")
+            self.assertTrue(report.exists())
+            written = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(written["counts"]["invalid_metadata_chunks"], 1)
+
+    def test_dry_run_writes_neither_output_nor_report(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output = Path(td) / "coach_index.json"
+            report = Path(td) / "report.json"
+            output.write_text("PRESERVE", encoding="utf-8")
+            result = self._run_index_main(
+                [self._eligible_chunk()], output=output, report=report, apply=False
+            )
+            self.assertEqual(result, 0)
+            self.assertEqual(output.read_text(encoding="utf-8"), "PRESERVE")
+            self.assertFalse(report.exists())
+
+    def test_successful_apply_replaces_index_and_writes_report(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output = Path(td) / "coach_index.json"
+            report = Path(td) / "report.json"
+            output.write_text("STALE", encoding="utf-8")
+            result = self._run_index_main([self._eligible_chunk()], output=output, report=report)
+            self.assertEqual(result, 0)
+            rows = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["source_path"], "good.pdf")
+            written_report = json.loads(report.read_text(encoding="utf-8"))
+            self.assertEqual(written_report["counts"]["eligible_index_rows"], 1)
+            # No leftover temp files from the atomic writer.
+            leftovers = [p for p in Path(td).iterdir() if p.suffix == ".tmp"]
+            self.assertEqual(leftovers, [])
+
+    def test_simulated_replace_failure_leaves_existing_files_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output = Path(td) / "coach_index.json"
+            report = Path(td) / "report.json"
+            output.write_text("EXISTING INDEX", encoding="utf-8")
+            report.write_text("EXISTING REPORT", encoding="utf-8")
+            with patch("src.build_coach_index.os.replace", side_effect=OSError("simulated disk failure")):
+                with self.assertRaises(OSError):
+                    self._run_index_main([self._eligible_chunk()], output=output, report=report)
+            self.assertEqual(output.read_text(encoding="utf-8"), "EXISTING INDEX")
+            self.assertEqual(report.read_text(encoding="utf-8"), "EXISTING REPORT")
+            # The temp file used for the failed replace must not be left behind.
+            leftovers = [p for p in Path(td).iterdir() if p.suffix == ".tmp"]
+            self.assertEqual(leftovers, [], f"temp file(s) not cleaned up: {leftovers}")
+
+    @unittest.skipUnless(sys.platform.startswith("win"), "case-insensitive filesystem collision is Windows-specific")
+    def test_windows_case_only_alias_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output = Path(td) / "INDEX.JSON"
+            output.write_text("PRESERVE", encoding="utf-8")
+            report = Path(td) / "index.json"  # same file on a case-insensitive filesystem
+            result = self._run_index_main([self._eligible_chunk()], output=output, report=report)
+            self.assertEqual(result, 2)
+            self.assertEqual(output.read_text(encoding="utf-8"), "PRESERVE")
+
+    def test_hardlink_alias_is_refused_if_supported_else_skipped(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output = Path(td) / "coach_index.json"
+            output.write_text("PRESERVE", encoding="utf-8")
+            report = Path(td) / "report_alias.json"
+            try:
+                os.link(output, report)  # a second name for the SAME file
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"hardlinks are not supported in this environment: {exc}")
+            result = self._run_index_main([self._eligible_chunk()], output=output, report=report)
+            self.assertEqual(result, 2)
+            self.assertEqual(output.read_text(encoding="utf-8"), "PRESERVE")
 
 
 if __name__ == "__main__":

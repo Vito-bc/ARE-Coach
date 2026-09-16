@@ -25,6 +25,7 @@ from src.source_policy import (
     PIPELINE_PURPOSES,
     POLICY_SOURCE_FIELDS,
     SOURCE_POLICY_SCHEMA,
+    is_reserved_placeholder,
 )
 
 CORPUS_DIR = config.TOOL_DIR / "corpus"
@@ -182,6 +183,13 @@ _POLICY_MANIFEST_FIELDS = {
     "usage_permission_note",
     "policy_profiles",
 }
+# Free-text fields that stand in for the source's identity/version, where the
+# literal word "unknown" or "pending" would silently pass as a real value.
+# Evidence/note fields are deliberately excluded -- they are audit text, not
+# identity, and legitimately may discuss why something is still undecided.
+_POLICY_IDENTITY_MANIFEST_FIELDS = frozenset(
+    {"family_id", "title", "issuing_authority", "scope", "edition", "revision"}
+)
 
 
 def _load_source_metadata(
@@ -218,12 +226,21 @@ def _load_source_metadata(
             else _POLICY_MANIFEST_FIELDS
         )
         unknown_fields = sorted(set(values) - expected_fields)
-        missing_fields = sorted(expected_fields - set(values))
-        if unknown_fields or missing_fields:
-            raise CorpusMetadataError(
-                f"source metadata fields for {source_path!r} do not match {schema}; "
-                f"missing={missing_fields}, unknown={unknown_fields}"
-            )
+        if schema == LEGACY_SOURCE_METADATA_SCHEMA:
+            # v1 keeps its original, more permissive contract: an omitted
+            # edition/revision key defaults to None below, exactly as before
+            # this PR. Only a genuinely unrecognized key is rejected.
+            if unknown_fields:
+                raise CorpusMetadataError(
+                    f"unknown source metadata fields for {source_path!r}: {unknown_fields}"
+                )
+        else:
+            missing_fields = sorted(expected_fields - set(values))
+            if unknown_fields or missing_fields:
+                raise CorpusMetadataError(
+                    f"source metadata fields for {source_path!r} do not match {schema}; "
+                    f"missing={missing_fields}, unknown={unknown_fields}"
+                )
         entry: dict[str, Any] = {"manifest_schema": schema}
         string_fields = (
             ("edition", "revision")
@@ -243,6 +260,15 @@ def _load_source_metadata(
             value = values.get(field)
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise CorpusMetadataError(f"{field} for {source_path!r} must be a non-empty string or null")
+            if (
+                schema == SOURCE_METADATA_SCHEMA
+                and field in _POLICY_IDENTITY_MANIFEST_FIELDS
+                and is_reserved_placeholder(value)
+            ):
+                raise CorpusMetadataError(
+                    f"{field} for {source_path!r} cannot be the reserved placeholder "
+                    f"{value.strip()!r}; use null for an unknown value"
+                )
             entry[field] = value.strip() if isinstance(value, str) else None
         if schema == SOURCE_METADATA_SCHEMA:
             for field in ("jurisdictions", "exam_divisions", "permitted_uses", "policy_profiles"):
