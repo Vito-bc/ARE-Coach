@@ -6,6 +6,7 @@ import '../core/ui/app_chrome.dart';
 import '../models/chat_message.dart';
 import '../services/coach_service.dart';
 import '../services/voice_service.dart';
+import '../widgets/coach_citations.dart';
 
 class CoachScreen extends StatefulWidget {
   const CoachScreen({super.key, this.initialMessage});
@@ -96,13 +97,20 @@ Common mistakes:
     final result = await _coachService.askCoach(prompt);
     if (!mounted) return;
 
-    final (text, role) = switch (result) {
-      Ok(:final value) => (value, ChatRole.coach),
-      Err(:final message) => (message, ChatRole.error),
+    final message = switch (result) {
+      Ok(:final value) => ChatMessage(
+          role: ChatRole.coach,
+          text: value.answer,
+          time: DateTime.now(),
+          sources: value.sources,
+          grounded: value.grounded,
+        ),
+      Err(:final message) =>
+        ChatMessage(role: ChatRole.error, text: message, time: DateTime.now()),
     };
 
     setState(() {
-      _messages.add(ChatMessage(role: role, text: text, time: DateTime.now()));
+      _messages.add(message);
       _loading = false;
     });
     _scrollToBottom();
@@ -345,6 +353,10 @@ Common mistakes:
                                 fontSize: 10,
                                 color: AppTheme.textSecondary,
                               ),
+                            ),
+                            CoachCitations(
+                              sources: msg.sources,
+                              grounded: msg.grounded,
                             ),
                           ],
                           if (isError && !msg.text.contains('Daily AI limit')) ...[

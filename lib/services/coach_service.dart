@@ -5,11 +5,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 
 import '../core/result.dart';
+import '../models/coach_answer.dart';
+import '../models/coach_source.dart';
 
 class CoachService {
-  CoachService({http.Client? client}) : _client = client ?? http.Client();
+  CoachService({http.Client? client, String? endpointOverride})
+      : _client = client ?? http.Client(),
+        _endpointOverride = endpointOverride;
 
   final http.Client _client;
+
+  // COACH_API_URL is a compile-time define, so it can't be swapped per-test
+  // the way _client can. `endpointOverride` is the only hook this exposes for
+  // tests to point askCoach at a fake server; production callers never pass
+  // it, so the compiled behaviour is unchanged.
+  final String? _endpointOverride;
 
   /// True when the app was compiled with a real COACH_API_URL.
   static bool get isLive =>
@@ -24,8 +34,9 @@ class CoachService {
   // the candidate studies a code section we invented. If the Coach cannot
   // answer, say so.
 
-  Future<Result<String>> askCoach(String prompt) async {
-    final endpoint = const String.fromEnvironment('COACH_API_URL');
+  Future<Result<CoachAnswer>> askCoach(String prompt) async {
+    final endpoint =
+        _endpointOverride ?? const String.fromEnvironment('COACH_API_URL');
     if (endpoint.isEmpty) {
       return const Err(
         'Coach is unavailable in this build. Please update the app.',
@@ -83,7 +94,11 @@ class CoachService {
         final payload = _asMap(response.body);
         final answer = payload['answer']?.toString();
         if (answer != null && answer.trim().isNotEmpty) {
-          return Ok(answer);
+          return Ok(CoachAnswer(
+            answer: answer,
+            grounded: payload['grounded'] == true,
+            sources: CoachSource.listFromJson(payload['sources']),
+          ));
         }
       }
       return const Err('Coach could not answer that. Please try rephrasing.');
