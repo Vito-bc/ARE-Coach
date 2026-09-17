@@ -12,11 +12,17 @@
  * There is deliberately NO canned fallback answer. If the model fails, the
  * caller surfaces an honest error. Serving a stock paragraph dressed up as a
  * real answer is worse than showing an outage.
+ *
+ * The system-prompt text and the [Source N] citation-header renderer live in
+ * ./coach_prompt (pure, no npm dependencies) so they can be unit-tested
+ * without `npm ci`. This file adds the parts that need the installed
+ * @anthropic-ai/sdk: the actual model call and its error mapping.
  */
 const Anthropic = require("@anthropic-ai/sdk");
 const logger = require("firebase-functions/logger");
 
-const { retrieve, sourceProvenance } = require("./retrieval");
+const { retrieve } = require("./retrieval");
+const { GROUNDED_SYSTEM, NO_SOURCES_SYSTEM, labelSources, renderSources } = require("./coach_prompt");
 
 // Opus 4.8: do NOT send temperature / top_p / top_k / budget_tokens -- all are
 // rejected with a 400 on this model.
@@ -24,52 +30,15 @@ const MODEL = "claude-opus-4-8";
 const MAX_TOKENS = 1500;
 const TOP_K = 5;
 
-const BASE_SYSTEM = `You are the ARE Coach: a study assistant for candidates taking the NCARB
-Architect Registration Examination (ARE 5.0), many of them practising in New York City.
-
-HOW TO ANSWER
-- Lead with the direct answer in one or two sentences.
-- Then give the rule, the number, or the procedure that supports it.
-- Then one short line on how this is tested and where candidates slip up.
-- Plain prose. No preamble, no restating the question, no meta-commentary about
-  your own reasoning. Give the final answer only.
-
-SOURCING -- THIS IS THE PART THAT MATTERS
-- Cite a code section, standard, or numeric requirement ONLY if it appears
-  verbatim in the SOURCES below. Quote the section number exactly as written there.
-- You MUST NOT invent, guess, extrapolate, or "recall" a section number,
-  table number, or code figure that is not in the SOURCES. A fabricated citation
-  is the single worst thing you can do here -- it makes a candidate study
-  something that does not exist.
-- If the SOURCES do not answer the question, say so plainly, answer only as far
-  as you honestly can, and tell the candidate which document to check.
-- Never claim an item is worth a particular number of exam points. NCARB scores
-  every item as one point, pass/fail only.`;
-
-const NO_SOURCES_SYSTEM = `${BASE_SYSTEM}
-
-NO SOURCES WERE RETRIEVED for this question. You may still answer general
-questions about exam structure, study strategy, or professional practice from
-general knowledge -- but you MUST NOT cite any code section, standard number,
-table, or specific numeric code requirement. If answering properly would require
-one, say that you cannot source it and name the document the candidate should
-open.`;
-
-/** Renders retrieved passages into the prompt, tagged so citations are checkable. */
-function renderSources(passages) {
-  return passages
-    .map((p, i) => {
-      const where = p.ref ? `${p.source} -- ${p.ref}` : p.source;
-      return `[${i + 1}] ${where}\n${p.text}`;
-    })
-    .join("\n\n");
-}
-
 /**
  * Answers a candidate's question, grounded in the corpus.
  * Throws on failure -- the caller must NOT substitute a canned answer.
+ *
+ * `deps.client`, if given, replaces the real Anthropic client -- the only
+ * hook this module exposes for tests to stub the model call without a
+ * network or an API key. Production callers (index.js) never pass it.
  */
-async function askCoach(prompt, apiKey) {
+async function askCoach(prompt, apiKey, deps = {}) {
   if (!apiKey) {
     const err = new Error("Coach is not configured");
     err.code = "coach_unconfigured";
@@ -78,19 +47,20 @@ async function askCoach(prompt, apiKey) {
 
   const passages = retrieve(prompt, TOP_K);
   const grounded = passages.length > 0;
+  const labelledSources = labelSources(passages);
 
   const userContent = grounded
-    ? `SOURCES\n${renderSources(passages)}\n\nCANDIDATE'S QUESTION\n${prompt}`
+    ? `SOURCES\n${renderSources(labelledSources)}\n\nCANDIDATE'S QUESTION\n${prompt}`
     : `CANDIDATE'S QUESTION\n${prompt}`;
 
-  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  const client = deps.client || new Anthropic({ apiKey, maxRetries: 2 });
 
   let message;
   try {
     message = await client.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      system: grounded ? BASE_SYSTEM : NO_SOURCES_SYSTEM,
+      system: grounded ? GROUNDED_SYSTEM : NO_SOURCES_SYSTEM,
       messages: [{ role: "user", content: userContent }],
     });
   } catch (e) {
@@ -134,10 +104,10 @@ async function askCoach(prompt, apiKey) {
     answer,
     model: MODEL,
     grounded,
-    // Keep provenance added by the index while excluding retrieved text and
-    // scoring internals from the API response. Legacy rows still yield the
-    // original {source, ref} shape.
-    sources: passages.map(sourceProvenance),
+    // Same labelled list the prompt was built from, in the same order, so
+    // sources[N-1] is always what the model saw as [Source N]. Legacy rows
+    // still yield the original {source, ref} shape.
+    sources: labelledSources.map((s) => s.provenance),
     inputTokens: message.usage?.input_tokens ?? null,
     outputTokens: message.usage?.output_tokens ?? null,
   };

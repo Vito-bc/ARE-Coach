@@ -1,0 +1,211 @@
+"use strict";
+
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+
+// This file tests only the pure prompt-building surface (lib/coach_prompt.js)
+// -- it must never require lib/coach.js or @anthropic-ai/sdk, directly or
+// transitively. The "Cloud Functions tests" CI job runs `node --test` with NO
+// npm install (see .github/workflows/flutter-ci.yml); @anthropic-ai/sdk only
+// exists once `npm ci` has run. Coverage that needs the real askCoach
+// (network-shaped behaviour, the actual model call) lives in
+// functions/integration/coach.spec.cjs instead, which runs in the
+// apple-integration job after `npm ci`.
+const {
+  GROUNDED_SYSTEM,
+  NO_SOURCES_SYSTEM,
+  labelSources,
+  renderSources,
+} = require("../lib/coach_prompt");
+
+// A fully-populated, page-aware modern passage (post PR #55/#56 shape).
+const MODERN_PASSAGE = {
+  source: "nyc_bc_ch10_egress.pdf",
+  ref: "1005.3",
+  source_metadata_schema: "are-coach.corpus-chunk.v1",
+  source_document: "doc:synthetic-egress",
+  source_sha256: "sha256:synthetic-egress",
+  source_path: "codes/nyc_bc_ch10_egress.pdf",
+  source_page: 17,
+  source_locator: "pdf-page:17:section:1:piece:1",
+  source_chunk_id: "chunk:synthetic-egress-page-17",
+  source_extraction_version: "are-coach.pypdf-page-chunker.v1;min_len=80;max_len=1200",
+  source_edition: "2022",
+  source_revision: "Local Law 126",
+  source_missing_metadata: [],
+  source_not_applicable_metadata: [],
+  source_policy_schema: "are-coach.source-policy.v1",
+  source_family_id: "nyc.building-code",
+  source_title: "New York City Building Code",
+  source_issuing_authority: "NYC Department of Buildings",
+  source_jurisdictions: ["NYC"],
+  source_scope: "NYC Building Code requirements in the reviewed chapters",
+  source_exam_divisions: ["NYC Building Codes"],
+  // Internal governance fields -- must never reach the prompt. The nested
+  // object under source_policy_decisions in particular must not leak even
+  // though selectFields() copies that field wholesale rather than inspecting
+  // its shape.
+  source_applicability_status: "approved",
+  source_applicability_evidence:
+    "Verbal permission from the author's estate pending a written contract; do not distribute publicly",
+  source_usage_permission_status: "approved",
+  source_permitted_uses: ["human_review", "coach_index"],
+  source_usage_permission_note:
+    "Licensed for internal training use only per vendor legal email dated 2024-06-01; do not republish outside the app",
+  source_policy_profiles: ["are-coach.nyc-2026.v1"],
+  source_policy_decisions: [
+    {
+      schema: "are-coach.source-policy-decision.v1",
+      outcome: "eligible",
+      reasons: [],
+      restrictions: [],
+      request: { purpose: "coach_index", target_division: "NYC Building Codes" },
+      reviewer_internal_note:
+        "Legal flagged this chapter as disputed with the publisher; do not cite externally until settled",
+      reviewer_email: "legal-review@internal.are-coach.example",
+      vendor_license_terms: "Per contract #4521 section 9(b), redistribution outside app UI is prohibited",
+    },
+  ],
+  sections: ["1005.3", "1005.3.1"],
+  text:
+    "The capacity, in inches, of means of egress stairways shall be calculated by " +
+    "multiplying the occupant load served by that stairway by a means of egress capacity factor.",
+};
+
+// A legacy pre-page-aware-ingestion row: only {source, ref, sections, text}.
+const LEGACY_PASSAGE = {
+  source: "ada_2010_standards.pdf",
+  ref: "403.5.1",
+  sections: ["403.5.1"],
+  text:
+    "Accessible routes shall have a clear width of 36 inches minimum, reducible to 32 " +
+    "inches minimum at a point for a maximum depth of 24 inches.",
+};
+
+test("modern passage: prompt renders every present provenance field plus text", () => {
+  const prompt = renderSources(labelSources([MODERN_PASSAGE]));
+
+  assert.match(prompt, /\[Source 1\]/);
+  assert.match(prompt, /Document: nyc_bc_ch10_egress\.pdf/);
+  assert.match(prompt, /Title: New York City Building Code/);
+  assert.match(prompt, /Issuing authority: NYC Department of Buildings/);
+  assert.match(prompt, /Edition: 2022/);
+  assert.match(prompt, /Revision: Local Law 126/);
+  assert.match(prompt, /Jurisdiction\(s\): NYC/);
+  assert.match(prompt, /Scope: NYC Building Code requirements in the reviewed chapters/);
+  assert.match(prompt, /Page: 17/);
+  assert.match(prompt, /Locator: pdf-page:17:section:1:piece:1/);
+  assert.match(prompt, /Ref: 1005\.3/);
+  assert.match(prompt, /means of egress stairways shall be calculated/);
+});
+
+test("legacy passage: prompt renders only what the row has, nothing invented", () => {
+  const labelled = labelSources([LEGACY_PASSAGE]);
+  const prompt = renderSources(labelled);
+
+  assert.match(prompt, /\[Source 1\]/);
+  assert.match(prompt, /Document: ada_2010_standards\.pdf/);
+  assert.match(prompt, /Ref: 403\.5\.1/);
+  assert.match(prompt, /clear width of 36 inches minimum/);
+
+  // None of the modern-only fields exist on this row, so none of their
+  // labels should appear at all.
+  for (const label of ["Title:", "Issuing authority:", "Edition:", "Revision:", "Jurisdiction(s):", "Scope:", "Page:", "Locator:"]) {
+    assert.ok(!prompt.includes(label), `legacy prompt must not contain "${label}"`);
+  }
+  // And certainly no placeholder standing in for the missing fields.
+  for (const placeholder of ["unknown", "n/a", "N/A", "null", "undefined"]) {
+    assert.ok(
+      !prompt.toLowerCase().includes(placeholder.toLowerCase()),
+      `legacy prompt must not contain placeholder "${placeholder}"`
+    );
+  }
+
+  // Same public shape the HTTP `sources` array would carry for this row.
+  assert.deepEqual(Object.keys(labelled[0].provenance).sort(), ["ref", "source"]);
+});
+
+test("GATE: no internal governance field or nested policy content ever reaches the prompt", () => {
+  const prompt = renderSources(labelSources([MODERN_PASSAGE]));
+  const fullSent = `${GROUNDED_SYSTEM}\n${prompt}`;
+
+  for (const field of [
+    "source_applicability_status",
+    "source_applicability_evidence",
+    "source_usage_permission_status",
+    "source_permitted_uses",
+    "source_usage_permission_note",
+    "source_policy_profiles",
+    "source_policy_decisions",
+  ]) {
+    assert.ok(!fullSent.includes(field), `${field} name must not appear anywhere sent to the model`);
+  }
+
+  // The actual governance VALUES (including the nested policy-decision
+  // object's contents) must not leak either, even though the field name
+  // filter above would already catch a literal key dump.
+  for (const leaked of [
+    "approved",
+    "author's estate",
+    "vendor legal email",
+    "reviewer_internal_note",
+    "reviewer_email",
+    "legal-review@internal.are-coach.example",
+    "vendor_license_terms",
+    "contract #4521",
+    "human_review",
+    "coach_index",
+    "are-coach.nyc-2026.v1",
+  ]) {
+    assert.ok(!fullSent.includes(leaked), `"${leaked}" must not appear anywhere sent to the model`);
+  }
+});
+
+test("label order matches labelSources output order, element-by-element", () => {
+  const labelled = labelSources([MODERN_PASSAGE, LEGACY_PASSAGE]);
+  const prompt = renderSources(labelled);
+
+  const idx1 = prompt.indexOf("[Source 1]");
+  const idx2 = prompt.indexOf("[Source 2]");
+  assert.ok(idx1 >= 0 && idx2 > idx1);
+
+  // [Source 1] must be the modern (egress) passage's block, [Source 2] the
+  // legacy (ADA) block -- same order the caller passed them in.
+  const block1 = prompt.slice(idx1, idx2);
+  assert.match(block1, /nyc_bc_ch10_egress\.pdf/);
+
+  // This is exactly the shape askCoach's `sources` response is built from
+  // (labelledSources.map((s) => s.provenance)) -- asserting on it here pins
+  // the N-th label to sources[N-1] without needing the real askCoach.
+  assert.equal(labelled.length, 2);
+  assert.equal(labelled[0].label, 1);
+  assert.equal(labelled[0].provenance.source, "nyc_bc_ch10_egress.pdf");
+  assert.equal(labelled[1].label, 2);
+  assert.equal(labelled[1].provenance.source, "ada_2010_standards.pdf");
+});
+
+test("mixed legacy + modern passages both render valid, distinct blocks in one query", () => {
+  const prompt = renderSources(labelSources([LEGACY_PASSAGE, MODERN_PASSAGE]));
+
+  assert.match(prompt, /\[Source 1\][\s\S]*Document: ada_2010_standards\.pdf/);
+  assert.match(prompt, /\[Source 2\][\s\S]*Title: New York City Building Code/);
+});
+
+test("REGRESSION: the no-sources system prompt never references [Source N] labels or header rules", () => {
+  // Nothing in the ungrounded path ever sends a SOURCES block, so telling the
+  // model to trust [Source N] header blocks there is dead instruction that
+  // can only confuse it -- it must live only on the grounded system prompt.
+  assert.doesNotMatch(NO_SOURCES_SYSTEM, /\[Source N\]/);
+  assert.doesNotMatch(NO_SOURCES_SYSTEM, /CITATION LABELS AND PROVENANCE/);
+
+  // The grounded path is exactly where these rules belong.
+  assert.match(GROUNDED_SYSTEM, /\[Source N\]/);
+  assert.match(GROUNDED_SYSTEM, /CITATION LABELS AND PROVENANCE/);
+});
+
+test("REGRESSION: a blank-string provenance value is omitted, not rendered as a dangling line", () => {
+  const blankJurisdiction = { ...MODERN_PASSAGE, source_jurisdictions: [""] };
+  const prompt = renderSources(labelSources([blankJurisdiction]));
+
+  assert.ok(!prompt.includes("Jurisdiction(s):"), "an all-blank array must omit the field entirely");
+});

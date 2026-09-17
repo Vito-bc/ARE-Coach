@@ -122,5 +122,8 @@ jobs:
       - name: Verify real signed fixtures
         working-directory: functions
         run: node --test integration/apple_verifier.spec.cjs
+      - name: Verify Coach prompt provenance against a stubbed model client
+        working-directory: functions
+        run: node --test integration/coach.spec.cjs
       - name: Check atomic ownership and rules on local demo emulator
         run: npx --yes firebase-tools@15.8.0 emulators:exec --only firestore --project demo-are-coach --config firebase.test.json "node --test functions/integration/apple_ownership.spec.cjs"
