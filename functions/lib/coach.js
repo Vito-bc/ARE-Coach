@@ -44,9 +44,13 @@ SOURCING -- THIS IS THE PART THAT MATTERS
 - If the SOURCES do not answer the question, say so plainly, answer only as far
   as you honestly can, and tell the candidate which document to check.
 - Never claim an item is worth a particular number of exam points. NCARB scores
-  every item as one point, pass/fail only.
+  every item as one point, pass/fail only.`;
 
-CITATION LABELS AND PROVENANCE
+// Only appended when passages were actually retrieved -- a prompt with no
+// SOURCES block has no [Source N] labels or header blocks for these rules to
+// refer to, so applying them to the ungrounded path would tell the model to
+// follow instructions about content it was never sent.
+const CITATION_LABEL_RULES = `CITATION LABELS AND PROVENANCE
 - Cite using the exact [Source N] labels given in SOURCES (e.g. "[Source 1]").
   Do not renumber, relabel, or invent a source that was not given to you.
 - Never state a page number, edition, revision, or issuing authority that is
@@ -58,6 +62,10 @@ CITATION LABELS AND PROVENANCE
 - If the SOURCES do not support the answer, say so explicitly and name what is
   missing (e.g. "none of the sources give a page number for this" or "no
   source here covers occupancy classification").`;
+
+const GROUNDED_SYSTEM = `${BASE_SYSTEM}
+
+${CITATION_LABEL_RULES}`;
 
 const NO_SOURCES_SYSTEM = `${BASE_SYSTEM}
 
@@ -84,7 +92,7 @@ open.`;
 // source_document, source_sha256, source_chunk_id) stay in the HTTP response
 // only. This is a second, explicit allowlist -- not a widening of what's
 // public, just a narrowing of what's shown to the model.
-const PROMPT_PROVENANCE_FIELDS = [
+const PROMPT_PROVENANCE_FIELDS = Object.freeze([
   ["source", "Document"],
   ["source_title", "Title"],
   ["source_issuing_authority", "Issuing authority"],
@@ -95,16 +103,24 @@ const PROMPT_PROVENANCE_FIELDS = [
   ["source_page", "Page"],
   ["source_locator", "Locator"],
   ["ref", "Ref"],
-];
+]);
 
+/** A string that's empty or all whitespace carries no citation information. */
+function isBlank(v) {
+  return v === undefined || v === null || (typeof v === "string" && v.trim() === "");
+}
+
+// A field only counts as present if it has at least one non-blank value --
+// [""] or "  " must be omitted exactly like undefined, or the system prompt's
+// promise that a missing line means "this information does not exist" breaks.
 function hasValue(value) {
-  if (value === undefined || value === null || value === "") return false;
-  if (Array.isArray(value) && value.length === 0) return false;
-  return true;
+  if (Array.isArray(value)) return value.some((v) => !isBlank(v));
+  return !isBlank(value);
 }
 
 function formatValue(value) {
-  return Array.isArray(value) ? value.join(", ") : String(value);
+  if (Array.isArray(value)) return value.filter((v) => !isBlank(v)).join(", ");
+  return String(value).trim();
 }
 
 /**
@@ -167,7 +183,7 @@ async function askCoach(prompt, apiKey, deps = {}) {
     message = await client.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      system: grounded ? BASE_SYSTEM : NO_SOURCES_SYSTEM,
+      system: grounded ? GROUNDED_SYSTEM : NO_SOURCES_SYSTEM,
       messages: [{ role: "user", content: userContent }],
     });
   } catch (e) {

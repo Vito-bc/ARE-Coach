@@ -253,3 +253,36 @@ test("zero-passage path uses the no-sources system prompt and returns grounded:f
     assert.deepEqual(result.sources, []);
   });
 });
+
+test("REGRESSION: the no-sources system prompt never references [Source N] labels or header rules", async () => {
+  // Nothing in the ungrounded path ever sends a SOURCES block, so telling the
+  // model to trust [Source N] header blocks there is dead instruction that
+  // can only confuse it -- it must live only on the grounded system prompt.
+  await withRetrieval([], async (freshAskCoach) => {
+    const client = fakeClient();
+    await freshAskCoach("what is the capital of France", "fake-api-key", { client });
+    const system = client.calls[0].system;
+
+    assert.doesNotMatch(system, /\[Source N\]/);
+    assert.doesNotMatch(system, /CITATION LABELS AND PROVENANCE/);
+  });
+
+  await withRetrieval([MODERN_PASSAGE], async (freshAskCoach) => {
+    const client = fakeClient();
+    await freshAskCoach("required egress width", "fake-api-key", { client });
+    // The grounded path is exactly where these rules belong.
+    assert.match(client.calls[0].system, /\[Source N\]/);
+    assert.match(client.calls[0].system, /CITATION LABELS AND PROVENANCE/);
+  });
+});
+
+test("REGRESSION: a blank-string provenance value is omitted, not rendered as a dangling line", async () => {
+  const blankJurisdiction = { ...MODERN_PASSAGE, source_jurisdictions: [""] };
+  await withRetrieval([blankJurisdiction], async (freshAskCoach) => {
+    const client = fakeClient();
+    await freshAskCoach("required egress width", "fake-api-key", { client });
+    const prompt = client.calls[0].messages[0].content;
+
+    assert.ok(!prompt.includes("Jurisdiction(s):"), "an all-blank array must omit the field entirely");
+  });
+});
