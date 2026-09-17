@@ -60,7 +60,15 @@ class _CitationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final heading = source.title ?? source.document ?? source.source;
+    // source.document is a sha256-derived internal identity (corpus.py's
+    // `_identity("doc", ...)`), not a display name -- it is ALWAYS populated
+    // for a modern row, while source_title is manifest-only and currently
+    // unset for every corpus source. It must never be the heading fallback:
+    // doing so is what showed a 64-char hash instead of a filename. A
+    // well-formed row always has `source` (the readable filename), so this
+    // is the correct last resort; document is intentionally not consulted
+    // even when both are absent, since it was never meant to be user-facing.
+    final heading = source.title ?? source.source;
     final fields = <String>[
       if (source.issuingAuthority != null) 'Issuing authority: ${source.issuingAuthority}',
       if (source.edition != null) 'Edition: ${source.edition}',

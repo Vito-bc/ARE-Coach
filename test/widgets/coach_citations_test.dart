@@ -28,6 +28,27 @@ void main() {
 
   const legacy = CoachSource(source: 'ada_2010_standards.pdf', ref: '403.5.1');
 
+  // The shape every real corpus source has TODAY: source_document is always
+  // populated (a sha256-derived internal identity), source_title is
+  // manifest-only and currently unset for every ingested source.
+  const documentNoTitle = CoachSource(
+    source: 'nyc_bc_ch10_egress.pdf',
+    ref: '1005.3',
+    document: 'doc:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+  );
+
+  const titledWithDocument = CoachSource(
+    source: 'nyc_bc_ch10_egress.pdf',
+    title: 'New York City Building Code',
+    document: 'doc:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+  );
+
+  // A malformed entry that kept its position (see CoachSource.fromJson) but
+  // has neither a title nor a readable filename -- only its internal id.
+  const documentOnly = CoachSource(
+    document: 'doc:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+  );
+
   testWidgets('a modern source renders every present field', (tester) async {
     await tester.pumpWidget(
       host(const CoachCitations(sources: [modern], grounded: true)),
@@ -71,6 +92,47 @@ void main() {
     for (final placeholder in ['unknown', 'n/a', 'N/A', '—', 'null']) {
       expect(find.textContaining(placeholder), findsNothing);
     }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('document set, title absent: heading falls back to the readable filename, never the hash id', (tester) async {
+    await tester.pumpWidget(
+      host(const CoachCitations(sources: [documentNoTitle], grounded: true)),
+    );
+
+    expect(find.text('[Source 1] nyc_bc_ch10_egress.pdf'), findsOneWidget);
+    expect(find.textContaining('doc:'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('title set alongside document: title wins over both source and document', (tester) async {
+    await tester.pumpWidget(
+      host(const CoachCitations(sources: [titledWithDocument], grounded: true)),
+    );
+
+    expect(find.text('[Source 1] New York City Building Code'), findsOneWidget);
+    expect(find.textContaining('doc:'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('document set, title AND source absent: heading is omitted rather than showing the raw id', (tester) async {
+    await tester.pumpWidget(
+      host(const CoachCitations(sources: [documentOnly], grounded: true)),
+    );
+
+    expect(find.text('[Source 1]'), findsOneWidget);
+    expect(find.textContaining('doc:'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('REGRESSION: a doc:<hash> identity never reaches the rendered tree for a well-formed source', (tester) async {
+    // Locks the fallback order (title ?? source, never document) so a future
+    // "simplification" that reintroduces `?? source.document` fails loudly.
+    await tester.pumpWidget(
+      host(const CoachCitations(sources: [modern, legacy, documentNoTitle], grounded: true)),
+    );
+
+    expect(find.textContaining('doc:'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
