@@ -44,7 +44,20 @@ SOURCING -- THIS IS THE PART THAT MATTERS
 - If the SOURCES do not answer the question, say so plainly, answer only as far
   as you honestly can, and tell the candidate which document to check.
 - Never claim an item is worth a particular number of exam points. NCARB scores
-  every item as one point, pass/fail only.`;
+  every item as one point, pass/fail only.
+
+CITATION LABELS AND PROVENANCE
+- Cite using the exact [Source N] labels given in SOURCES (e.g. "[Source 1]").
+  Do not renumber, relabel, or invent a source that was not given to you.
+- Never state a page number, edition, revision, or issuing authority that is
+  not printed in that source's own header block below. The header shows only
+  what is actually known for that source -- nothing is hidden from you.
+- If a source's header has no page, edition, revision, or authority line, that
+  information does not exist for this citation. Do not supply it from memory
+  or from what a document like that "usually" says.
+- If the SOURCES do not support the answer, say so explicitly and name what is
+  missing (e.g. "none of the sources give a page number for this" or "no
+  source here covers occupancy classification").`;
 
 const NO_SOURCES_SYSTEM = `${BASE_SYSTEM}
 
@@ -55,12 +68,71 @@ table, or specific numeric code requirement. If answering properly would require
 one, say that you cannot source it and name the document the candidate should
 open.`;
 
-/** Renders retrieved passages into the prompt, tagged so citations are checkable. */
-function renderSources(passages) {
-  return passages
-    .map((p, i) => {
-      const where = p.ref ? `${p.source} -- ${p.ref}` : p.source;
-      return `[${i + 1}] ${where}\n${p.text}`;
+// The prompt's citation header is deliberately built from the SAME
+// sourceProvenance()/PUBLIC_SOURCE_FIELDS projection that produces the HTTP
+// `sources` array (retrieval.js), never from the raw retrieved passage and
+// never from the broader PASSAGE_SOURCE_FIELDS. That makes it structurally
+// impossible for an internal governance/audit field (e.g.
+// source_applicability_status, source_usage_permission_note,
+// source_policy_decisions) to reach the model: those fields never survive
+// sourceProvenance() in the first place, so there is nothing to filter out
+// here. The prompt is downstream of the public contract, not a parallel path
+// that could quietly diverge from it.
+//
+// Within that already-public projection, only the fields below are
+// citation-relevant enough to print in a source header; the rest (e.g.
+// source_document, source_sha256, source_chunk_id) stay in the HTTP response
+// only. This is a second, explicit allowlist -- not a widening of what's
+// public, just a narrowing of what's shown to the model.
+const PROMPT_PROVENANCE_FIELDS = [
+  ["source", "Document"],
+  ["source_title", "Title"],
+  ["source_issuing_authority", "Issuing authority"],
+  ["source_edition", "Edition"],
+  ["source_revision", "Revision"],
+  ["source_jurisdictions", "Jurisdiction(s)"],
+  ["source_scope", "Scope"],
+  ["source_page", "Page"],
+  ["source_locator", "Locator"],
+  ["ref", "Ref"],
+];
+
+function hasValue(value) {
+  if (value === undefined || value === null || value === "") return false;
+  if (Array.isArray(value) && value.length === 0) return false;
+  return true;
+}
+
+function formatValue(value) {
+  return Array.isArray(value) ? value.join(", ") : String(value);
+}
+
+/**
+ * Builds the [Source N] label list once, from the public provenance
+ * projection, so the prompt and the HTTP `sources` array are guaranteed to
+ * agree on both order and content -- the N-th entry here is [Source N] in
+ * the prompt AND sources[N-1] in askCoach's return value.
+ */
+function labelSources(passages) {
+  return passages.map((p, i) => ({
+    label: i + 1,
+    provenance: sourceProvenance(p),
+    text: p.text,
+  }));
+}
+
+/** Renders labelled sources into the prompt, tagged so citations are checkable. */
+function renderSources(labelledSources) {
+  return labelledSources
+    .map(({ label, provenance, text }) => {
+      const lines = [`[Source ${label}]`];
+      for (const [field, heading] of PROMPT_PROVENANCE_FIELDS) {
+        const value = provenance[field];
+        if (!hasValue(value)) continue;
+        lines.push(`${heading}: ${formatValue(value)}`);
+      }
+      lines.push("", text);
+      return lines.join("\n");
     })
     .join("\n\n");
 }
@@ -68,8 +140,12 @@ function renderSources(passages) {
 /**
  * Answers a candidate's question, grounded in the corpus.
  * Throws on failure -- the caller must NOT substitute a canned answer.
+ *
+ * `deps.client`, if given, replaces the real Anthropic client -- the only
+ * hook this module exposes for tests to stub the model call without a
+ * network or an API key. Production callers (index.js) never pass it.
  */
-async function askCoach(prompt, apiKey) {
+async function askCoach(prompt, apiKey, deps = {}) {
   if (!apiKey) {
     const err = new Error("Coach is not configured");
     err.code = "coach_unconfigured";
@@ -78,12 +154,13 @@ async function askCoach(prompt, apiKey) {
 
   const passages = retrieve(prompt, TOP_K);
   const grounded = passages.length > 0;
+  const labelledSources = labelSources(passages);
 
   const userContent = grounded
-    ? `SOURCES\n${renderSources(passages)}\n\nCANDIDATE'S QUESTION\n${prompt}`
+    ? `SOURCES\n${renderSources(labelledSources)}\n\nCANDIDATE'S QUESTION\n${prompt}`
     : `CANDIDATE'S QUESTION\n${prompt}`;
 
-  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  const client = deps.client || new Anthropic({ apiKey, maxRetries: 2 });
 
   let message;
   try {
@@ -134,13 +211,13 @@ async function askCoach(prompt, apiKey) {
     answer,
     model: MODEL,
     grounded,
-    // Keep provenance added by the index while excluding retrieved text and
-    // scoring internals from the API response. Legacy rows still yield the
-    // original {source, ref} shape.
-    sources: passages.map(sourceProvenance),
+    // Same labelled list the prompt was built from, in the same order, so
+    // sources[N-1] is always what the model saw as [Source N]. Legacy rows
+    // still yield the original {source, ref} shape.
+    sources: labelledSources.map((s) => s.provenance),
     inputTokens: message.usage?.input_tokens ?? null,
     outputTokens: message.usage?.output_tokens ?? null,
   };
 }
 
-module.exports = { askCoach };
+module.exports = { askCoach, renderSources, labelSources };
