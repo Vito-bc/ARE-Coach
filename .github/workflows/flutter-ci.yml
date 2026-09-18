@@ -102,6 +102,39 @@ jobs:
         working-directory: functions
         run: node --test
 
+  backup-restore:
+    name: Backup/restore tool unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tools/backup_restore/package-lock.json
+
+      # The tool has its own package.json/package-lock.json and is not part of
+      # functions/ -- its only dependency is firebase-admin, which
+      # test/serialize.test.js needs at import time for real Timestamp/
+      # GeoPoint/DocumentReference instances. Hence npm ci here rather than in
+      # the "Cloud Functions tests" job, which deliberately installs nothing.
+      - name: Install locked backup/restore dependencies
+        working-directory: tools/backup_restore
+        run: npm ci
+
+      # Emulator-free half of the tool's suite: the type-preserving JSON codec,
+      # the read-only Firestore wrapper, and the production-target guard's
+      # decision logic. `node --test` from the package root discovers only
+      # test/*.test.js -- integration/*.spec.cjs does not match Node's default
+      # test-file patterns and runs in the emulator job instead.
+      - name: Run backup/restore unit tests
+        working-directory: tools/backup_restore
+        run: node --test
+
   apple-integration:
     name: Apple verifier and Firestore integration
     runs-on: ubuntu-latest
@@ -111,7 +144,9 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: functions/package-lock.json
+          cache-dependency-path: |
+            functions/package-lock.json
+            tools/backup_restore/package-lock.json
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -119,11 +154,29 @@ jobs:
       - name: Install locked verifier and rules-test dependencies
         working-directory: functions
         run: npm ci
+      # Separate lockfile, separate install -- the backup/restore tool's deps
+      # are deliberately not merged into functions/.
+      - name: Install locked backup/restore dependencies
+        working-directory: tools/backup_restore
+        run: npm ci
       - name: Verify real signed fixtures
         working-directory: functions
         run: node --test integration/apple_verifier.spec.cjs
       - name: Verify Coach prompt provenance against a stubbed model client
         working-directory: functions
         run: node --test integration/coach.spec.cjs
-      - name: Check atomic ownership and rules on local demo emulator
-        run: npx --yes firebase-tools@15.8.0 emulators:exec --only firestore --project demo-are-coach --config firebase.test.json "node --test functions/integration/apple_ownership.spec.cjs functions/integration/user_terms_assent_rules.spec.cjs"
+      # One emulator start covers both suites. Two SEQUENTIAL `node --test`
+      # invocations, not one: `node --test` runs files concurrently, and these
+      # two groups fight over the same emulator database --
+      # apple_ownership.spec.cjs calls env.clearFirestore() in beforeEach while
+      # drill.spec.cjs seeds and recursiveDelete()s the covered collections.
+      # Interleaving them would flake. Paths are repo-root-relative because
+      # emulators:exec runs from the repo root; the tool's specs resolve their
+      # own paths from __dirname and set cwd explicitly for the CLIs they
+      # spawn, so they do not depend on the caller's cwd.
+      - name: Check atomic ownership, rules, and the backup/restore drill on local demo emulator
+        run: >-
+          npx --yes firebase-tools@15.8.0 emulators:exec --only firestore
+          --project demo-are-coach --config firebase.test.json
+          "node --test functions/integration/apple_ownership.spec.cjs functions/integration/user_terms_assent_rules.spec.cjs
+          && node --test tools/backup_restore/integration/drill.spec.cjs tools/backup_restore/integration/read_only_escape.spec.cjs"

@@ -4,9 +4,12 @@ Written for whoever is at the keyboard during an incident, not for leisurely rea
 If you are here because production data got deleted or corrupted, read **"Real
 recovery, right now"** first and come back for the rest later.
 
-Tool: `tools/backup_restore/` (Node, `firebase-admin` only). Not deployed, not a Cloud
-Function, not wired into CI. It is a standalone script pair you run from your own
-machine or a Cloud Shell.
+Tool: `tools/backup_restore/` (Node, `firebase-admin` only). Not deployed and not a
+Cloud Function -- it is a standalone script pair you run from your own machine or a
+Cloud Shell. Its tests *are* wired into CI (`.github/workflows/flutter-ci.yml`): the
+51 unit tests run in the "Backup/restore tool unit tests" job, and the 12 emulator
+tests run in the "Apple verifier and Firestore integration" job, on the same emulator
+the other integration specs use. This tool cannot silently rot between incidents.
 
 ## Real recovery, right now
 
@@ -147,13 +150,21 @@ asserts it is `deepStrictEqual` to what was seeded — same document paths, same
 subcollection), same field values with exact types (a restored Timestamp must still
 be a `Timestamp`, not a string), same arrays, same nested maps, at every depth.
 
-Run it yourself:
+Run it yourself (from the repo root):
 
 ```bash
 npx --yes firebase-tools@15.8.0 emulators:exec --only firestore \
   --project demo-are-coach --config firebase.test.json \
-  "node --test tools/backup_restore/integration/drill.spec.cjs"
+  "node --test tools/backup_restore/integration/drill.spec.cjs \
+     tools/backup_restore/integration/read_only_escape.spec.cjs"
 ```
+
+CI runs exactly this, chained after the `functions/` emulator specs inside the same
+emulator start. Keep it a *separate* `node --test` invocation from those specs:
+`node --test` runs its files concurrently, and these two groups share one emulator
+database -- the drill wipes and reseeds every covered collection, while
+`functions/integration/apple_ownership.spec.cjs` calls `clearFirestore()` between its
+own tests. Interleaving them would make both flaky.
 
 It also proves the production guard from the CLI side, not just as a unit test: it
 runs `restore_firestore.js --project architect-study-app` (no `--allow-production`)
@@ -166,8 +177,14 @@ the type-preserving JSON codec, the read-only Firestore wrapper, and the
 production-refusal guard's decision logic in isolation:
 
 ```bash
-cd tools/backup_restore && node --test
+cd tools/backup_restore && npm ci && node --test
 ```
+
+(`npm ci` because `test/serialize.test.js` needs real `firebase-admin`
+`Timestamp`/`GeoPoint`/`DocumentReference` instances at import time. `node --test`
+from the package root picks up `test/*.test.js` only -- `integration/*.spec.cjs` does
+not match Node's default test-file patterns, so the emulator specs above stay
+opt-in.)
 
 ## Why this exists
 
