@@ -179,4 +179,4 @@ jobs:
           npx --yes firebase-tools@15.8.0 emulators:exec --only firestore
           --project demo-are-coach --config firebase.test.json
           "node --test functions/integration/apple_ownership.spec.cjs functions/integration/user_terms_assent_rules.spec.cjs
-          && node --test tools/backup_restore/integration/drill.spec.cjs tools/backup_restore/integration/read_only_escape.spec.cjs"
+          && node --test tools/backup_restore/integration/drill.spec.cjs tools/backup_restore/integration/read_only_escape.spec.cjs tools/backup_restore/integration/read_only_reachability.spec.cjs"

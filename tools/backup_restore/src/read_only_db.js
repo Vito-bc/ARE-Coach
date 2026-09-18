@@ -79,7 +79,35 @@ const BLOCKED_REF_METHODS = ["set", "update", "delete", "create", "add"];
 
 // Methods that hand back a single fresh reference/query, requiring the
 // wrapper to re-wrap that return value before handing it to the caller.
-const REF_RETURNING_METHODS = new Set(["doc", "collection", "withConverter"]);
+//
+// The query builders are here because every one of them returns a NEW Query
+// object, and an unwrapped Query hands out the raw client through its own
+// `.firestore` -- so `db.collection(c).where(...).firestore.batch()` was a
+// live write path until integration/read_only_reachability.spec.cjs walked
+// the graph and found all ten of them at once. That spec, not this list, is
+// what keeps this complete: a builder added by a future SDK version fails
+// it without anyone remembering to edit this line.
+const REF_RETURNING_METHODS = new Set([
+  "doc",
+  "collection",
+  "withConverter",
+  // Query builders (Query / CollectionReference / CollectionGroup).
+  "where",
+  "orderBy",
+  "limit",
+  "limitToLast",
+  "offset",
+  "select",
+  "startAt",
+  "startAfter",
+  "endAt",
+  "endBefore",
+  // Aggregations: these return an AggregateQuery/VectorQuery, which carries
+  // its source Query on `.query` (guarded as a property below).
+  "count",
+  "aggregate",
+  "findNearest",
+]);
 // Methods that hand back an ARRAY of fresh references -- the actual
 // traversal primitives tree.js uses for every level below the top one.
 const REF_ARRAY_RETURNING_METHODS = new Set(["listDocuments", "listCollections"]);
@@ -179,10 +207,29 @@ function wrapRef(ref) {
       if (prop === "parent") {
         return value ? wrapRef(value) : value;
       }
+      // An AggregateQuery (from .count()/.aggregate()) carries its source
+      // Query on `.query`; without this, `.count().query` -- or
+      // `.count().get().query.query` -- came back raw.
+      if (prop === "query") {
+        return value ? wrapRef(value) : value;
+      }
       if (prop === "firestore") {
         return value ? makeReadOnlyFirestore(value) : value;
       }
       if (typeof value !== "function") return value;
+      // A realtime listener hands snapshots to a callback instead of
+      // returning them, so the snapshot has to be wrapped on the way in.
+      // Nothing in this tool opens a listener -- an export script has no
+      // reason to -- but leaving the one callback-shaped read route
+      // unguarded is exactly the kind of gap the three earlier reviews kept
+      // finding. See read_only_escape.spec.cjs for the named test.
+      if (prop === "onSnapshot") {
+        return (...args) =>
+          value.apply(
+            target,
+            args.map((a, i) => (i === 0 && typeof a === "function" ? (snap) => a(wrapSnapshot(snap)) : a))
+          );
+      }
       if (REF_RETURNING_METHODS.has(prop)) {
         return (...args) => wrapRef(value.apply(target, args));
       }

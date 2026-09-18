@@ -147,6 +147,36 @@ test("a query snapshot's .query back-pointer cannot write", async () => {
   assert.deepEqual(await currentValue("escape_test/f3"), { x: 1 });
 });
 
+test("a snapshot delivered to onSnapshot() cannot write", async () => {
+  // The one public read route integration/read_only_reachability.spec.cjs
+  // deliberately does not walk (a live listener would race its own first
+  // callback inside a breadth-first walk and buy flakiness). Covered here
+  // deterministically instead: subscribe, take the first snapshot,
+  // unsubscribe.
+  await rawDb.collection("escape_test").doc("o1").set({ x: 1 });
+
+  const firstSnapshot = await new Promise((resolve, reject) => {
+    let unsubscribe = null;
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      if (unsubscribe) unsubscribe();
+      fn(value);
+    };
+    unsubscribe = db.collection("escape_test").onSnapshot(
+      (snap) => finish(resolve, snap),
+      (err) => finish(reject, err)
+    );
+  });
+
+  assert.ok(firstSnapshot.docs.length >= 1);
+  for (const doc of firstSnapshot.docs) {
+    assert.throws(() => doc.ref.set({ x: 777 }), /Read-only Firestore guard/);
+  }
+  assert.deepEqual(await currentValue("escape_test/o1"), { x: 1 });
+});
+
 test("docChanges()[i].doc.ref cannot write, on a plain one-shot get() (no listener involved)", async () => {
   await rawDb.collection("escape_test").doc("f4").set({ x: 1 });
 
