@@ -14,6 +14,14 @@ service cloud.firestore {
     }
 
     function ownerCanCreateUser(uid) {
+      // termsAcceptedVersion/termsAcceptedAt and privacyAcceptedVersion/
+      // privacyAcceptedAt are the entire legal record that the user agreed
+      // to the Terms of Service and Privacy Policy at account creation
+      // (Flutter: AuthService._ensureUserRecord). They are required, not
+      // merely permitted, on every create -- a user document can only ever
+      // come into existence with an assent record attached to it. Narrow
+      // and typed: a size-capped version string plus a real timestamp, not
+      // a widened field.
       return isOwner(uid)
         && request.resource.data.role == 'free'
         && request.resource.data.keys().hasOnly([
@@ -23,8 +31,24 @@ service cloud.firestore {
           'targetExamDate',
           'createdAt',
           'lastActiveAt',
-          'dailyLimits'
-        ]);
+          'dailyLimits',
+          'termsAcceptedVersion',
+          'termsAcceptedAt',
+          'privacyAcceptedVersion',
+          'privacyAcceptedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'termsAcceptedVersion',
+          'termsAcceptedAt',
+          'privacyAcceptedVersion',
+          'privacyAcceptedAt'
+        ])
+        && request.resource.data.termsAcceptedVersion is string
+        && request.resource.data.termsAcceptedVersion.size() <= 20
+        && request.resource.data.termsAcceptedAt is timestamp
+        && request.resource.data.privacyAcceptedVersion is string
+        && request.resource.data.privacyAcceptedVersion.size() <= 20
+        && request.resource.data.privacyAcceptedAt is timestamp;
     }
 
     function ownerCanUpdateUser(uid) {

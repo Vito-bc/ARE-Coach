@@ -1,4 +1,5 @@
 // ignore_for_file: subtype_of_sealed_class
+import 'package:are_coach/core/legal_versions.dart';
 import 'package:are_coach/services/auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -44,6 +45,8 @@ void _stubFirestore(
   when(() => mockSnapshot.exists).thenReturn(userExists);
   when(() => mockDoc.set(any(), any())).thenAnswer((_) async {});
 }
+
+const testAssent = TermsAssent(termsVersion: 'v-test-terms', privacyVersion: 'v-test-privacy');
 
 void main() {
   late MockFirebaseAuth mockAuth;
@@ -115,7 +118,7 @@ void main() {
     test('returns existing user without signing in again', () async {
       when(() => mockAuth.currentUser).thenReturn(mockUser);
 
-      final result = await sut.ensureSignedIn();
+      final result = await sut.ensureSignedIn(assent: testAssent);
 
       expect(result, equals(mockUser));
       verifyNever(() => mockAuth.signInAnonymously());
@@ -129,7 +132,7 @@ void main() {
       ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
-      final result = await sut.ensureSignedIn();
+      final result = await sut.ensureSignedIn(assent: testAssent);
 
       expect(result, equals(mockUser));
       verify(() => mockAuth.signInAnonymously()).called(1);
@@ -137,11 +140,11 @@ void main() {
   });
 
   group('user record writes', () {
-    test('initializes free role only for a new user document', () async {
+    test('initializes free role and the assent record for a new user document', () async {
       when(() => mockAuth.currentUser).thenReturn(mockUser);
       when(() => mockSnapshot.exists).thenReturn(false);
 
-      await sut.ensureSignedIn();
+      await sut.ensureSignedIn(assent: testAssent);
 
       final captured = verify(() => mockDoc.set(captureAny(), any())).captured;
       final data = captured.single as Map<String, dynamic>;
@@ -150,6 +153,12 @@ void main() {
       expect(data.containsKey('subscriptionId'), isFalse);
       expect(data.containsKey('subscriptionStatus'), isFalse);
       expect(data.containsKey('premiumUntil'), isFalse);
+      // This write is the entire legal point of this method: the assent
+      // fields, verbatim, in the SAME write as everything else.
+      expect(data['termsAcceptedVersion'], 'v-test-terms');
+      expect(data.containsKey('termsAcceptedAt'), isTrue);
+      expect(data['privacyAcceptedVersion'], 'v-test-privacy');
+      expect(data.containsKey('privacyAcceptedAt'), isTrue);
     });
 
     test(
@@ -158,16 +167,40 @@ void main() {
         when(() => mockAuth.currentUser).thenReturn(mockUser);
         when(() => mockSnapshot.exists).thenReturn(true);
 
-        await sut.ensureSignedIn();
+        await sut.ensureSignedIn(assent: testAssent);
 
         // firestore.rules only lets the owner change `name` and
         // `targetExamDate`; `email` and `lastActiveAt` are server-owned and the
         // Cloud Functions already maintain `lastActiveAt`. The old code wrote
         // them on every returning login, the rules rejected the write, and a
         // bare `catch (_)` hid it. The correct behaviour is to not write at all.
+        // This also proves returning-user login is never re-gated on assent:
+        // no re-consent check runs here (see lib/core/legal_versions.dart).
         verifyNever(() => mockDoc.set(any(), any()));
       },
     );
+
+    test('a Firestore write failure surfaces as AssentRecordException, not swallowed', () async {
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(() => mockSnapshot.exists).thenReturn(false);
+      when(() => mockDoc.set(any(), any())).thenThrow(Exception('permission-denied'));
+
+      await expectLater(
+        sut.ensureSignedIn(assent: testAssent),
+        throwsA(isA<AssentRecordException>()),
+      );
+    });
+
+    test('a failed existence check is swallowed (never blocks a returning user)', () async {
+      when(() => mockAuth.currentUser).thenReturn(mockUser);
+      when(() => mockDoc.get()).thenThrow(Exception('network blip'));
+
+      // Must not throw, and must not attempt to create a document either.
+      final result = await sut.ensureSignedIn(assent: testAssent);
+
+      expect(result, equals(mockUser));
+      verifyNever(() => mockDoc.set(any(), any()));
+    });
   });
 
   group('signInAnonymously', () {
@@ -178,7 +211,7 @@ void main() {
       ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
-      final result = await sut.signInAnonymously();
+      final result = await sut.signInAnonymously(assent: testAssent);
 
       expect(result, equals(mockUser));
       verify(() => mockDoc.set(any(), any())).called(1);
@@ -191,7 +224,7 @@ void main() {
       ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(null);
 
-      final result = await sut.signInAnonymously();
+      final result = await sut.signInAnonymously(assent: testAssent);
 
       expect(result, isNull);
       verifyNever(() => mockDoc.set(any(), any()));
@@ -215,8 +248,30 @@ void main() {
       );
 
       expect(result, equals(mockUser));
-      verify(() => mockDoc.set(any(), any())).called(1);
     });
+
+    test(
+      'never creates a user document, even if one is unexpectedly missing (no assent to record)',
+      () async {
+        // signInWithEmail never has a fresh checkbox to draw from -- it's the
+        // returning-account path. Even in the atypical edge case where the
+        // Firestore document doesn't exist yet, it must not fabricate an
+        // assent record that was never given on this screen.
+        final mockCredential = MockUserCredential();
+        when(() => mockSnapshot.exists).thenReturn(false);
+        when(
+          () => mockAuth.signInWithEmailAndPassword(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        ).thenAnswer((_) async => mockCredential);
+        when(() => mockCredential.user).thenReturn(mockUser);
+
+        await sut.signInWithEmail('test@example.com', 'password123');
+
+        verifyNever(() => mockDoc.set(any(), any()));
+      },
+    );
 
     test('propagates FirebaseAuthException on failure', () {
       when(
@@ -248,9 +303,29 @@ void main() {
       final result = await sut.registerWithEmail(
         'new@example.com',
         'password123',
+        assent: testAssent,
       );
 
       expect(result, equals(mockUser));
+    });
+
+    test('writes the assent record on the same create as everything else', () async {
+      final mockCredential = MockUserCredential();
+      when(() => mockAuth.currentUser).thenReturn(null);
+      when(
+        () => mockAuth.createUserWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockCredential.user).thenReturn(mockUser);
+
+      await sut.registerWithEmail('new@example.com', 'password123', assent: testAssent);
+
+      final captured = verify(() => mockDoc.set(captureAny(), any())).captured;
+      final data = captured.single as Map<String, dynamic>;
+      expect(data['termsAcceptedVersion'], 'v-test-terms');
+      expect(data['privacyAcceptedVersion'], 'v-test-privacy');
     });
 
     test('sends a verification email after creating the account', () async {
@@ -264,7 +339,7 @@ void main() {
       ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
-      await sut.registerWithEmail('new@example.com', 'password123');
+      await sut.registerWithEmail('new@example.com', 'password123', assent: testAssent);
 
       verify(() => mockUser.sendEmailVerification()).called(1);
     });
@@ -281,7 +356,7 @@ void main() {
       ).thenAnswer((_) async => mockCredential);
       when(() => mockCredential.user).thenReturn(mockUser);
 
-      await sut.registerWithEmail('new@example.com', 'password123');
+      await sut.registerWithEmail('new@example.com', 'password123', assent: testAssent);
 
       verifyNever(() => mockUser.sendEmailVerification());
     });
@@ -302,10 +377,29 @@ void main() {
       final result = await sut.registerWithEmail(
         'anon@example.com',
         'password123',
+        assent: testAssent,
       );
 
       expect(result, equals(mockUser));
       verify(() => anonUser.linkWithCredential(any())).called(1);
+    });
+
+    test('a Firestore write failure surfaces as AssentRecordException, not swallowed', () async {
+      final mockCredential = MockUserCredential();
+      when(() => mockAuth.currentUser).thenReturn(null);
+      when(
+        () => mockAuth.createUserWithEmailAndPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockCredential.user).thenReturn(mockUser);
+      when(() => mockDoc.set(any(), any())).thenThrow(Exception('permission-denied'));
+
+      await expectLater(
+        sut.registerWithEmail('new@example.com', 'password123', assent: testAssent),
+        throwsA(isA<AssentRecordException>()),
+      );
     });
   });
 
@@ -330,6 +424,7 @@ void main() {
       final result = await sut.linkAnonymousToEmail(
         'user@example.com',
         'password123',
+        assent: testAssent,
       );
 
       expect(result, equals(mockUser));
@@ -351,6 +446,7 @@ void main() {
       final result = await sut.linkAnonymousToEmail(
         'user@example.com',
         'password123',
+        assent: testAssent,
       );
 
       expect(result, equals(mockUser));
@@ -362,7 +458,7 @@ void main() {
       ).thenThrow(FirebaseAuthException(code: 'network-request-failed'));
 
       expect(
-        () => sut.linkAnonymousToEmail('user@example.com', 'password123'),
+        () => sut.linkAnonymousToEmail('user@example.com', 'password123', assent: testAssent),
         throwsA(isA<FirebaseAuthException>()),
       );
     });
@@ -494,7 +590,7 @@ void main() {
         ),
       );
 
-      await sut.signInWithApple();
+      await sut.signInWithApple(assent: testAssent);
 
       final captured =
           verify(() => mockAuth.signInWithCredential(captureAny())).captured;
@@ -505,6 +601,31 @@ void main() {
         reason: 'rawNonce from the record must be forwarded, not authorizationCode',
       );
       expect(oauthCredential.rawNonce, isNot(equals(authorizationCode)));
+    });
+
+    test('writes the assent record for a brand new Apple sign-in', () async {
+      final mockCredential = MockUserCredential();
+      when(() => mockAuth.currentUser).thenReturn(null);
+      when(
+        () => mockAuth.signInWithCredential(any()),
+      ).thenAnswer((_) async => mockCredential);
+      when(() => mockCredential.user).thenReturn(mockUser);
+
+      sut = AuthService(
+        auth: mockAuth,
+        firestore: mockFirestore,
+        appleCredentialRequest: () async => (
+          credential: fakeAppleCredential,
+          rawNonce: rawNonce,
+        ),
+      );
+
+      await sut.signInWithApple(assent: testAssent);
+
+      final captured = verify(() => mockDoc.set(captureAny(), any())).captured;
+      final data = captured.single as Map<String, dynamic>;
+      expect(data['termsAcceptedVersion'], 'v-test-terms');
+      expect(data['privacyAcceptedVersion'], 'v-test-privacy');
     });
 
     test('linkAnonymousToApple passes rawNonce to linkWithCredential',
@@ -530,7 +651,7 @@ void main() {
         ),
       );
 
-      await sut.signInWithApple();
+      await sut.signInWithApple(assent: testAssent);
 
       final captured =
           verify(() => anonUser.linkWithCredential(captureAny())).captured;
