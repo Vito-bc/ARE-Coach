@@ -1,17 +1,22 @@
 "use strict";
 
-// Regression test for a HIGH-severity gap found in review: `.get()` (on a
-// document OR a query/collection), `.stream()`, and `Firestore.prototype.
-// getAll()` all resolve to a DocumentSnapshot/QuerySnapshot whose `.ref` the
-// real @google-cloud/firestore SDK builds from the raw, unwrapped target --
-// not from src/read_only_db.js's Proxy. Before the fix, this was a live,
-// fully-writable escape from the read-only guard, reproduced against the
-// real emulator three ways (doc.get().ref.set(), a query doc's .ref.set(),
-// and a .stream() doc's .ref.set()). Fake-based coverage of the same
-// contract lives in test/read_only_db.test.js; this file re-proves it
-// against the real SDK, since a fake can be wrong about how the SDK
-// actually builds a snapshot's `.ref` in a way a fake-only test would never
-// catch.
+// Regression test for two review-found gaps in the read-only export guard.
+// Fake-based coverage of the same contracts lives in test/read_only_db.test.js;
+// this file re-proves them against the real SDK, since a fake can be wrong
+// about SDK internals in a way a fake-only test would never catch.
+//
+// 1. (HIGH) `.get()` (on a document OR a query/collection), `.stream()`, and
+//    `Firestore.prototype.getAll()` all resolve to a DocumentSnapshot/
+//    QuerySnapshot whose `.ref` the real @google-cloud/firestore SDK builds
+//    from the raw, unwrapped target -- not from src/read_only_db.js's Proxy.
+//    Reproduced three ways (doc.get().ref.set(), a query doc's .ref.set(),
+//    a .stream() doc's .ref.set()), plus getAll().
+// 2. (MEDIUM) every wrapped reference's `.firestore` back-pointer, and a
+//    QuerySnapshot's `.query` back-pointer, hand back the RAW root
+//    Firestore/Query unless re-wrapped -- reopening batch()/bulkWriter()/
+//    etc. via one extra property access. Also: `docChanges()` is populated
+//    on a one-shot `.get()`, not only a realtime listener's snapshot, so its
+//    `.doc.ref` needs the same guard as `.docs[i].ref`.
 //
 // Run (mirrors this repo's other emulator-backed specs):
 //   npx --yes firebase-tools@15.8.0 emulators:exec --only firestore \
@@ -108,4 +113,48 @@ test("db.getAll() results are guarded even when given wrapped refs as arguments"
   assert.throws(() => snapB.ref.set({ x: 777 }), /Read-only Firestore guard/);
   assert.deepEqual(await currentValue("escape_test/g1"), { x: 1 });
   assert.deepEqual(await currentValue("escape_test/g2"), { x: 1 });
+});
+
+test("a ref's .firestore back-pointer cannot write, including re-blocking batch()", async () => {
+  await rawDb.collection("escape_test").doc("f1").set({ x: 1 });
+
+  const ref = db.collection("escape_test").doc("f1");
+  assert.throws(() => ref.firestore.batch(), /Read-only Firestore guard/);
+  assert.throws(
+    () => ref.firestore.collection("escape_test").doc("f1").set({ x: 777 }),
+    /Read-only Firestore guard/
+  );
+  assert.deepEqual(await currentValue("escape_test/f1"), { x: 1 });
+});
+
+test("a snapshot's ref.firestore back-pointer cannot write", async () => {
+  await rawDb.collection("escape_test").doc("f2").set({ x: 1 });
+
+  const snap = await db.collection("escape_test").doc("f2").get();
+  assert.throws(() => snap.ref.firestore.batch(), /Read-only Firestore guard/);
+  assert.throws(
+    () => snap.ref.firestore.collection("escape_test").doc("f2").set({ x: 777 }),
+    /Read-only Firestore guard/
+  );
+  assert.deepEqual(await currentValue("escape_test/f2"), { x: 1 });
+});
+
+test("a query snapshot's .query back-pointer cannot write", async () => {
+  await rawDb.collection("escape_test").doc("f3").set({ x: 1 });
+
+  const query = await db.collection("escape_test").get();
+  assert.throws(() => query.query.doc("f3").set({ x: 777 }), /Read-only Firestore guard/);
+  assert.deepEqual(await currentValue("escape_test/f3"), { x: 1 });
+});
+
+test("docChanges()[i].doc.ref cannot write, on a plain one-shot get() (no listener involved)", async () => {
+  await rawDb.collection("escape_test").doc("f4").set({ x: 1 });
+
+  const query = await db.collection("escape_test").get();
+  const changes = query.docChanges();
+  assert.ok(changes.length >= 1);
+  for (const change of changes) {
+    assert.throws(() => change.doc.ref.set({ x: 777 }), /Read-only Firestore guard/);
+  }
+  assert.deepEqual(await currentValue("escape_test/f4"), { x: 1 });
 });
