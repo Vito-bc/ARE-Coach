@@ -9,9 +9,25 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import '../core/legal_versions.dart';
+
 typedef AppleCredentialRequest =
     Future<({AuthorizationCredentialAppleID credential, String rawNonce})>
     Function();
+
+/// Thrown when a NEW user document could not be created with its Terms/
+/// Privacy assent fields. Deliberately not swallowed the way other
+/// `_ensureUserRecord` failures are: an authenticated user with no assent
+/// record is exactly what this mechanism exists to prevent, so callers must
+/// see this and must not treat account creation as fully successful.
+class AssentRecordException implements Exception {
+  const AssentRecordException(this.cause);
+
+  final Object cause;
+
+  @override
+  String toString() => 'Could not record Terms/Privacy assent: $cause';
+}
 
 class AuthService {
   AuthService({
@@ -48,20 +64,33 @@ class AuthService {
 
   bool get isAnonymous => _auth.currentUser?.isAnonymous ?? true;
 
-  Future<User?> ensureSignedIn() async {
+  /// [assent] is required because this is a guest-account-creation entry
+  /// point when there is no current user yet -- see registerScreen/
+  /// loginScreen's "Continue as Guest". When a session already exists this
+  /// just refreshes/no-ops the existing record; the fresh assent is unused
+  /// in that branch but still available should the document ever need
+  /// (re)creating.
+  Future<User?> ensureSignedIn({required TermsAssent assent}) async {
     if (_auth.currentUser != null) {
-      await _ensureUserRecord(_auth.currentUser!);
+      await _ensureUserRecord(_auth.currentUser!, assent: assent);
       return _auth.currentUser;
     }
-    return signInAnonymously();
+    return signInAnonymously(assent: assent);
   }
 
-  Future<User?> signInAnonymously() async {
+  Future<User?> signInAnonymously({required TermsAssent assent}) async {
     final credential = await _auth.signInAnonymously();
-    if (credential.user != null) await _ensureUserRecord(credential.user!);
+    if (credential.user != null) {
+      await _ensureUserRecord(credential.user!, assent: assent);
+    }
     return credential.user;
   }
 
+  /// Returning sign-in of an existing account. No assent parameter: this
+  /// path never creates an account, so there is no fresh checkbox to record.
+  /// If the user's document is somehow missing (should not happen in
+  /// practice), `_ensureUserRecord` skips creating one rather than
+  /// fabricating consent that was never given on this screen.
   Future<User?> signInWithEmail(String email, String password) async {
     final credential = await _auth.signInWithEmailAndPassword(
       email: email,
@@ -71,14 +100,20 @@ class AuthService {
     return credential.user;
   }
 
-  Future<User?> registerWithEmail(String email, String password) async {
+  Future<User?> registerWithEmail(
+    String email,
+    String password, {
+    required TermsAssent assent,
+  }) async {
     final isAnon = _auth.currentUser?.isAnonymous ?? false;
-    if (isAnon) return linkAnonymousToEmail(email, password);
+    if (isAnon) return linkAnonymousToEmail(email, password, assent: assent);
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email,
       password: password,
     );
-    if (credential.user != null) await _ensureUserRecord(credential.user!);
+    if (credential.user != null) {
+      await _ensureUserRecord(credential.user!, assent: assent);
+    }
     await _sendVerificationIfNeeded(credential.user);
     return credential.user;
   }
@@ -94,9 +129,9 @@ class AuthService {
     }
   }
 
-  Future<User?> signInWithApple() async {
+  Future<User?> signInWithApple({required TermsAssent assent}) async {
     final isAnon = _auth.currentUser?.isAnonymous ?? false;
-    if (isAnon) return linkAnonymousToApple();
+    if (isAnon) return linkAnonymousToApple(assent: assent);
     final (:credential, :rawNonce) =
         await (_appleCredentialRequest ?? _requestAppleCredential)();
     final oauthCredential = OAuthProvider('apple.com').credential(
@@ -104,11 +139,13 @@ class AuthService {
       rawNonce: rawNonce,
     );
     final result = await _auth.signInWithCredential(oauthCredential);
-    if (result.user != null) await _ensureUserRecord(result.user!);
+    if (result.user != null) {
+      await _ensureUserRecord(result.user!, assent: assent);
+    }
     return result.user;
   }
 
-  Future<User?> linkAnonymousToApple() async {
+  Future<User?> linkAnonymousToApple({required TermsAssent assent}) async {
     final (:credential, :rawNonce) =
         await (_appleCredentialRequest ?? _requestAppleCredential)();
     final oauthCredential = OAuthProvider('apple.com').credential(
@@ -119,19 +156,27 @@ class AuthService {
       final result = await _auth.currentUser!.linkWithCredential(
         oauthCredential,
       );
-      if (result.user != null) await _ensureUserRecord(result.user!);
+      if (result.user != null) {
+        await _ensureUserRecord(result.user!, assent: assent);
+      }
       return result.user;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'credential-already-in-use') {
         final result = await _auth.signInWithCredential(oauthCredential);
-        if (result.user != null) await _ensureUserRecord(result.user!);
+        if (result.user != null) {
+          await _ensureUserRecord(result.user!, assent: assent);
+        }
         return result.user;
       }
       rethrow;
     }
   }
 
-  Future<User?> linkAnonymousToEmail(String email, String password) async {
+  Future<User?> linkAnonymousToEmail(
+    String email,
+    String password, {
+    required TermsAssent assent,
+  }) async {
     final emailCredential = EmailAuthProvider.credential(
       email: email,
       password: password,
@@ -140,7 +185,9 @@ class AuthService {
       final result = await _auth.currentUser!.linkWithCredential(
         emailCredential,
       );
-      if (result.user != null) await _ensureUserRecord(result.user!);
+      if (result.user != null) {
+        await _ensureUserRecord(result.user!, assent: assent);
+      }
       await _sendVerificationIfNeeded(result.user);
       return result.user;
     } on FirebaseAuthException catch (e) {
@@ -150,7 +197,9 @@ class AuthService {
           email: email,
           password: password,
         );
-        if (result.user != null) await _ensureUserRecord(result.user!);
+        if (result.user != null) {
+          await _ensureUserRecord(result.user!, assent: assent);
+        }
         return result.user;
       }
       rethrow;
@@ -229,30 +278,69 @@ class AuthService {
     await _auth.signOut();
   }
 
-  Future<void> _ensureUserRecord(User user) async {
+  /// Creates the user's Firestore document on first sign-in only, and — the
+  /// entire legal point of this method — records their Terms/Privacy assent
+  /// in that same write. [assent] is null only for paths that can never
+  /// legitimately create an account (see [signInWithEmail]).
+  Future<void> _ensureUserRecord(User user, {TermsAssent? assent}) async {
     final doc = _firestore.collection('users').doc(user.uid);
+
+    bool exists;
     try {
-      final snapshot = await doc.get();
+      exists = (await doc.get()).exists;
+    } catch (error) {
+      // Can't tell whether this is a genuinely new or a returning user from
+      // a failed existence check. Assume returning: a transient read error
+      // must never block or duplicate account creation for an existing
+      // user. (Unlike the write below, there is no assent at risk here —
+      // nothing has been written yet.)
+      debugPrint('AuthService._ensureUserRecord: existence check failed: $error');
+      return;
+    }
 
-      // Returning user: there is nothing the client may write here.
-      // firestore.rules makes `email` and `lastActiveAt` server-owned (only
-      // `name` and `targetExamDate` are user-editable), and the Cloud Functions
-      // already refresh `lastActiveAt` on every request. The old code wrote
-      // them anyway, so every returning login was rejected by the rules — and
-      // the failure was swallowed by a bare `catch (_)`, so nobody ever saw it.
-      if (snapshot.exists) return;
+    // Returning user: there is nothing the client may write here.
+    // firestore.rules makes `email` and `lastActiveAt` server-owned (only
+    // `name` and `targetExamDate` are user-editable), and the Cloud Functions
+    // already refresh `lastActiveAt` on every request. The old code wrote
+    // them anyway, so every returning login was rejected by the rules — and
+    // the failure was swallowed by a bare `catch (_)`, so nobody ever saw it.
+    // Re-consent (comparing the stored *AcceptedVersion against
+    // kTermsVersion/kPrivacyVersion) is intentionally not checked here — see
+    // lib/core/legal_versions.dart.
+    if (exists) return;
 
+    if (assent == null) {
+      // No fresh assent is available on this path (a returning-login call
+      // whose Firestore document is unexpectedly missing). Recording assent
+      // is this method's entire reason for existing; writing a user document
+      // without it would be worse than not writing one at all, since it
+      // would look like a valid account with no record anyone ever agreed to
+      // the Terms or Privacy Policy. Skip creation rather than fabricate
+      // consent that was never given on this screen.
+      debugPrint(
+        'AuthService._ensureUserRecord: no document for ${user.uid} and no '
+        'assent available to record; skipping creation.',
+      );
+      return;
+    }
+
+    try {
       await doc.set({
         'email': user.email,
         'name': user.displayName,
         'role': 'free',
         'createdAt': FieldValue.serverTimestamp(),
         'lastActiveAt': FieldValue.serverTimestamp(),
+        'termsAcceptedVersion': assent.termsVersion,
+        'termsAcceptedAt': FieldValue.serverTimestamp(),
+        'privacyAcceptedVersion': assent.privacyVersion,
+        'privacyAcceptedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (error) {
-      // Still non-fatal — a failure here must not block sign-in — but it is no
-      // longer invisible the way the old bare `catch (_)` made it.
-      debugPrint('AuthService._ensureUserRecord failed: $error');
+      // Unlike the read above, this failure must surface: an unrecorded
+      // assent is the one thing this whole mechanism exists to prevent, so
+      // it must never be swallowed the way the old bare `catch (_)` did.
+      throw AssentRecordException(error);
     }
   }
 

@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
+import '../../core/legal_versions.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/terms_assent_checkbox.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -34,7 +36,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _loading = false;
   bool _obscurePassword = true;
+  // Never pre-ticked -- a pre-ticked box is not assent. Shared by the Apple
+  // and Guest actions on this screen (both create an account); the existing-
+  // account email/password Sign In button below is intentionally never
+  // gated by this.
+  bool _assented = false;
   String? _errorMessage;
+
+  static const _mustAssentMessage =
+      'Please agree to the Terms of Service and Privacy Policy to continue.';
 
   @override
   void dispose() {
@@ -43,19 +53,35 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  /// Tapping a gated action while unticked must say why, rather than being
+  /// silently inert.
+  void _explainMustAssent() {
+    setState(() => _errorMessage = _mustAssentMessage);
+  }
+
   Future<void> _handleAppleSignIn() async {
+    if (!_assented) {
+      _explainMustAssent();
+      return;
+    }
     setState(() {
       _loading = true;
       _errorMessage = null;
     });
     try {
-      await _authService.signInWithApple();
+      await _authService.signInWithApple(assent: const TermsAssent());
     } on SignInWithAppleAuthorizationException catch (e) {
       if (e.code != AuthorizationErrorCode.canceled) {
         setState(() => _errorMessage = 'Apple sign-in failed. Please try again.');
       }
     } on FirebaseAuthException catch (e) {
       setState(() => _errorMessage = _friendlyAuthError(e.code));
+    } on AssentRecordException catch (_) {
+      setState(
+        () => _errorMessage =
+            'Your account could not be fully set up because we could not save '
+            'your Terms/Privacy agreement. Please try again.',
+      );
     } catch (_) {
       setState(() => _errorMessage = 'An unexpected error occurred.');
     } finally {
@@ -84,17 +110,33 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleContinueAsGuest() async {
+    if (!_assented) {
+      _explainMustAssent();
+      return;
+    }
     setState(() {
       _loading = true;
       _errorMessage = null;
     });
     try {
-      await _authService.ensureSignedIn();
-    } catch (_) {
-      // proceed even if anonymous auth fails
-    } finally {
+      await _authService.ensureSignedIn(assent: const TermsAssent());
+    } on AssentRecordException catch (_) {
+      // Unlike a bare auth failure below, this must not be swallowed: an
+      // account may now exist with no record it ever agreed to the Terms or
+      // Privacy Policy, which is exactly what this checkbox exists to
+      // prevent. Do not proceed into the app pretending this succeeded.
+      setState(
+        () => _errorMessage =
+            'Could not save your agreement to the Terms and Privacy Policy. '
+            'Please try again.',
+      );
       if (mounted) setState(() => _loading = false);
+      return;
+    } catch (_) {
+      // Pre-existing behaviour: proceed even if anonymous auth itself fails
+      // (e.g. offline), so a guest can still explore the app.
     }
+    if (mounted) setState(() => _loading = false);
     widget.onGuestContinue?.call();
   }
 
@@ -181,6 +223,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       onGuest: _handleContinueAsGuest,
+                      assented: _assented,
+                      onAssentChanged: (v) => setState(() => _assented = v),
+                      onMustAssentTap: _explainMustAssent,
                     ),
                   ),
                 ),
@@ -293,6 +338,9 @@ class _FormCard extends StatelessWidget {
     required this.onSignIn,
     required this.onRegister,
     required this.onGuest,
+    required this.assented,
+    required this.onAssentChanged,
+    required this.onMustAssentTap,
   });
 
   final GlobalKey<FormState> formKey;
@@ -307,6 +355,12 @@ class _FormCard extends StatelessWidget {
   final VoidCallback onSignIn;
   final VoidCallback onRegister;
   final VoidCallback onGuest;
+  // Shared by the Apple and Guest actions below (both create an account);
+  // rendered twice, directly above each, so it's "impossible to miss" no
+  // matter which one the user is about to tap.
+  final bool assented;
+  final ValueChanged<bool> onAssentChanged;
+  final VoidCallback onMustAssentTap;
 
   @override
   Widget build(BuildContext context) {
@@ -322,6 +376,12 @@ class _FormCard extends StatelessWidget {
         children: [
           // Apple sign in
           if (showApple) ...[
+            TermsAssentCheckbox(value: assented, onChanged: onAssentChanged),
+            const SizedBox(height: 12),
+            // Apple's button itself is never restyled or wrapped in a way
+            // that changes its appearance -- that breaks Apple's HIG. When
+            // unticked, `onApple` (passed in from LoginScreen) explains why
+            // instead of signing in; the button's own look is untouched.
             AbsorbPointer(
               absorbing: loading,
               child: Opacity(
@@ -439,15 +499,25 @@ class _FormCard extends StatelessWidget {
 
           const SizedBox(height: 16),
 
+          TermsAssentCheckbox(value: assented, onChanged: onAssentChanged),
+          const SizedBox(height: 4),
+
           // Guest
           Center(
-            child: TextButton(
-              onPressed: loading ? null : onGuest,
-              child: const Text(
-                'Continue as Guest',
-                style: TextStyle(
-                  color: AppTheme.textSecondary,
-                  fontSize: 14,
+            child: GestureDetector(
+              // Fires only when the button beneath is genuinely disabled
+              // (onPressed: null), since a disabled Material button does not
+              // claim the tap itself -- so tapping it while unticked still
+              // says why, instead of being silently inert.
+              onTap: (!loading && !assented) ? onMustAssentTap : null,
+              child: TextButton(
+                onPressed: (loading || !assented) ? null : onGuest,
+                child: const Text(
+                  'Continue as Guest',
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ),

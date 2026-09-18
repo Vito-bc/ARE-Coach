@@ -1,8 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/legal_versions.dart';
 import '../../core/ui/app_chrome.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/terms_assent_checkbox.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, required this.firebaseReady, AuthService? authService})
@@ -25,6 +27,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _loading = false;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
+  // Never pre-ticked -- a pre-ticked box is not assent.
+  bool _assented = false;
   String? _errorMessage;
 
   @override
@@ -35,7 +39,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  static const _mustAssentMessage =
+      'Please agree to the Terms of Service and Privacy Policy to continue.';
+
+  /// Also guards the confirm-password field's `onFieldSubmitted`, which
+  /// calls this directly and would otherwise bypass the disabled button.
   Future<void> _handleRegister() async {
+    if (!_assented) {
+      setState(() => _errorMessage = _mustAssentMessage);
+      return;
+    }
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;
@@ -45,15 +58,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await _authService.registerWithEmail(
         _emailController.text.trim(),
         _passwordController.text,
+        assent: const TermsAssent(),
       );
       // StreamBuilder in main.dart handles navigation automatically
     } on FirebaseAuthException catch (e) {
       setState(() => _errorMessage = _friendlyAuthError(e.code));
+    } on AssentRecordException catch (_) {
+      // Unlike other failures, this one must not look recoverable-by-retry
+      // alone: the account may already exist in Firebase Auth with no
+      // record it ever agreed to the Terms or Privacy Policy, which is
+      // exactly what this checkbox exists to prevent.
+      setState(
+        () => _errorMessage =
+            'Your account could not be fully set up because we could not save '
+            'your Terms/Privacy agreement. Please try again.',
+      );
     } catch (_) {
       setState(() => _errorMessage = 'An unexpected error occurred.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Tapping the (visibly disabled) button while unticked must say why,
+  /// rather than being silently inert.
+  void _explainMustAssent() {
+    setState(() => _errorMessage = _mustAssentMessage);
   }
 
   String _friendlyAuthError(String code) {
@@ -263,11 +293,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       ),
                                     ),
                                   ],
-                                  const SizedBox(height: 20),
-                                  FilledButton(
-                                    onPressed:
-                                        _loading ? null : _handleRegister,
-                                    child: _loading
+                                  const SizedBox(height: 16),
+                                  TermsAssentCheckbox(
+                                    value: _assented,
+                                    onChanged: (v) =>
+                                        setState(() => _assented = v),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  GestureDetector(
+                                    // Fires only when the button beneath is
+                                    // genuinely disabled (onPressed: null),
+                                    // since a disabled Material button does
+                                    // not claim the tap itself -- so tapping
+                                    // it while unticked still says why,
+                                    // instead of being silently inert.
+                                    onTap: (!_loading && !_assented)
+                                        ? _explainMustAssent
+                                        : null,
+                                    child: FilledButton(
+                                      onPressed: (_loading || !_assented)
+                                          ? null
+                                          : _handleRegister,
+                                      child: _loading
                                         ? const SizedBox(
                                             height: 20,
                                             width: 20,
@@ -277,6 +324,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             ),
                                           )
                                         : const Text('Create Account'),
+                                    ),
                                   ),
                                 ],
                               ),
