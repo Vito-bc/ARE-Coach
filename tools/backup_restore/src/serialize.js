@@ -7,9 +7,35 @@
 // firestore.rules's `is timestamp` checks on restore, and fails equality
 // against the original on verification. Every such value is tagged with
 // `__t` so fromPortable can rebuild the exact original type.
+//
+// The same problem exists for a handful of JS number values JSON simply
+// cannot represent: JSON.stringify(NaN) / (Infinity) / (-Infinity) all
+// produce the literal `null`, and JSON.stringify(-0) produces "0" -- so
+// without special-casing them here, a document field holding one of these
+// (a legal Firestore double) would silently and undetectably become `null`
+// or `0` on restore. Ordinary finite numbers, including plain +0, are never
+// tagged -- only these four exact values are.
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isUntaggableNumber(value) {
+  return typeof value === "number" && (!Number.isFinite(value) || Object.is(value, -0));
+}
+
+function tagNumber(value) {
+  if (Number.isNaN(value)) return "NaN";
+  if (Object.is(value, -0)) return "-0";
+  return value > 0 ? "Infinity" : "-Infinity";
+}
+
+function untagNumber(tag) {
+  if (tag === "NaN") return NaN;
+  if (tag === "-0") return -0;
+  if (tag === "Infinity") return Infinity;
+  if (tag === "-Infinity") return -Infinity;
+  throw new Error(`serialize: unrecognised tagged number value ${JSON.stringify(tag)}`);
 }
 
 /**
@@ -23,6 +49,9 @@ function toPortable(value, types) {
   const { Timestamp, GeoPoint, DocumentReference } = types;
 
   if (value === null || value === undefined) return null;
+  if (isUntaggableNumber(value)) {
+    return { __t: "number", v: tagNumber(value) };
+  }
   if (value instanceof Timestamp) {
     return { __t: "timestamp", seconds: value.seconds, nanoseconds: value.nanoseconds };
   }
@@ -63,6 +92,9 @@ function fromPortable(value, types, db) {
     return value.map((v) => fromPortable(v, types, db));
   }
   if (isPlainObject(value)) {
+    if (value.__t === "number") {
+      return untagNumber(value.v);
+    }
     if (value.__t === "timestamp") {
       return new Timestamp(value.seconds, value.nanoseconds);
     }

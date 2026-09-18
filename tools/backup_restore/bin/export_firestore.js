@@ -19,6 +19,7 @@ const path = require("node:path");
 const { COVERED_COLLECTIONS, EXCLUDED_COLLECTIONS } = require("../src/collections");
 const { exportCollection, countExisting } = require("../src/tree");
 const { makeReadOnlyFirestore } = require("../src/read_only_db");
+const { assertNoAmbientEmulatorHost } = require("../src/target_guard");
 
 function parseArgs(argv) {
   const args = { out: "backups" };
@@ -40,10 +41,20 @@ function timestampDirName(now) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+
+  // The emulator is used only when THIS run says so. A stale
+  // FIRESTORE_EMULATOR_HOST left in the shell from unrelated work must
+  // never be silently inherited -- it would make this "export from
+  // production" invocation quietly read the emulator instead, producing an
+  // archive that looks fine but is actually empty or stale.
+  assertNoAmbientEmulatorHost({
+    envValue: process.env.FIRESTORE_EMULATOR_HOST,
+    explicitFlag: Boolean(args.emulatorHost),
+  });
   if (args.emulatorHost) process.env.FIRESTORE_EMULATOR_HOST = args.emulatorHost;
 
-  // Deferred so --project/--emulator-host are resolved before firebase-admin
-  // reads its environment.
+  // Deferred so --project/--emulator-host are resolved (and the check
+  // above has run) before firebase-admin reads its environment.
   const { initializeApp, cert, applicationDefault } = require("firebase-admin/app");
   const { getFirestore, Timestamp, GeoPoint, DocumentReference } = require("firebase-admin/firestore");
 

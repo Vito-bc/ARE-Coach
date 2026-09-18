@@ -31,6 +31,18 @@ production, with or without `--yes` — it is the one thing standing between a
 mistyped command and overwriting real data. Nothing else about this command is
 interactive.
 
+**If it immediately refuses with "FIRESTORE_EMULATOR_HOST is already set..."** — this
+means that exact environment variable is already set in your current shell, probably
+left over from practicing against the emulator earlier (see "Running a restore into
+the emulator" below). The tool will not guess what you meant. Either:
+- run `unset FIRESTORE_EMULATOR_HOST` (or close this shell and open a fresh one) and
+  re-run the command above, or
+- if you actually did mean to target that host, pass it back explicitly with
+  `--emulator-host <the value the error printed>`.
+
+Either way, nothing was written — this check runs before the tool ever touches
+Firestore.
+
 What this does NOT do: delete documents that exist in the target but aren't in the
 archive. If the incident is "some documents are corrupted," this restore fixes those
 document paths byte-for-byte. If the incident is "the whole project is gone," restore

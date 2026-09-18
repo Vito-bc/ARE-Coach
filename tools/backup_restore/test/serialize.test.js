@@ -83,3 +83,76 @@ test("toPortable sorts map keys, so the same input always serializes identically
   assert.deepStrictEqual(JSON.stringify(a), JSON.stringify(b));
   assert.deepStrictEqual(Object.keys(a), ["a", "b", "c"]);
 });
+
+// Plain JSON.stringify(NaN | Infinity | -Infinity) all silently produce the
+// literal `null`, and JSON.stringify(-0) produces "0" -- so without special
+// handling, a document field holding one of these (a legal Firestore
+// double) would come back as `null` or `0` after a real archive write/read,
+// not just after toPortable/fromPortable in memory. These tests go through
+// the actual JSON.stringify/JSON.parse step export_firestore.js uses, so a
+// regression that only breaks the on-disk step (and not the in-memory
+// functions) would still be caught.
+function archiveRoundTrip(value) {
+  const written = JSON.stringify(toPortable(value, types));
+  const read = JSON.parse(written);
+  return fromPortable(read, types, db);
+}
+
+test("NaN survives a full toPortable -> JSON.stringify -> JSON.parse -> fromPortable cycle", () => {
+  assert.ok(Number.isNaN(archiveRoundTrip(NaN)));
+});
+
+test("Infinity survives the full archive round trip", () => {
+  assert.equal(archiveRoundTrip(Infinity), Infinity);
+});
+
+test("-Infinity survives the full archive round trip", () => {
+  assert.equal(archiveRoundTrip(-Infinity), -Infinity);
+});
+
+test("-0 survives the full archive round trip as -0, not +0", () => {
+  // -0 === 0 is true in JS, so a plain equality assertion here would pass
+  // even with the old (buggy) behaviour of silently collapsing -0 to 0.
+  // Object.is is the one comparison that actually distinguishes them.
+  const back = archiveRoundTrip(-0);
+  assert.ok(Object.is(back, -0), `expected -0, got ${back} (Object.is(0,-0) === ${Object.is(back, 0)})`);
+});
+
+test("ordinary finite numbers, including plain +0, are never tagged", () => {
+  for (const n of [0, 1, -1, 3.14, -3.14, 1e21, Number.MAX_SAFE_INTEGER]) {
+    const portable = toPortable(n, types);
+    assert.equal(typeof portable, "number", `${n} must stay a plain JSON number, not get wrapped in a __t tag`);
+    assert.ok(Object.is(archiveRoundTrip(n), n));
+  }
+});
+
+test("NaN/Infinity/-Infinity/-0 round-trip correctly nested inside an object", () => {
+  const value = { a: NaN, b: Infinity, c: -Infinity, d: -0, e: 42 };
+  const back = archiveRoundTrip(value);
+  assert.ok(Number.isNaN(back.a));
+  assert.equal(back.b, Infinity);
+  assert.equal(back.c, -Infinity);
+  assert.ok(Object.is(back.d, -0));
+  assert.equal(back.e, 42);
+});
+
+test("NaN/Infinity/-Infinity/-0 round-trip correctly nested inside an array", () => {
+  const back = archiveRoundTrip([NaN, Infinity, -Infinity, -0, 1]);
+  assert.ok(Number.isNaN(back[0]));
+  assert.equal(back[1], Infinity);
+  assert.equal(back[2], -Infinity);
+  assert.ok(Object.is(back[3], -0));
+  assert.equal(back[4], 1);
+});
+
+test("NaN/Infinity/-Infinity/-0 round-trip correctly inside a map nested inside an array", () => {
+  const value = [
+    { readinessPercent: NaN, streak: Infinity },
+    { readinessPercent: -Infinity, offset: -0 },
+  ];
+  const back = archiveRoundTrip(value);
+  assert.ok(Number.isNaN(back[0].readinessPercent));
+  assert.equal(back[0].streak, Infinity);
+  assert.equal(back[1].readinessPercent, -Infinity);
+  assert.ok(Object.is(back[1].offset, -0));
+});

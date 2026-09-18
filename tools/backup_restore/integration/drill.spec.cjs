@@ -36,8 +36,10 @@ const { getFirestore, Timestamp } = require("firebase-admin/firestore");
 
 const { COVERED_COLLECTIONS } = require("../src/collections");
 const { exportAll, countExisting } = require("../src/tree");
+const { fromPortable } = require("../src/serialize");
 
 const PROJECT_ID = "demo-are-coach";
+const EMULATOR_HOST = "127.0.0.1:8087";
 const REPO_ROOT = path.join(__dirname, "..", "..", "..");
 const EXPORT_BIN = path.join(__dirname, "..", "bin", "export_firestore.js");
 const RESTORE_BIN = path.join(__dirname, "..", "bin", "restore_firestore.js");
@@ -48,8 +50,8 @@ const types = () => ({ Timestamp, GeoPoint: require("firebase-admin/firestore").
 before(() => {
   // Same guard as this repo's other emulator specs: refuse to run anywhere
   // that isn't unambiguously the local demo emulator.
-  if (process.env.FIRESTORE_EMULATOR_HOST !== "127.0.0.1:8087") {
-    throw new Error("Local emulator required (FIRESTORE_EMULATOR_HOST must be 127.0.0.1:8087)");
+  if (process.env.FIRESTORE_EMULATOR_HOST !== EMULATOR_HOST) {
+    throw new Error(`Local emulator required (FIRESTORE_EMULATOR_HOST must be ${EMULATOR_HOST})`);
   }
   const app = initializeApp({ projectId: PROJECT_ID }, "backup-restore-drill");
   db = getFirestore(app);
@@ -76,7 +78,7 @@ function runNode(scriptPath, args, options = {}) {
   try {
     const stdout = execFileSync(process.execPath, [scriptPath, ...args], {
       cwd: path.join(__dirname, ".."),
-      env: process.env,
+      env: options.env || process.env,
       encoding: "utf8",
       input: options.input,
     });
@@ -144,8 +146,25 @@ async function seedSyntheticData() {
   });
 
   // --- analytics/{uid}/weakTopics/{id} -----------------------------------
+  // Also carries NaN/Infinity/-Infinity/-0 (nested at a few depths) -- a
+  // legal Firestore double the JSON archive format cannot represent
+  // natively (see src/serialize.js). accuracyRate: NaN models a real shape
+  // this app could produce (a percentage computed as 0/0 when a topic has
+  // been missed but never yet attempted correctly); the rest are here
+  // purely to prove the round trip, nested in an array and in a map inside
+  // that array, not just as flat fields.
   await db.collection("analytics").doc("alice").collection("weakTopics").doc("structural").set({
-    topic: "Structural Systems", missCount: 3, lastMissedAt: t("2026-09-01T10:05:00Z"),
+    topic: "Structural Systems",
+    missCount: 3,
+    lastMissedAt: t("2026-09-01T10:05:00Z"),
+    accuracyRate: NaN,
+    bestStreak: Infinity,
+    worstDeltaFromAverage: -Infinity,
+    signedOffset: -0,
+    history: [
+      { attempt: 1, delta: NaN },
+      { attempt: 2, delta: Infinity },
+    ],
   });
 
   // --- coach_chats/{uid}/threads/{id}/messages/{id} ----------------------
@@ -196,8 +215,12 @@ test("the drill: seed -> export -> wipe -> restore -> verify equivalence", async
   assert.ok(seededCount > 0, "sanity check: the seed actually wrote something");
 
   // --- export, via the real CLI ------------------------------------------
+  // --emulator-host is passed EXPLICITLY: both CLIs now refuse to silently
+  // inherit an ambient FIRESTORE_EMULATOR_HOST (see src/target_guard.js's
+  // assertNoAmbientEmulatorHost), which emulators:exec sets in this
+  // process's own env. A real operator invocation must be just as explicit.
   const outDir = mkTmpDir("backup-drill-out-");
-  const exportResult = runNode(EXPORT_BIN, ["--project", PROJECT_ID, "--out", outDir]);
+  const exportResult = runNode(EXPORT_BIN, ["--project", PROJECT_ID, "--out", outDir, "--emulator-host", EMULATOR_HOST]);
   assert.equal(exportResult.status, 0, `export CLI failed:\n${exportResult.stderr}`);
 
   const archiveName = fs.readdirSync(outDir)[0];
@@ -217,7 +240,7 @@ test("the drill: seed -> export -> wipe -> restore -> verify equivalence", async
   assert.equal(afterWipeCount, 0, "the emulator was not actually wiped before restore");
 
   // --- restore, via the real CLI --------------------------------------------
-  const restoreResult = runNode(RESTORE_BIN, ["--archive", archiveDir, "--project", PROJECT_ID, "--yes"]);
+  const restoreResult = runNode(RESTORE_BIN, ["--archive", archiveDir, "--project", PROJECT_ID, "--yes", "--emulator-host", EMULATOR_HOST]);
   assert.equal(restoreResult.status, 0, `restore CLI failed:\n${restoreResult.stderr}`);
 
   // --- verify: field-for-field equivalence to the ORIGINAL seeded state ----
@@ -227,6 +250,27 @@ test("the drill: seed -> export -> wipe -> restore -> verify equivalence", async
     seededSnapshot,
     "restored Firestore state is not field-for-field equivalent to the seeded state"
   );
+
+  // Called out explicitly, on top of the deepStrictEqual above: this is the
+  // exact field set that used to come back as {accuracyRate: null,
+  // bestStreak: null, worstDeltaFromAverage: null, signedOffset: 0, ...}
+  // before src/serialize.js tagged non-finite/negative-zero numbers. A real
+  // Firestore round trip through the CLI archive on disk, not just an
+  // in-memory toPortable/fromPortable call.
+  //
+  // exportAll()'s tree stores the PORTABLE (tagged) shape -- e.g.
+  // {__t:"number", v:"NaN"} -- not the raw value, which is exactly why the
+  // deepStrictEqual above is a valid comparison for Timestamps etc. too. To
+  // assert on the actual real-world value here (the one that would go back
+  // onto a document), unwrap it the same way restoreCollection() does.
+  const restoredTopic = restoredSnapshot.analytics.alice.subcollections.weakTopics.structural.data;
+  const unwrap = (portable) => fromPortable(portable, types(), db);
+  assert.ok(Number.isNaN(unwrap(restoredTopic.accuracyRate)), "NaN did not survive the archive round trip");
+  assert.equal(unwrap(restoredTopic.bestStreak), Infinity, "Infinity did not survive the archive round trip");
+  assert.equal(unwrap(restoredTopic.worstDeltaFromAverage), -Infinity, "-Infinity did not survive the archive round trip");
+  assert.ok(Object.is(unwrap(restoredTopic.signedOffset), -0), "-0 did not survive the archive round trip (came back as +0)");
+  assert.ok(Number.isNaN(unwrap(restoredTopic.history[0].delta)), "NaN nested in an array-of-maps did not survive");
+  assert.equal(unwrap(restoredTopic.history[1].delta), Infinity, "Infinity nested in an array-of-maps did not survive");
 
   const restoredCount = COVERED_COLLECTIONS.reduce((sum, name) => sum + countExisting(restoredSnapshot[name]), 0);
   assert.equal(restoredCount, seededCount, "document count changed across the round trip");
@@ -245,5 +289,79 @@ test("restore CLI refuses architect-study-app without --allow-production, and ne
   const fakeArchive = mkTmpDir("backup-drill-unused-archive-");
   const result = runNode(RESTORE_BIN, ["--archive", fakeArchive, "--project", "architect-study-app"]);
   assert.notEqual(result.status, 0, "restore CLI must exit non-zero when refusing a production target");
+  assert.match(result.stderr, /Refusing to write to production/);
+});
+
+// A stale FIRESTORE_EMULATOR_HOST must never be silently inherited -- these
+// run each CLI as a real child process (not just the pure target_guard unit
+// tests) with a DELIBERATELY WRONG ambient value, so a stale variable never
+// reaches firebase-admin either. None of these need the real emulator to be
+// correct about; they just need to prove the refusal fires before anything
+// else does.
+const STALE_HOST = "203.0.113.5:9999"; // TEST-NET-3 (RFC 5737) -- guaranteed not our emulator.
+
+test("export CLI refuses to silently inherit a conflicting ambient FIRESTORE_EMULATOR_HOST", () => {
+  const outDir = mkTmpDir("backup-drill-ambient-export-");
+  const result = runNode(EXPORT_BIN, ["--project", PROJECT_ID, "--out", outDir], {
+    env: { ...process.env, FIRESTORE_EMULATOR_HOST: STALE_HOST },
+  });
+  assert.notEqual(result.status, 0, "export CLI must abort rather than silently inherit a stale FIRESTORE_EMULATOR_HOST");
+  assert.match(result.stderr, /FIRESTORE_EMULATOR_HOST is already set/);
+  assert.ok(result.stderr.includes(STALE_HOST), "error must name the actual stale value");
+  assert.equal(fs.readdirSync(outDir).length, 0, "no archive should have been written");
+});
+
+test("export CLI proceeds when --emulator-host is passed explicitly for this run", () => {
+  const outDir = mkTmpDir("backup-drill-ambient-export-ok-");
+  const result = runNode(EXPORT_BIN, ["--project", PROJECT_ID, "--out", outDir, "--emulator-host", EMULATOR_HOST], {
+    env: { ...process.env, FIRESTORE_EMULATOR_HOST: STALE_HOST },
+  });
+  assert.equal(result.status, 0, `export CLI should have proceeded once --emulator-host was explicit:\n${result.stderr}`);
+});
+
+test("restore CLI refuses to silently inherit a conflicting ambient FIRESTORE_EMULATOR_HOST for a named --project", () => {
+  const fakeArchive = mkTmpDir("backup-drill-ambient-restore-");
+  const result = runNode(RESTORE_BIN, ["--archive", fakeArchive, "--project", PROJECT_ID, "--yes"], {
+    env: { ...process.env, FIRESTORE_EMULATOR_HOST: STALE_HOST },
+  });
+  assert.notEqual(result.status, 0, "restore CLI must abort rather than silently inherit a stale FIRESTORE_EMULATOR_HOST");
+  assert.match(result.stderr, /FIRESTORE_EMULATOR_HOST is already set/);
+});
+
+test("restore CLI's no --project default still refuses a CONFLICTING ambient FIRESTORE_EMULATOR_HOST", () => {
+  const fakeArchive = mkTmpDir("backup-drill-ambient-restore-default-");
+  const result = runNode(RESTORE_BIN, ["--archive", fakeArchive, "--yes"], {
+    env: { ...process.env, FIRESTORE_EMULATOR_HOST: STALE_HOST },
+  });
+  assert.notEqual(result.status, 0, "restore CLI's own emulator default must not silently defer to a conflicting ambient host");
+  assert.match(result.stderr, /FIRESTORE_EMULATOR_HOST is already set/);
+});
+
+test("restore CLI's no --project default tolerates an ambient value that already matches the safe default", () => {
+  // Not silent inheritance: it's already exactly what this run would target
+  // anyway, so there is nothing to refuse. Actually reaches the (real,
+  // local) emulator, restoring an intentionally empty archive.
+  const fakeArchive = mkTmpDir("backup-drill-ambient-restore-match-");
+  fs.writeFileSync(
+    path.join(fakeArchive, "manifest.json"),
+    JSON.stringify({ sourceProject: "irrelevant", exportedAt: new Date().toISOString(), collections: [] })
+  );
+  const result = runNode(RESTORE_BIN, ["--archive", fakeArchive, "--yes"], {
+    env: { ...process.env, FIRESTORE_EMULATOR_HOST: EMULATOR_HOST },
+  });
+  assert.equal(result.status, 0, `restore CLI should have proceeded:\n${result.stderr}`);
+  assert.match(result.stdout, /Restore complete/);
+});
+
+test("restore CLI still refuses production for the PRODUCTION reason, even with a conflicting ambient host present", () => {
+  // Proves the ordering: assertTargetAllowed must fire before the ambient-
+  // host check, so a production target is always refused for the right,
+  // primary reason -- not accidentally masked by an unrelated env-var
+  // complaint that happens to also be true.
+  const fakeArchive = mkTmpDir("backup-drill-ambient-prod-");
+  const result = runNode(RESTORE_BIN, ["--archive", fakeArchive, "--project", "architect-study-app"], {
+    env: { ...process.env, FIRESTORE_EMULATOR_HOST: STALE_HOST },
+  });
+  assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Refusing to write to production/);
 });

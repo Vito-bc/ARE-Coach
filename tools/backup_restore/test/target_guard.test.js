@@ -2,7 +2,12 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { assertTargetAllowed, needsTypedConfirmation, PRODUCTION_PROJECT_IDS } = require("../src/target_guard");
+const {
+  assertTargetAllowed,
+  needsTypedConfirmation,
+  assertNoAmbientEmulatorHost,
+  PRODUCTION_PROJECT_IDS,
+} = require("../src/target_guard");
 
 test("PRODUCTION_PROJECT_IDS names the real project", () => {
   assert.ok(PRODUCTION_PROJECT_IDS.has("architect-study-app"));
@@ -50,4 +55,57 @@ test("needsTypedConfirmation is skippable via --yes for a non-production target"
 test("needsTypedConfirmation defaults to true (asks) for a non-production target without --yes", () => {
   assert.equal(needsTypedConfirmation({ projectId: "demo-are-coach", yes: false }), true);
   assert.equal(needsTypedConfirmation({ projectId: "demo-are-coach" }), true);
+});
+
+test("assertNoAmbientEmulatorHost allows through when nothing is set", () => {
+  assert.doesNotThrow(() => assertNoAmbientEmulatorHost({ envValue: undefined, explicitFlag: false }));
+  assert.doesNotThrow(() => assertNoAmbientEmulatorHost({ envValue: "", explicitFlag: false }));
+});
+
+test("assertNoAmbientEmulatorHost refuses to silently inherit an ambient value with no explicit flag", () => {
+  assert.throws(
+    () => assertNoAmbientEmulatorHost({ envValue: "203.0.113.5:9999", explicitFlag: false }),
+    /FIRESTORE_EMULATOR_HOST is already set/
+  );
+});
+
+test("assertNoAmbientEmulatorHost's error names the actual variable and value", () => {
+  assert.throws(
+    () => assertNoAmbientEmulatorHost({ envValue: "203.0.113.5:9999", explicitFlag: false }),
+    /203\.0\.113\.5:9999/
+  );
+});
+
+test("assertNoAmbientEmulatorHost allows an ambient value through when --emulator-host was passed explicitly", () => {
+  assert.doesNotThrow(() =>
+    assertNoAmbientEmulatorHost({ envValue: "203.0.113.5:9999", explicitFlag: true })
+  );
+});
+
+test("assertNoAmbientEmulatorHost, with an expectedDefault: tolerates an ambient value that already matches it", () => {
+  assert.doesNotThrow(() =>
+    assertNoAmbientEmulatorHost({
+      envValue: "127.0.0.1:8087",
+      explicitFlag: false,
+      expectedDefault: "127.0.0.1:8087",
+    })
+  );
+});
+
+test("assertNoAmbientEmulatorHost, with an expectedDefault: still refuses a CONFLICTING ambient value", () => {
+  assert.throws(
+    () =>
+      assertNoAmbientEmulatorHost({
+        envValue: "203.0.113.5:9999",
+        explicitFlag: false,
+        expectedDefault: "127.0.0.1:8087",
+      }),
+    /FIRESTORE_EMULATOR_HOST is already set/
+  );
+});
+
+test("assertNoAmbientEmulatorHost never fires when there is no ambient value, expectedDefault or not", () => {
+  assert.doesNotThrow(() =>
+    assertNoAmbientEmulatorHost({ envValue: undefined, explicitFlag: false, expectedDefault: "127.0.0.1:8087" })
+  );
 });

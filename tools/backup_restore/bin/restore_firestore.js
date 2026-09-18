@@ -18,7 +18,11 @@ const path = require("node:path");
 const readline = require("node:readline");
 
 const { restoreCollection, countExisting } = require("../src/tree");
-const { assertTargetAllowed, needsTypedConfirmation } = require("../src/target_guard");
+const {
+  assertTargetAllowed,
+  needsTypedConfirmation,
+  assertNoAmbientEmulatorHost,
+} = require("../src/target_guard");
 
 const DEFAULT_EMULATOR_PROJECT = "demo-are-coach";
 const DEFAULT_EMULATOR_HOST = "127.0.0.1:8087";
@@ -38,14 +42,40 @@ function parseArgs(argv) {
   return args;
 }
 
-function resolveTarget(args) {
+/** No side effects, never throws -- just what assertTargetAllowed needs. */
+function resolveProjectId(args) {
+  return args.project || DEFAULT_EMULATOR_PROJECT;
+}
+
+/**
+ * Resolves FIRESTORE_EMULATOR_HOST for this run and returns whether the
+ * target is the emulator. Called only AFTER assertTargetAllowed has already
+ * cleared the target project id, so this never gets the last word on
+ * whether writing to architect-study-app is allowed -- only on whether an
+ * ambient env var may be trusted for a target that's already been approved.
+ *
+ * The emulator (and which one) is used only when THIS run says so, via
+ * --emulator-host -- never by whatever FIRESTORE_EMULATOR_HOST happened to
+ * already be set in the shell. The one exception is the "no --project"
+ * default below: an ambient value that already matches DEFAULT_EMULATOR_HOST
+ * isn't a silent inheritance, since it's already what this run would target
+ * anyway; anything else still refuses.
+ */
+function resolveEmulatorTarget(args) {
+  const envValue = process.env.FIRESTORE_EMULATOR_HOST;
   if (args.project) {
+    assertNoAmbientEmulatorHost({ envValue, explicitFlag: Boolean(args.emulatorHost) });
     if (args.emulatorHost) process.env.FIRESTORE_EMULATOR_HOST = args.emulatorHost;
-    return { projectId: args.project, usingEmulator: Boolean(process.env.FIRESTORE_EMULATOR_HOST) };
+    return Boolean(process.env.FIRESTORE_EMULATOR_HOST);
   }
-  // Default target is the local emulator.
-  process.env.FIRESTORE_EMULATOR_HOST = args.emulatorHost || process.env.FIRESTORE_EMULATOR_HOST || DEFAULT_EMULATOR_HOST;
-  return { projectId: DEFAULT_EMULATOR_PROJECT, usingEmulator: true };
+  // Default target: the local emulator.
+  assertNoAmbientEmulatorHost({
+    envValue,
+    explicitFlag: Boolean(args.emulatorHost),
+    expectedDefault: DEFAULT_EMULATOR_HOST,
+  });
+  process.env.FIRESTORE_EMULATOR_HOST = args.emulatorHost || envValue || DEFAULT_EMULATOR_HOST;
+  return true;
 }
 
 function promptLine(question) {
@@ -58,9 +88,16 @@ function promptLine(question) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const { projectId, usingEmulator } = resolveTarget(args);
+  const projectId = resolveProjectId(args);
 
+  // The hard refusal, first and unconditionally: this must not depend on
+  // (or be pre-empted by) anything about the emulator/environment below --
+  // a production target without --allow-production is refused for that
+  // reason, even if the environment also happens to have a stale
+  // FIRESTORE_EMULATOR_HOST set.
   assertTargetAllowed({ projectId, allowProduction: args.allowProduction });
+
+  const usingEmulator = resolveEmulatorTarget(args);
 
   console.log("=".repeat(60));
   console.log(`RESTORE TARGET: ${projectId}${usingEmulator ? ` (emulator @ ${process.env.FIRESTORE_EMULATOR_HOST})` : " (REAL Firestore -- this writes real data)"}`);
