@@ -77,6 +77,32 @@ GUIDE = [
     ("body", "В колонку «REVIEW: fix / notes» пиши свободным текстом: верный ответ, верную ссылку на норму или короткий комментарий. Не надо оформлять — мы разберём."),
 ]
 
+def load_live_duplicates(dpath, qs: dict) -> dict[str, list[str]]:
+    """Partner ids from the duplicates report, per id -- but ONLY when the
+    partner still exists in the bank.
+
+    `duplicates_090.csv` predates dedup passes that remove questions from the
+    bank (src/remove_dups.py --apply). A partner already removed is not a
+    live duplicate to resolve; tagging DUPLICATE from a dead partner forces a
+    question into RED (queue_for() sends any DUPLICATE-tagged id there
+    regardless of severity) for a decision that's already been made a
+    different way. This is what re-triages such a question on its remaining
+    merits: it keeps RED only if independently severity >= 7, otherwise it
+    leaves RED entirely. See check_bank.py's check_duplicates_report_is_live
+    for the CI guard that catches this report going stale again.
+    """
+    dup: dict[str, list[str]] = {}
+    if not dpath.exists():
+        return dup
+    with dpath.open(encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            a, b, s = row["id_a"], row["id_b"], row["similarity"]
+            if a in qs and b in qs:
+                dup.setdefault(a, []).append(f"{b} ({s})")
+                dup.setdefault(b, []).append(f"{a} ({s})")
+    return dup
+
+
 def queue_for(tags: list[str], severity: float) -> str:
     """Triage a flagged question into the queue that decides WHO reviews it.
 
@@ -211,15 +237,9 @@ def main() -> None:
     }
     qs = {q.id: q for q in load_questions(config.QUESTIONS_PATH).valid}
 
-    # Duplicate partners from the 0.90 list.
-    dup: dict[str, list[str]] = {}
-    dpath = config.REPORTS_DIR / "duplicates_090.csv"
-    if dpath.exists():
-        with dpath.open(encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                a, b, s = row["id_a"], row["id_b"], row["similarity"]
-                dup.setdefault(a, []).append(f"{b} ({s})")
-                dup.setdefault(b, []).append(f"{a} ({s})")
+    # Duplicate partners from the 0.90 list -- live ones only (see
+    # load_live_duplicates()).
+    dup = load_live_duplicates(config.REPORTS_DIR / "duplicates_090.csv", qs)
 
     rows = []
     for qid, r in audit.items():

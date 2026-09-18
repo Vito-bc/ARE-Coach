@@ -10,6 +10,7 @@ Run:
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import re
 import sys
@@ -132,6 +133,47 @@ def check_answer_positions(rep: Report, qs) -> None:
         rep.ok("answer-position", f"even enough — {pretty}")
 
 
+def check_duplicates_report_is_live(rep: Report, qs) -> None:
+    """A duplicates report that outlives a dedup pass silently mis-triages.
+
+    `reports/duplicates_090.csv` predates the dedup pass that cut the bank
+    1,100 -> 1,082 (src/remove_dups.py --apply). worklist.py tags DUPLICATE
+    purely from that file, with no check that either side still exists --
+    so a stale row kept 17 already-resolved questions wrongly forced into
+    the architect's RED queue (src/worklist.py's queue_for() sends any
+    DUPLICATE-tagged question to RED regardless of severity), work that had
+    already been settled a different way. The report itself is a local,
+    gitignored artifact (not committed), so this is a no-op when it's
+    absent -- it exists to catch the file going stale the next time someone
+    has it on disk and reruns this locally, same as `worklist.py` itself
+    only tags DUPLICATE `if dpath.exists()`.
+    """
+    dpath = config.REPORTS_DIR / "duplicates_090.csv"
+    if not dpath.exists():
+        rep.ok("duplicates-report-live", "no local duplicates_090.csv to check")
+        return
+
+    ids = {q.id for q in qs}
+    stale = set()
+    with dpath.open(encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            for key in ("id_a", "id_b"):
+                rid = row.get(key)
+                if rid and rid not in ids:
+                    stale.add(rid)
+
+    if stale:
+        rep.fail(
+            "duplicates-report-live",
+            f"{len(stale)} id(s) in duplicates_090.csv no longer exist in the bank "
+            f"(removed by a dedup pass since the report was generated): "
+            f"{sorted(stale)[:5]}. Regenerate the report (src/dedupe.py) before "
+            "running `worklist.py --queue RED` again.",
+        )
+    else:
+        rep.ok("duplicates-report-live", "every id in duplicates_090.csv is still in the bank")
+
+
 def check_docs_match_bank(rep: Report, qs) -> None:
     """README once advertised 1,100 questions while the bank held 1,082."""
     n = len(qs)
@@ -164,6 +206,7 @@ def main() -> None:
         check_encoding(rep, qs)
         check_superseded_sources(rep, qs)
         check_answer_positions(rep, qs)
+        check_duplicates_report_is_live(rep, qs)
         check_docs_match_bank(rep, qs)
 
     for line in rep.notes:
