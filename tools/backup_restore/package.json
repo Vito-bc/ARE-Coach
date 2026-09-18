@@ -1,0 +1,17 @@
+{
+  "name": "are-coach-backup-restore",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline Firestore backup/restore tooling for ARE Coach. Not deployed; not a Cloud Function. See docs/BACKUP_RESTORE.md.",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "export": "node bin/export_firestore.js",
+    "restore": "node bin/restore_firestore.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.7.0"
+  }
+}
